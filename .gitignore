@@ -2,6 +2,7 @@ tr4cking
 backend/.env
 backend/.venv/
 backend/__pycache__/
-web_ui/web/node_modules
+node_modules
 web_ui/web/public/
 web_ui/web/.gitignore
+.vscode
