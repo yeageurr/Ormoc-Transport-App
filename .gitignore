@@ -6,3 +6,4 @@ node_modules
 web_ui/web/public/
 web_ui/web/.gitignore
 .vscode
+tests.py
