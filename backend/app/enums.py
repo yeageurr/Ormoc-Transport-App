@@ -1,57 +1,59 @@
-
-class UserRole():
-  ADMIN: str = "administrator"
-  DRIVER: str  = "driver"
+import enum
 
 
-class AccountStatus():
-  ACTIVE: str = "active"
-  SUSPENDED: str = "suspended"
-  DISABLED: str = "disabled"
+class AccountStatus(str, enum.Enum):
+  ACTIVE = "active"
+  SUSPENDED = "suspended"
+  DISABLED = "disabled"
 
 
-class VehicleCondition():
-  NEW: str = "new"
-  OPERATIONAL: str = "operational"
-  UNDER_MAINTENANCE: str = "under maintenance"
+class AccountRole(str, enum.Enum):
+  ADMIN = "admin"
+  DRIVER = "driver"
 
 
-class VehicleActivityStatus():
-  ACTIVE: str = "active"
-  LOADING: str = "loading"
-  ONROUTE: str = "on route"
+class VehicleCondition(str, enum.Enum):
+  NEW = "new"
+  OPERATIONAL = "operational"
+  UNDER_MAINTENANCE = "under_maintenance"
 
 
-class GeofenceEventTypes():
-  ENTER: str = "enter"
-  EXIT: str = "exit"
+class VehicleActivityStatus(str, enum.Enum):
+  ACTIVE = "active"
+  LOADING = "loading"
+  ON_ROUTE = "on-route"
 
 
-class NotificationType():
-  SUSPENSION: str = "suspension"
-  WARNING: str = "warning"
-  UPDATED: str = "updated"
+class TripStatus(str, enum.Enum):
+  OUTGOING = "outgoing"
+  RETURNING = "returning"
+  COMPLETED = "completed"
 
 
-class BroadcastNotificationType():
-  PASSENGER_QUEUE: str = "passenger queue"
-  INCIDENT: str = "incident"
+class GeofenceEventType(str, enum.Enum):
+  ENTER = "enter"
+  EXIT = "exit"
 
 
-class TripStatus():
-  OUTGOING: str = "outgoing"
-  RETURNING: str = "returning"
-  COMPLETED: str = "completed"
+class NotificationType(str, enum.Enum):
+  SUSPENSION = "suspension"
+  WARNING = "warning"
+  UPDATED = "updated"
 
 
-class IncidentType():
-  VEHICLE_BREAKDOWN: str = "vehicle breakdown"
-  FLOODED_ROAD: str = "flooded road"
-  CRIME_INCIDENT: str = "crime incident"
-  ROAD_ACCIDENT: str = "road accident"
+class BroadcastType(str, enum.Enum):
+  PASSENGER_QUEUE = "passenger_queue"
+  INCIDENT = "incident"
 
 
-class IncidentStatus():
-  OPEN: str = "open"
-  RESOLVED: str = "resolved"
-  UNDER_REVIEW: str = "under review"
+class IncidentType(str, enum.Enum):
+  VEHICLE_BREAKDOWN = "vehicle_breakdown"
+  FLOODED_ROAD = "flooded_road"
+  CRIME_INCIDENT = "crime_incident"
+  ROAD_ACCIDENT = "road_accident"
+
+
+class IncidentStatus(str, enum.Enum):
+  OPEN = "open"
+  UNDER_REVIEW = "under_review"
+  RESOLVED = "resolved"
