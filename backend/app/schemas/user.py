@@ -35,7 +35,7 @@ class UserBase(BaseModel):
 class DriverCreate(UserBase):
   """Admin-facing form to create a new driver — creates both the
   Account (auth) and User (profile) rows together."""
-  password: str  # temp password, forces change on first login
+  password: str
 
 
 class UserResponse(UserBase):

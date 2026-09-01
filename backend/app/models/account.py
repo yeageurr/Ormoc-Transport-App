@@ -32,9 +32,10 @@ class Account(Base):
   must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
+  # Relationships
   user: Mapped["User"] = relationship(back_populates="account", uselist=False)
   terminal: Mapped["Terminal"] = relationship(back_populates="admin", uselist=False)
   notifications: Mapped[list["Notification"]] = relationship(back_populates="recipient")
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="admin")
-  incidents_updated: Mapped[list["Incident"]] = relationship(back_populates="updated_by_account")
+  incidents_updated: Mapped[list["Incident"]] = relationship(back_populates="updated_by_account", foreign_keys="Incident.updated_by")
   audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="actor")

@@ -28,7 +28,7 @@ class Incident(Base):
   reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
-  resolved_by: Mapped[int | None] = mapped_column(ForeignKey("users.user_id"))
+  resolved_by: Mapped[int | None] = mapped_column(ForeignKey("accounts.account_id"))
   resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
   updated_by: Mapped[int | None] = mapped_column(ForeignKey("accounts.account_id"))
   updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
