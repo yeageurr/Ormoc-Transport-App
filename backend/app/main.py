@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from app.routers import auth, accounts, vehicles, dispatch, trips, gps, incidents, geofence
+from app.routers import auth, accounts, vehicles, dispatch, trips, gps, incidents, geofence, notifications
 from app.websocket import ws_router
 
 load_dotenv()
@@ -44,3 +44,4 @@ app.include_router(gps.router, prefix="/gps", tags=["gps"])
 app.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
 app.include_router(geofence.router, prefix="/geofence", tags=["geofence"])
 app.include_router(ws_router.router, tags=["websocket"])
+app.include_router(notifications.router, prefix="/notifications", tags=["notifications"])

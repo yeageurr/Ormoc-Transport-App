@@ -21,53 +21,61 @@ def generate_temp_password(length: int = 10) -> str:
 
 
 @router.post("/drivers", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_driver(payload: DriverCreate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
+def create_driver(payload: DriverCreate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)),):
+  """Admin creates a driver — username is the driver's phone number,
+  per the decision that drivers log in with contact_number as username."""
+
   existing_account = db.query(Account).filter(Account.username == payload.contact_number).first()
   if existing_account:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail="An account with this contact number already exists.",
+      detail="An account with this contact number already exists",
     )
 
   existing_license = db.query(User).filter(User.license_num == payload.license_num).first()
   if existing_license:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail="A driver with this license number already exists.",
+      detail="A driver with this license number already exists",
     )
 
   temp_password = payload.password or generate_temp_password()
 
   account = Account(
-    username = payload.contact_number,
-    password_hash = hash_password(temp_password),
-    role = AccountRole.DRIVER,
-    status = AccountStatus.ACTIVE,
-    must_change_password = True,
+    username=payload.contact_number,
+    password_hash=hash_password(temp_password),
+    role=AccountRole.DRIVER,
+    status=AccountStatus.ACTIVE,
+    must_change_password=True,
   )
   db.add(account)
   db.flush()
 
   driver = User(
-    account_id = account.account_id,
-    first_name = payload.first_name,
-    last_name = payload.last_name,
-    contact_number = payload.contact_number,
-    email = payload.email,
-    license_num = payload.license_num,
-    license_expiry = payload.license_expiry,
+    account_id=account.account_id,
+    first_name=payload.first_name,
+    last_name=payload.last_name,
+    contact_number=payload.contact_number,
+    email=payload.email,
+    license_num=payload.license_num,
+    license_expiry=payload.license_expiry,
   )
   db.add(driver)
   db.commit()
   db.refresh(driver)
 
+  # In a real deployment this would be relayed to the admin creating the
+  # account (e.g. displayed once in the UI), not returned in the API response.
   print(f"[seed] Temp password for {payload.contact_number}: {temp_password}")
 
   return driver
 
 
 @router.get("/drivers", response_model=list[UserResponse])
-def list_drivers(db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)), ):
+def list_drivers(
+  db: Session = Depends(get_db),
+  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+):
   return (
     db.query(User)
     .join(Account)
@@ -78,13 +86,26 @@ def list_drivers(db: Session = Depends(get_db), current_admin: Account = Depends
 
 
 @router.patch("/drivers/{user_id}/suspend")
-def suspend_driver(user_id: int, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
+async def suspend_driver(
+  user_id: int,
+  db: Session = Depends(get_db),
+  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+):
   driver = db.query(User).filter(User.user_id == user_id).first()
   if driver is None:
     raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND,
+      status_code=status.HTTP_404_NOT_FOUND, 
       detail="Driver not found"
     )
 
   driver.account.status = AccountStatus.SUSPENDED
   db.commit()
+
+  from app.routers.notifications import send_targeted_notification
+  from app.enums import NotificationType
+  await send_targeted_notification(
+    db, driver.account_id, NotificationType.SUSPENSION,
+    "Your account has been suspended. Contact the terminal admin for details.",
+  )
+
+  return {"detail": f"Driver {driver.first_name} {driver.last_name} has been suspended"}

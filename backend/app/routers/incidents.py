@@ -15,7 +15,7 @@ router = APIRouter()
 
 
 @router.post("", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
-def report_incident(
+async def report_incident(
   payload: IncidentCreate,
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
@@ -49,8 +49,10 @@ def report_incident(
   db.commit()
   db.refresh(incident)
 
-  # TODO once notifications/broadcast logic exists: trigger a route-scoped
-  # broadcast_notification to other drivers on the same route.
+  from app.routers.notifications import send_route_broadcast
+  from app.enums import BroadcastType
+  route_id = trip.dispatch_log.route_id
+  await send_route_broadcast(db, BroadcastType.INCIDENT, terminal_id=None, route_id=route_id)
 
   return incident
 
