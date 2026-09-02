@@ -30,11 +30,20 @@ class VehicleUpdate(BaseModel):
   registry_expiration: datetime | None = None
 
 
+class VehicleOwnerSummary(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  user_id: int
+  first_name: str
+  last_name: str
+
+
 class VehicleResponse(VehicleBase):
   model_config = ConfigDict(from_attributes=True)
 
   vehicle_id: int
   owner_id: int
+  owner: VehicleOwnerSummary | None = None
   condition: VehicleCondition
   activity_status: VehicleActivityStatus
   is_registered: bool

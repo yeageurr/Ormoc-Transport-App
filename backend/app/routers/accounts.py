@@ -64,6 +64,12 @@ def create_driver(payload: DriverCreate, db: Session = Depends(get_db), current_
   db.commit()
   db.refresh(driver)
 
+  from app.services.audit_service import log_action
+  log_action(
+    db, current_admin.account_id, "users", driver.user_id,
+    f"Created driver account for {payload.first_name} {payload.last_name} ({payload.contact_number})",
+   )
+
   # In a real deployment this would be relayed to the admin creating the
   # account (e.g. displayed once in the UI), not returned in the API response.
   print(f"[seed] Temp password for {payload.contact_number}: {temp_password}")
@@ -100,6 +106,12 @@ async def suspend_driver(
 
   driver.account.status = AccountStatus.SUSPENDED
   db.commit()
+
+  from app.services.audit_service import log_action
+  log_action(
+    db, current_admin.account_id, "accounts", driver.account_id,
+    f"Suspended driver account for {driver.first_name} {driver.last_name}",
+  )
 
   from app.routers.notifications import send_targeted_notification
   from app.enums import NotificationType

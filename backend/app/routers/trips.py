@@ -10,7 +10,7 @@ from app.models.dispatch_log import DispatchLog
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
 from app.models.gps_log import GpsLog
-from app.schemas.trip import TripStart, TripResponse
+from app.schemas.trip import TripStart, TripResponse, AdminTripResponse, TripDriverSummary
 from app.core.permissions import require_role, get_current_account
 from app.enums import AccountRole, TripStatus, VehicleActivityStatus
 
@@ -18,14 +18,18 @@ router = APIRouter()
 
 
 @router.post("/start", response_model=TripResponse, status_code=status.HTTP_201_CREATED)
-def start_trip(payload: TripStart, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)),):
+def start_trip(
+  payload: TripStart,
+  db: Session = Depends(get_db),
+  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Driver taps 'Start Trip'. Requires the vehicle's activity_status to
+  already be 'loading' — geofence dwell detection sets that, this button
+  press is the explicit driver confirmation that actually moves it on-route."""
 
   dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == payload.dispatch_id).first()
   if dispatch is None:
-    raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND, 
-      detail="Dispatch entry not found"
-    )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispatch entry not found")
 
   if dispatch.driver.account_id != current_driver.account_id:
     raise HTTPException(
@@ -65,6 +69,9 @@ def end_trip(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
+  """Driver taps 'End Trip'. Computes average_speed_km from gps_logs
+  (once, here — this is a cached calculation, not recomputed on every read),
+  sets is_complete, and returns the vehicle to 'loading' for the next leg."""
 
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
   if trip is None:
@@ -131,3 +138,36 @@ def list_my_trips(
     .order_by(Trip.time_departed.desc())
     .all()
   )
+
+
+@router.get("", response_model=list[AdminTripResponse])
+def list_all_trips(
+  db: Session = Depends(get_db),
+  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+):
+  """Admin-wide Trip Logs table — embeds driver name and route directly,
+  since the admin view needs to show 'who' and 'where' at a glance."""
+  trips = db.query(Trip).order_by(Trip.time_departed.desc()).all()
+
+  results = []
+  for trip in trips:
+    dispatch = trip.dispatch_log
+    driver = dispatch.driver if dispatch else None
+    route = dispatch.route if dispatch else None
+
+    results.append(AdminTripResponse(
+      trip_id=trip.trip_id,
+      dispatch_id=trip.dispatch_id,
+      status=trip.status,
+      time_departed=trip.time_departed,
+      time_arrived=trip.time_arrived,
+      trip_duration_minutes=trip.trip_duration_minutes,
+      average_speed_km=trip.average_speed_km,
+      is_complete=trip.is_complete,
+      driver=TripDriverSummary(
+        user_id=driver.user_id, first_name=driver.first_name, last_name=driver.last_name
+      ) if driver else None,
+      route_label=route.destination.name if route and route.destination else None,
+    ))
+
+  return results
