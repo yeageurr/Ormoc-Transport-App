@@ -10,6 +10,8 @@ from app.models.incident_log import Incident
 from app.schemas.incident import IncidentCreate, IncidentUpdate, IncidentResponse, IncidentReporterSummary, IncidentRouteSummary
 from app.core.permissions import require_role, get_current_account
 from app.enums import AccountRole, IncidentStatus
+from app.services.audit_service import log_action
+from app.enums import AuditAction
 
 router = APIRouter()
 
@@ -37,13 +39,7 @@ def _build_incident_response(incident: Incident) -> IncidentResponse:
 
 
 @router.post("", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
-async def report_incident(
-  payload: IncidentCreate,
-  db: Session = Depends(get_db),
-  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
-):
-  """Driver reports an incident during a trip. reported_by is derived
-  server-side from the current driver — never trusted from the client."""
+async def report_incident(payload: IncidentCreate, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)), ):
 
   trip = db.query(Trip).filter(Trip.trip_id == payload.trip_id).first()
   if trip is None:
@@ -93,7 +89,10 @@ def get_incident(
 ):
   incident = db.query(Incident).filter(Incident.incident_id == incident_id).first()
   if incident is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND,
+      detail="Incident not found"
+    )
   return _build_incident_response(incident)
 
 
@@ -109,15 +108,20 @@ def update_incident(
 
   incident = db.query(Incident).filter(Incident.incident_id == incident_id).first()
   if incident is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND,
+      detail="Incident not found"
+    )
 
   update_data = payload.model_dump(exclude_unset=True)
+  is_resolving = False
 
   if "status" in update_data:
     new_status = update_data["status"]
     if new_status == IncidentStatus.RESOLVED and incident.status != IncidentStatus.RESOLVED:
       incident.resolved_by = current_admin.account_id
       incident.resolved_at = datetime.now(timezone.utc)
+      is_resolving = True
 
   for field, value in update_data.items():
     setattr(incident, field, value)
@@ -127,5 +131,12 @@ def update_incident(
 
   db.commit()
   db.refresh(incident)
+
+  log_action(
+    db, current_admin.account_id,
+    AuditAction.RESOLVE if is_resolving else AuditAction.UPDATE,
+    "incidents", incident.incident_id,
+    f"{'Resolved' if is_resolving else 'Updated'} incident #{incident.incident_id} ({incident.incident_type.value})",
+  )
 
   return _build_incident_response(incident)

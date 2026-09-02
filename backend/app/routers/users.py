@@ -18,9 +18,8 @@ def get_my_profile(db: Session = Depends(get_db), current_account: Account = Dep
   if user is None:
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND,
-      details="No profile linked to this account (admin accounts don't have a User row)",
+      detail="No profile linked to this account (admin accounts don't have a User row)"
     )
-
   return user
 
 
@@ -42,7 +41,8 @@ def update_my_profile(payload: UserUpdate, db: Session = Depends(get_db), curren
   db.commit()
   db.refresh(user)
 
-  log_action(db, current_account.account_id, "users", user.user_id, "Updated own profile")
+  from app.enums import AuditAction
+  log_action(db, current_account.account_id, AuditAction.UPDATE, "users", user.user_id, "Updated own profile")
   return user
 
 
@@ -55,5 +55,4 @@ def get_user(user_id: int, db: Session = Depends(get_db), current_admin: Account
       status_code=status.HTTP_404_NOT_FOUND,
       detail="User not found"
     )
-
   return user

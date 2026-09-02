@@ -21,7 +21,11 @@ def generate_temp_password(length: int = 10) -> str:
 
 
 @router.post("/drivers", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_driver(payload: DriverCreate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)),):
+def create_driver(
+  payload: DriverCreate,
+  db: Session = Depends(get_db),
+  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+):
   """Admin creates a driver — username is the driver's phone number,
   per the decision that drivers log in with contact_number as username."""
 
@@ -49,7 +53,7 @@ def create_driver(payload: DriverCreate, db: Session = Depends(get_db), current_
     must_change_password=True,
   )
   db.add(account)
-  db.flush()
+  db.flush()  # get account.account_id before creating the linked User row
 
   driver = User(
     account_id=account.account_id,
@@ -65,10 +69,11 @@ def create_driver(payload: DriverCreate, db: Session = Depends(get_db), current_
   db.refresh(driver)
 
   from app.services.audit_service import log_action
+  from app.enums import AuditAction
   log_action(
-    db, current_admin.account_id, "users", driver.user_id,
+    db, current_admin.account_id, AuditAction.CREATE, "users", driver.user_id,
     f"Created driver account for {payload.first_name} {payload.last_name} ({payload.contact_number})",
-   )
+  )
 
   # In a real deployment this would be relayed to the admin creating the
   # account (e.g. displayed once in the UI), not returned in the API response.
@@ -99,17 +104,15 @@ async def suspend_driver(
 ):
   driver = db.query(User).filter(User.user_id == user_id).first()
   if driver is None:
-    raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND, 
-      detail="Driver not found"
-    )
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
 
   driver.account.status = AccountStatus.SUSPENDED
   db.commit()
 
   from app.services.audit_service import log_action
+  from app.enums import AuditAction
   log_action(
-    db, current_admin.account_id, "accounts", driver.account_id,
+    db, current_admin.account_id, AuditAction.SUSPEND, "accounts", driver.account_id,
     f"Suspended driver account for {driver.first_name} {driver.last_name}",
   )
 
