@@ -1,7 +1,7 @@
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
-from app.enums import GeofenceEventType
+from app.enums import GeofenceEventType, AuditAction
 
 
 class GeofenceEventResponse(BaseModel):
@@ -19,6 +19,7 @@ class AuditLogResponse(BaseModel):
 
   audit_id: int
   actor_id: int
+  action: AuditAction
   target_table: str
   target_id: int
   details: str
