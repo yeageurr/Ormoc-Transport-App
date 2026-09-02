@@ -35,6 +35,14 @@ class GeofenceEventType(str, enum.Enum):
   EXIT = "exit"
 
 
+class AuditAction(str, enum.Enum):
+  CREATE = "create"
+  UPDATE = "update"
+  SUSPEND = "suspend"
+  RESOLVE = "resolve"
+  DELETE = "delete"
+
+
 class NotificationType(str, enum.Enum):
   SUSPENSION = "suspension"
   WARNING = "warning"
