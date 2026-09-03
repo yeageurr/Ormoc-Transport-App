@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from app.routers import auth, accounts, vehicles, dispatch, trips, gps, incidents, geofence, notifications, audit_logs, terminals, dashboard
 from app.websocket import ws_router
+from app.core.exceptions import register_exception_handlers
 
 load_dotenv()
 
@@ -24,6 +25,8 @@ app.add_middleware(
   allow_headers=["*"],
   allow_methods=["*"]
 )
+
+register_exception_handlers(app)
 
 @app.get("/")
 def root():
