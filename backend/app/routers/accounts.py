@@ -4,13 +4,16 @@ import string
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.routers.notifications import send_targeted_notification
+
 from app.database import get_db
 from app.models.account import Account
 from app.models.user import User
-from app.schemas.user import DriverCreate, UserResponse
+from app.schemas.user import DriverCreate, DriverAdminUpdate, UserResponse
 from app.core.security import hash_password
 from app.core.permissions import require_role
-from app.enums import AccountRole, AccountStatus
+from app.enums import AccountRole, AccountStatus, AuditAction, NotificationType
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -21,13 +24,7 @@ def generate_temp_password(length: int = 10) -> str:
 
 
 @router.post("/drivers", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def create_driver(
-  payload: DriverCreate,
-  db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
-):
-  """Admin creates a driver — username is the driver's phone number,
-  per the decision that drivers log in with contact_number as username."""
+def create_driver(payload: DriverCreate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)), ):
 
   existing_account = db.query(Account).filter(Account.username == payload.contact_number).first()
   if existing_account:
@@ -68,8 +65,7 @@ def create_driver(
   db.commit()
   db.refresh(driver)
 
-  from app.services.audit_service import log_action
-  from app.enums import AuditAction
+
   log_action(
     db, current_admin.account_id, AuditAction.CREATE, "users", driver.user_id,
     f"Created driver account for {payload.first_name} {payload.last_name} ({payload.contact_number})",
@@ -83,10 +79,7 @@ def create_driver(
 
 
 @router.get("/drivers", response_model=list[UserResponse])
-def list_drivers(
-  db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
-):
+def list_drivers(db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)),):
   return (
     db.query(User)
     .join(Account)
@@ -97,30 +90,124 @@ def list_drivers(
 
 
 @router.patch("/drivers/{user_id}/suspend")
-async def suspend_driver(
-  user_id: int,
-  db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
-):
+async def suspend_driver(user_id: int, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)),):
   driver = db.query(User).filter(User.user_id == user_id).first()
   if driver is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND,
+      detail="Driver not found"
+    )
 
   driver.account.status = AccountStatus.SUSPENDED
   db.commit()
 
-  from app.services.audit_service import log_action
-  from app.enums import AuditAction
+
   log_action(
     db, current_admin.account_id, AuditAction.SUSPEND, "accounts", driver.account_id,
     f"Suspended driver account for {driver.first_name} {driver.last_name}",
   )
 
-  from app.routers.notifications import send_targeted_notification
-  from app.enums import NotificationType
   await send_targeted_notification(
     db, driver.account_id, NotificationType.SUSPENSION,
     "Your account has been suspended. Contact the terminal admin for details.",
   )
 
   return {"detail": f"Driver {driver.first_name} {driver.last_name} has been suspended"}
+
+
+@router.patch("/drivers/{user_id}/reactivate")
+async def reactivate_driver(user_id: int, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)), ):
+
+  driver = db.query(User).filter(User.user_id == user_id).first()
+  if driver is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
+
+  if driver.account.status != AccountStatus.SUSPENDED:
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=f"Driver is currently '{driver.account.status.value}', not suspended — nothing to reactivate",
+    )
+
+  driver.account.status = AccountStatus.ACTIVE
+  db.commit()
+
+  log_action(
+    db, current_admin.account_id, AuditAction.UPDATE, "accounts", driver.account_id,
+    f"Reactivated driver account for {driver.first_name} {driver.last_name}",
+  )
+
+  await send_targeted_notification(
+    db, driver.account_id, NotificationType.SUSPENSION,
+    "Your account has been reactivated. You may now log in normally.",
+  )
+
+  return {"detail": f"Driver {driver.first_name} {driver.last_name} has been reactivated"}
+
+
+@router.patch("/drivers/{user_id}", response_model=UserResponse)
+def admin_update_driver(user_id: int, payload: DriverAdminUpdate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)),):
+
+  driver = db.query(User).filter(User.user_id == user_id).first()
+  if driver is None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND,
+      detail="Driver not found"
+    )
+
+  update_data = payload.model_dump(exclude_unset=True)
+
+  if "contact_number" in update_data and update_data["contact_number"] != driver.contact_number:
+    existing = db.query(Account).filter(Account.username == update_data["contact_number"]).first()
+    if existing:
+      raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Contact number already in use"
+      )
+    driver.account.username = update_data["contact_number"]
+
+  if "license_num" in update_data and update_data["license_num"] != driver.license_num:
+    existing = db.query(User).filter(User.license_num == update_data["license_num"]).first()
+    if existing:
+      raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="License number already in use"
+      )
+
+  for field, value in update_data.items():
+    setattr(driver, field, value)
+
+  db.commit()
+  db.refresh(driver)
+
+
+  log_action(
+    db, current_admin.account_id, AuditAction.UPDATE, "users", driver.user_id,
+    f"Updated driver profile for {driver.first_name} {driver.last_name}",
+  )
+
+  return driver
+
+
+@router.delete("/drivers/{user_id}")
+def delete_driver(user_id: int, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN)), ):
+  """Soft-delete only — flips status to DISABLED rather than actually
+  removing the row, preserving historical dispatch/trip/incident records
+  tied to this driver via FK. Matches the disabled/suspended distinction
+  established earlier: disabled = permanent, not expected to come back."""
+  driver = db.query(User).filter(User.user_id == user_id).first()
+  if driver is None:
+    raise HTTPException(
+      status_code=status.HTTP_404_NOT_FOUND,
+      detail="Driver not found"
+    )
+
+  driver.account.status = AccountStatus.DISABLED
+  db.commit()
+
+
+  log_action(
+    db, current_admin.account_id, AuditAction.DELETE, "accounts", driver.account_id,
+    f"Disabled (soft-deleted) driver account for {driver.first_name} {driver.last_name}",
+  )
+
+  return {"detail": f"Driver {driver.first_name} {driver.last_name} has been disabled"}
