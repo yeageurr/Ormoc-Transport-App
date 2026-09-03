@@ -30,3 +30,5 @@ class User(Base):
   account: Mapped["Account"] = relationship(back_populates="user")
   vehicle: Mapped["Vehicle"] = relationship(back_populates="owner", uselist=False)
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="driver")
+  incidents: Mapped[list["Incident"]] = relationship(back_populates="reported_by_user")
+  

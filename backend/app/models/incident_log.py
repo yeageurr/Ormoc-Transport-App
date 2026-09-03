@@ -35,6 +35,6 @@ class Incident(Base):
 
 
   trip: Mapped["Trip"] = relationship(back_populates="incidents")
-  reported_by_user: Mapped["User"] = relationship(foreign_keys=[reported_by])
-  resolved_by_user: Mapped["User"] = relationship(foreign_keys=[resolved_by], back_populates="incidents_resolved")
+  reported_by_user: Mapped["User"] = relationship(foreign_keys=[reported_by], back_populates="incidents")
+  resolved_by_user: Mapped["Account"] = relationship(foreign_keys=[resolved_by], back_populates="incidents_resolved")
   updated_by_account: Mapped["Account"] = relationship(foreign_keys=[updated_by], back_populates="incidents_updated")

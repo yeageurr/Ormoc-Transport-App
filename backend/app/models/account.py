@@ -39,3 +39,4 @@ class Account(Base):
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="admin")
   incidents_updated: Mapped[list["Incident"]] = relationship(back_populates="updated_by_account", foreign_keys="Incident.updated_by")
   audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="actor")
+  incidents_resolved: Mapped[list["Incident"]] = relationship(back_populates="resolved_by_user", foreign_keys="Incident.resolved_by")

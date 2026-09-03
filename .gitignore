@@ -8,3 +8,4 @@ web_ui/web/.gitignore
 .vscode
 tests.py
 .env
+.gitignore
