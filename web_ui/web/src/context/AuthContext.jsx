@@ -1,49 +1,44 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { login as loginApi } from "../api/authAPI";
+import { login as loginApi, logout as logoutApi, getCurrentUser } from "../api/authAPI";
 
 const AuthContext = createContext(null);
-
-function decodeToken(token) {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload; // { account_id, role, exp }
-  } catch {
-    return null;
-  }
-}
 
 export function AuthProvider({ children }) {
   const [account, setAccount] = useState(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      const decoded = decodeToken(token);
-      // Reject an expired token immediately rather than trusting stale state
-      if (decoded && decoded.exp * 1000 > Date.now()) {
-        setAccount(decoded);
-      } else {
-        localStorage.removeItem("access_token");
+    const verifySession = async () => {
+      try {
+        const userData = await getCurrentUser();
+        setAccount(userData);
+      } catch (err) {
+        setAccount(null);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    verifySession();
   }, []);
 
   const login = async (username, password) => {
     const data = await loginApi(username, password);
-    localStorage.setItem("access_token", data.access_token);
-    const decoded = decodeToken(data.access_token);
-    setAccount(decoded);
+
+    setAccount(data.user);
     setMustChangePassword(data.must_change_password);
     return data;
   };
 
-  const logout = () => {
-    localStorage.removeItem("access_token");
-    setAccount(null);
-    setMustChangePassword(false);
+  const logout = async () => {
+    try {
+      await logoutApi();
+    } finally {
+      setAccount(null);
+      setMustChangePassword(false);
+    }
   };
 
   return (

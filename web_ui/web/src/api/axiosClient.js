@@ -7,27 +7,14 @@ const axiosClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, 
 });
-
-// Attach the stored JWT to every outgoing request, if present
-axiosClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem("access_token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Unwrap the backend's {"error": {code, message, details}} shape into
-// something components can read directly off err.message / err.details,
-// and force a logout on any 401 (expired/invalid token).
 axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
     const backendError = error.response?.data?.error;
 
     if (error.response?.status === 401) {
-      localStorage.removeItem("access_token");
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }

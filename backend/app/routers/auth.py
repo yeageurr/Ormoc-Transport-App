@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.account import Account
-from app.schemas.auth import LoginRequest, TokenResponse, ChangePasswordRequest
+from app.schemas.auth import LoginRequest, ChangePasswordRequest
 from app.core.security import verify_password, hash_password, create_access_token
 from app.core.permissions import get_current_account
 from app.enums import AccountStatus
@@ -13,12 +13,14 @@ from app.enums import AccountStatus
 router = APIRouter()
 
 
-@router.post("/login", response_model=TokenResponse)
-def login(credentials: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/login")
+def login(
+  credentials: LoginRequest, 
+  response: Response, 
+  db: Session = Depends(get_db)
+):
   account = db.query(Account).filter(Account.username == credentials.username).first()
 
-  # Generic error message deliberately — don't reveal whether the
-  # username exists or the password was wrong (prevents enumeration).
   invalid_credentials = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Invalid username or password",
@@ -41,10 +43,40 @@ def login(credentials: LoginRequest, db: Session = Depends(get_db)):
 
   token = create_access_token(account_id=account.account_id, role=account.role)
 
-  return TokenResponse(
-    access_token=token,
-    must_change_password=account.must_change_password,
+  response.set_cookie(
+    key="access_token",
+    value=f"Bearer {token}",
+    httponly=True,
+    samesite="lax",
+    secure=False,   # Set to True in production with HTTPS!
+    path="/"
   )
+
+  # 2. Return account payload needed by AuthContext state
+  return {
+    "user": {
+      "account_id": account.account_id,
+      "role": account.role,
+      "username": account.username
+    },
+    "must_change_password": account.must_change_password,
+  }
+
+
+
+@router.get("/me")
+def get_me(current_account: Account = Depends(get_current_account)):
+  return {
+    "account_id": current_account.account_id,
+    "role": current_account.role,
+    "username": current_account.username
+  }
+
+
+@router.post("/logout")
+def logout(response: Response):
+  response.delete_cookie(key="access_token", path="/")
+  return {"detail": "Logged out successfully"}
 
 
 @router.post("/change-password")
