@@ -12,6 +12,7 @@ Assume you already have and activated your own *virtual environment*, and instal
   - *what are the technologies used*;
   - *what are the main functionalities of the system*
 
-As for the documentation of the development phases and the system's progressive stages, you can refer to the **Implementation Documentation** file attached along with this *README.md* file.
+
+Use *lucide-react@1.38.0* version when installing lucide react icons for compatibility
 
 

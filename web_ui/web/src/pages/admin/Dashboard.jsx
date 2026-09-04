@@ -21,7 +21,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#05130f] p-8">
       <h1 className="text-[#eafff5] text-2xl font-bold">Dashboard</h1>
-      <p className="text-[#9fcabd] text-sm mt-2">Full dashboard content coming next.</p>
+      <p className="text-[#000] text-sm mt-2">Full dashboard content coming next.</p>
 
       {showPasswordModal && (
         <ChangePasswordModal onClose={handleLater} onSuccess={handlePasswordChanged} />
