@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { Eye, EyeClosed, User, Key } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isHidden, setVisibility] = useState(true);
 
   const { login, mustChangePassword } = useAuth();
   const navigate = useNavigate();
@@ -17,12 +19,8 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      const data = await login(username, password);
-      if (data.must_change_password) {
-        navigate("/change-password");
-      } else {
-        navigate("/dashboard");
-      }
+      await login(username, password);
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Login failed. Please try again.");
     } finally {
@@ -31,18 +29,23 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-() flex items-center justify-center px-4">
-      <div className="w-full max-w-sm"> 
-        <div className="flex flex-col items-center mb-8">
+    <div className="min-h-screen bg-[#042F2E] flex items-center justify-center px-4"> {/* body wrapper */}
+
+      <div className="w-[457px] h-max flex flex-col items-right justify-between"> {/* form wrapper */}
+        <div className="flex flex-col items-center mb-8"> {/* Web Title */}
           <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-3">
             <span className="text-2xl">🙂</span>
           </div>
-          <h1 className="text-[#eafff5] text-lg font-semibold">Ormoc Transport App</h1>
+          <h1 className="text-[#eafff5] font-[family-name:var(--poppins-font)] font-semibold text-2xl">Ormoc Transport App</h1>
         </div>
 
-        <div className="bg-[#0a2420] rounded-2xl p-6">
-          <h2 className="text-[#eafff5] text-xl font-semibold mb-1">Terminal Admin Login</h2>
-          <p className="text-[#9fcabd] text-sm mb-6">Sign in to manage terminal operations</p>
+        <div className="flex flex-col items-start justify-center w-full h-max bg-[#134E4A] rounded-[10px] px-[46px] py-[23px] gap-y-[40px]">
+          <div className="w-full h-max flex flex-col items-start justify-center">
+            <h2 className="text-[#eafff5] text-xl font-[family-name: var(--poppins-font)] font-semibold mb-1">Admin Login</h2>
+
+            {/* Horizontal line */}
+            <div className="w-[60px] h-[2px] bg-[var(--labels)]"></div>
+          </div>
 
           {error && (
             <div className="bg-[#3A1B14] text-[#D98B72] text-sm rounded-xl px-4 py-3 mb-4">
@@ -50,38 +53,76 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="w-full flex flex-col gap-[11px]">
             <div>
-              <label className="block text-[#9fcabd] text-xs mb-1.5">Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoComplete="username"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors"
-                placeholder="Enter your username"
-              />
-            </div>
+              <label className="block text-[var(--labels)] text-[12px] mb-1.5">Username or Email</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  autoComplete="username"
+                  className="w-full bg-[var(--btn-fg)] border border-[var(--stroke-color)] rounded-[var(--input-radius)] px-10 py-3 text-[#eafff5] text-sm outline-none focus:border-[var(--stroke-color-focus)] transition-colors"
+                  placeholder="Enter your username"
+                />
 
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer">
+                  <User 
+                    size={"18px"}
+                    color={"#22D3EE"}
+                  />
+                </div>
+              </div>
+            </div>
+              
             <div>
-              <label className="block text-[#9fcabd] text-xs mb-1.5">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors"
-                placeholder="Enter your password"
-              />
-            </div>
+              <label className="block text-[var(--labels)] text-xs mb-1.5">Password</label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer">
+                  <Key 
+                    size={"18px"}
+                    color={"#22D3EE"}
+                  />
+                </div>
+                <input
+                  type={isHidden ? "password" : "text"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="w-full bg-[var(--btn-fg)] border border-[var(--stroke-color)] rounded-[var(--input-radius)] px-10 py-3 text-[#eafff5] text-sm outline-none focus:border-[var(--stroke-color-focus)] transition-colors"
+                  placeholder="Enter your password"
+                />
 
-            // Sign in button
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer">
+                  {isHidden ? 
+                      <EyeClosed
+                        size={"18px"} 
+                        color={"#22D3EE"}
+                        onClick={() => setVisibility(!isHidden)}
+                      />
+                    :
+                      <Eye 
+                        size={"18px"} 
+                        color={"#22D3EE"}
+                        onClick={() => setVisibility(!isHidden)}
+                      />
+                  }
+                </div>
+              </div>
+            </div>
+            <a
+              href=""
+              className="text-right text-[var(--labels)] w-full text-xs hover:underline"
+            >
+              Forgot Password?
+            </a>
+
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-[#1D9E75] text-[#04342C] font-semibold rounded-xl py-3 mt-2 disabled:opacity-60 transition-opacity"
+              className="w-full h-[46px] flex items-center justify-center bg-[var(--labels)] text-[var(--btn-fg)] font-semibold rounded-[5px] mt-2 hover:bg-[#40c2d6] transition-bg"
             >
               {isSubmitting ? "Signing in..." : "Sign In"}
             </button>

@@ -10,7 +10,7 @@ load_dotenv()
 
 APP_NAME = os.getenv("APP_NAME", "OrmocTransportApp")
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGIN", "").split(",")
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
 
 app = FastAPI(
   title = APP_NAME,

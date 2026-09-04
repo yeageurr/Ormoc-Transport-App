@@ -3,9 +3,11 @@ from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from app.enums import AccountRole
+
 
 load_dotenv()
 
@@ -31,7 +33,7 @@ def create_access_token(account_id: int, role: AccountRole) -> str:
   payload = {
     "account_id": account_id,
     "role": role.value,
-    "exxp": expire
+    "exxp": expire.timestamp()
   }
 
   return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)

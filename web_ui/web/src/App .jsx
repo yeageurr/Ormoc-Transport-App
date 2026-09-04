@@ -3,8 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 
 import Login from "./pages/auth/Login";
-// Dashboard and other admin pages get added here as they're built:
-// import Dashboard from "./pages/admin/Dashboard";
+import Dashboard from "./pages/admin/Dashboard";
 
 function App() {
   return (
@@ -13,9 +12,9 @@ function App() {
         <Routes>
           {/* Default route redirects straight to login for now */}
           <Route path="/" element={<Navigate to="/login" replace />} />
+
           <Route path="/login" element={<Login />} />
 
-          {/* Example of how a protected admin page gets wired in later:
           <Route
             path="/dashboard"
             element={
@@ -24,7 +23,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-          */}
         </Routes>
       </BrowserRouter>
     </AuthProvider>
