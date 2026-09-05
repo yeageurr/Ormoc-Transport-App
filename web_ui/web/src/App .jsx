@@ -19,19 +19,19 @@ function App() {
 
           {/* Admin Layout Wrapper */}
           <Route
+            path="/"
             element={
               <ProtectedRoute requiredRole="admin">
                 <AdminLayout />
               </ProtectedRoute>
             }
           >
-            {/* Top-level sidebar routes */}
+            {/* Hitting / or redirecting to /dashboard loads your Dashboard component */}
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            
             <Route path="live-map" element={<LiveMap />} />
             <Route path="users" element={<Users />} />
-            <Route path="/dashboard" element={<Navigate to="/dashboard" replace />} />
-            {/* The rest of the routes will go here (vehicles, incidents, etc.) */}
-            
-            <Route path="*" element={<Dashboard />} />
           </Route>
         </Routes>
       </BrowserRouter>

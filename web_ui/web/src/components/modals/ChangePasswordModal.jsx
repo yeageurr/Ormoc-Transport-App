@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { changePassword } from '../../api/authAPI';
 
-export default function ChangePasswordModal({ onClose, onSuccess }) {
+export default function ChangePasswordModal({ isOpen, onClose, onSuccess }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  if(!isOpen) return null;
 
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
