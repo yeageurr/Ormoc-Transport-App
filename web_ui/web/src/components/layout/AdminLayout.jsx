@@ -5,9 +5,10 @@ import ChangePasswordModal from "../modals/ChangePasswordModal";
 
 export default function AdminLayout() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   return (
-    <div className="flex bg-[#05130f] min-h-screen">
+    <div className="flex bg-[var(--main-bg)] min-h-screen">
       {/* Pass the toggle function to the sidebar */}
       <Sidebar onOpenChangePassword={() => setIsPasswordModalOpen(true)} />
       

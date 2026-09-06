@@ -9,6 +9,7 @@
   /* Color Values */
   --main-bg: #042F2E;
   --wrapper-bg: #134E4A;
+  --chart-data-bg: #007e75;
   --button-bg: #22D3EE;
   --stroke-color: rgba(120, 237, 255, .5);
   --stroke-color-focus: rgb(7, 220, 253);;
@@ -20,7 +21,7 @@
 
   /* Nav Bar */
   --button-fg-main: #7FC9D3;
-  --button-active-bg: #217771;
+  --button-active-bg: rgba(33, 119, 113, .25);
   --button-border-active: 1.5px;
 
   /* Measurements */

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, LabelList } from "recharts";
 import StatCard from "../../components/ui/StatCard";
 import { getDashboardStats, getTripVolume, getRecentIncidents } from "../../api/dashboardApi";
+import { Bus, Clock, TrendingUp, TrendingDown, TriangleAlert, UserRoundCheck } from 'lucide-react';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -44,6 +45,7 @@ export default function Dashboard() {
 
   return (
     <>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="text-[#9fcabd] text-sm">Hello, Administrator!</p>
@@ -66,32 +68,52 @@ export default function Dashboard() {
             <StatCard 
               label="Total Trips Today" 
               value={stats?.total_trips_today ?? "—"} 
-              icon="🚌" 
-              subtext="📈 +3 Today" 
+              icon={Bus} 
+              subtext={
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 stroke-[#60FFE8]" />
+                  <span>+3 Today</span>
+                </span>
+              }
             />
             <StatCard
               label="Avg Trip Duration"
               value={stats?.avg_trip_duration_minutes != null ? `${stats.avg_trip_duration_minutes}min.` : "—"}
-              icon="🕐"
-              subtext="📈 +1.5%"
+              icon={Clock}
+              subtext={
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 stroke-[#60FFE8]" />
+                  <span>+1.5%</span>
+                </span>
+              }
             />
             <StatCard
               label="Incidents Reported"
               value={stats?.incidents_reported_total ?? "—"}
-              icon="⚠"
+              icon={TriangleAlert}
               iconColor="#F0997B"
-              subtext="📉 +12% vs. last month"
+              subtext={
+                <span className="flex items-center gap-2">
+                  <TrendingDown className="w-3.5 h-3.5 stroke-[#60FFE8]" />
+                  <span>+12% vs. last month</span>
+                </span>
+              }
             />
             <StatCard 
               label="Drivers" 
               value={stats?.drivers_total ?? "—"} 
-              icon="👤" 
-              subtext="📈 +1.5% vs. last month"
+              icon={UserRoundCheck} 
+              subtext={
+                <span className="flex items-center gap-2">
+                  <TrendingUp className="w-3.5 h-3.5 stroke-[#60FFE8]" />
+                  <span>+12% vs. last month</span>
+                </span>
+              }
             />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 bg-[#0a2420] rounded-2xl p-5">
+            <div className="col-span-2 bg-[var(--wrapper-bg)] rounded-2xl p-5">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-[#eafff5] text-base font-semibold">Trip Volume (last 7 days)</h2>
                 <span className="text-[#9fcabd] text-xs">{totalTripVolume} Total</span>
@@ -113,7 +135,7 @@ export default function Dashboard() {
                     itemStyle={{ color: "#5DCAA5" }}
                     cursor={{ fill: "rgba(29, 158, 117, 0.05)" }}
                   />
-                  <Bar dataKey="count" fill="#1D9E75" radius={[6, 6, 0, 0]} maxBarSize={45}>
+                  <Bar dataKey="count" fill="var(--chart-data-bg)" radius={[6, 6, 0, 0]} maxBarSize={45}>
                     <LabelList
                       dataKey="count"
                       position="top"
@@ -140,7 +162,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
 
-            <div className="bg-[#0a2420] rounded-2xl p-5">
+            <div className="bg-[var(--wrapper-bg)] rounded-2xl p-5">
               <h2 className="text-[#eafff5] text-base font-semibold mb-4">Recent Incidents</h2>
               <div className="space-y-4">
                 {recentIncidents.length === 0 && (

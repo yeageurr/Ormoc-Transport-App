@@ -9,6 +9,11 @@ import Dashboard from "./pages/admin/Dashboard";
 // Placeholders for the upcoming mockup screens
 const LiveMap = () => <div className="text-white">Live Map placeholder</div>;
 const Users = () => <div className="text-white">Users placeholder</div>;
+const Vehicles = () => <div className="text-white">Users placeholder</div>;
+const IncidentLogs = () => <div className="text-white">Users placeholder</div>;
+const TripLogs = () => <div className="text-white">Users placeholder</div>;
+const DispatchLogs = () => <div className="text-white">Users placeholder</div>;
+const AuditLogs = () => <div className="text-white">Users placeholder</div>;
 
 function App() {
   return (
@@ -32,6 +37,11 @@ function App() {
             
             <Route path="live-map" element={<LiveMap />} />
             <Route path="users" element={<Users />} />
+            <Route path="vehicles" element={<Vehicles />} />
+            <Route path="incidents" element={<IncidentLogs />} />
+            <Route path="trips" element={<TripLogs />} />
+            <Route path="dispatch" element={<DispatchLogs />} />
+            <Route path="audit-logs" element={<AuditLogs />} />
           </Route>
         </Routes>
       </BrowserRouter>
