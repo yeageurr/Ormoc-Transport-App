@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import ChangePasswordModal from "../modals/ChangePasswordModal";
 import LogoutModal from "../modals/LogoutModal";
 import { useAuth } from "../../context/AuthContext";
+import AddUserModal from "../modals/AddUserModal";
 
 export default function AdminLayout() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);

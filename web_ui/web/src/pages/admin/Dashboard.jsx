@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, LabelList } from "r
 import StatCard from "../../components/ui/StatCard";
 import { getDashboardStats, getTripVolume, getRecentIncidents } from "../../api/dashboardApi";
 import { Bus, Clock, TrendingUp, TrendingDown, TriangleAlert, UserRoundCheck } from 'lucide-react';
+import PageHeader from "../../components/ui/PageHeader";
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -46,13 +47,7 @@ export default function Dashboard() {
   return (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-[#9fcabd] text-sm">Hello, Administrator!</p>
-          <h1 className="text-[#eafff5] text-2xl font-bold">Dashboard</h1>
-        </div>
-        <p className="text-[#9fcabd] text-sm">{today}</p>
-      </div>
+      <PageHeader title="Dashboard" />
 
       {error && (
         <div className="bg-[#3A1B14] text-[#D98B72] text-sm rounded-xl px-4 py-3 mb-6">

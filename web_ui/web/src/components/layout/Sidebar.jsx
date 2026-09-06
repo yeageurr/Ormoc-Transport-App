@@ -113,7 +113,7 @@ export default function Sidebar({ onOpenChangePassword, onOpenLogout }) {
 
         <button
           onClick={onOpenLogout}
-          className="w-full flex items-center px-3 gap-2 bg-[#195E5A] text-[#5DCAA5] hover:text-[#eafff5] py-2 rounded-[5px] text-[15px] font-medium font-inter transition-colors"
+          className="w-full flex items-center px-3 gap-2 bg-[#195E5A] text-[#5DCAA5] hover:text-[#eafff5] py-2 rounded-[5px] text-[15px] font-medium font-inter  transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span>Log out</span>

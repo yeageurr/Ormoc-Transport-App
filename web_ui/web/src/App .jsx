@@ -5,11 +5,11 @@ import AdminLayout from "./components/layout/AdminLayout";
 
 import Login from "./pages/auth/Login";
 import Dashboard from "./pages/admin/Dashboard";
+import Users from "./pages/admin/Users"
+import Vehicles from './pages/admin/Vehicles';
 
 // Placeholders for the upcoming mockup screens
 const LiveMap = () => <div className="text-white">Live Map placeholder</div>;
-const Users = () => <div className="text-white">Users placeholder</div>;
-const Vehicles = () => <div className="text-white">Users placeholder</div>;
 const IncidentLogs = () => <div className="text-white">Users placeholder</div>;
 const TripLogs = () => <div className="text-white">Users placeholder</div>;
 const DispatchLogs = () => <div className="text-white">Users placeholder</div>;
@@ -29,8 +29,8 @@ function App() {
               <ProtectedRoute requiredRole="admin">
                 <AdminLayout />
               </ProtectedRoute>
-            }
-          >
+              }
+            >
             {/* Hitting / or redirecting to /dashboard loads your Dashboard component */}
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
