@@ -6,8 +6,9 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-      },
+      roboto: ['Roboto', 'sans-serif'],
+      poppins: ['Poppins', 'serif'],
+      inter: ['Inter', 'sans-serif']
     },
   },
   plugins: [],

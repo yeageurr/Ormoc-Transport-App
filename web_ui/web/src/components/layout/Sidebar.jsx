@@ -31,7 +31,7 @@ const accountLinks = [
 ];
 
 
-export default function Sidebar({ onOpenChangePassword }) {
+export default function Sidebar({ onOpenChangePassword, onOpenLogout }) {
   const { account, logout } = useAuth();
   const navigate = useNavigate();
   const toHome = () =>  {
@@ -112,8 +112,8 @@ export default function Sidebar({ onOpenChangePassword }) {
         </div>
 
         <button
-          onClick={logout}
-          className="w-full flex items-center px-3 gap-2 bg-[#195E5A] text-[#5DCAA5] hover:text-[#eafff5] py-2 rounded-[5px] text-[15px] font-regular transition-colors"
+          onClick={onOpenLogout}
+          className="w-full flex items-center px-3 gap-2 bg-[#195E5A] text-[#5DCAA5] hover:text-[#eafff5] py-2 rounded-[5px] text-[15px] font-medium font-inter transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span>Log out</span>

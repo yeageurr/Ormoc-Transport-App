@@ -97,10 +97,7 @@ export default function Login() {
               <label className="block text-[var(--labels)] text-xs mb-1.5">Password</label>
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer">
-                  <Key 
-                    size={"18px"}
-                    color={"#22D3EE"}
-                  />
+                  <Key size={"18px"} color={"#22D3EE"}/>
                 </div>
                 <input
                   type={isHidden ? "password" : "text"}
