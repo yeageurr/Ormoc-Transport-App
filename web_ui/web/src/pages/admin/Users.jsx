@@ -10,6 +10,9 @@ import {
   reactivateDriver,
   deleteDriver,
 } from "../../api/usersAPI";
+import {
+  Search
+} from 'lucide-react';
 
 export default function Users() {
   const { mustChangePassword, setMustChangePassword } = useAuth();
@@ -22,6 +25,13 @@ export default function Users() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [actioningId, setActioningId] = useState(null);
+
+  const UserAccountStatus = [
+    { value: "All", label: "All Status" },
+    { value: "Active", label: "Active" },
+    { value: "Suspended", label: "Suspended" },
+    { value: "Disabled", label: "Disabled" },
+  ]
 
   useEffect(() => {
     setShowPasswordModal(mustChangePassword);
@@ -109,26 +119,36 @@ export default function Users() {
       <>
         <PageHeader title={"Users"}/>
 
-        <div className="flex items-center gap-3 mb-4">
-          <input
+        <div className="flex items-center justify-between h-11 gap-3 mb-4">
+          <div className="relative w-max h-full">
+            <Search size={'18px'} stroke="var(--placeholder-fg)" className="absolute top-1/2 left-5 -translate-x-1/2 -translate-y-1/2" />
+
+            <input
             type="text"
             placeholder="Search for route..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors max-w-xs placeholder:text-[var(--placeholder-fg)] placeholder:font-inter placeholder:font-light placeholder:text-[13px]]"
-          />
+            className="text-[#fff] font-poppins bg-transparent h-full w-60 px-10 border border-[var(--stroke-color)] rounded-[var(--input-radius)] outline-none focus:border-[var(--stroke-color-focus)] transition-colors placeholder:text-[var(--placeholder-fg)] placeholder:font-inter placeholder:font-light placeholder:text-[13px]]"
+            />
+          </div>
+          
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#9fcabd] text-sm outline-none"
+            className="bg-transparent border border-[var(--stroke-color)] rounded-xl px-4 py-2.5 text-[#9fcabd] text-sm outline-none"
           >
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="suspended">Suspended</option>
-            <option value="disabled">Disabled</option>
+            {UserAccountStatus.map(({value, label}) => (
+              <option
+                value={value}
+                className="text-[#000]"
+              >
+                {label}
+              </option>
+
+            ))}
           </select>
           <button 
-            className="ml-auto bg-[#1D9E75] text-[#04342C] font-semibold rounded-xl px-5 py-2.5 text-sm"
+            className="ml-auto bg-[var(--button-bg)] text-[#000] font-inter font-medium rounded-[var(--corner-radius-btn)] px-5 py-2.5 text-[14px]"
             onClick={() => {setShowAddUserModal(true)}}
           >
             + Add user
@@ -141,7 +161,7 @@ export default function Users() {
           </div>
         )}
 
-        <div className="bg-[#0a2420] rounded-2xl overflow-hidden">
+        <div className="bg-[#0a2420] rounded-[var(--table-corner-radius)] overflow-hidden border border-[#78EDFF]/25">
           <div className="bg-white/5 px-5 py-2 text-[#5DCAA5] text-xs">
             {filteredDrivers.length} users
           </div>

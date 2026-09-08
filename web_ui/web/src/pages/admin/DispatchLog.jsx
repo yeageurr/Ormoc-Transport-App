@@ -68,7 +68,7 @@ export default function DispatchLog() {
 
   return (
       <main>
-        <PageHeader />
+        <PageHeader title={"Dispatch"} />
 
         <div className="flex items-center gap-3 mb-4">
           <input

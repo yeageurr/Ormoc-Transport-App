@@ -10,10 +10,10 @@ import Vehicles from './pages/admin/Vehicles';
 import IncidentLogs from "./pages/admin/IncidentLogs";
 import TripLogs from "./pages/admin/TripLogs";
 import DispatchLogs from "./pages/admin/DispatchLog";
+import AuditLogs from "./pages/admin/AuditLogs";
 
 // Placeholders for the upcoming mockup screens
 const LiveMap = () => <div className="text-white">Live Map placeholder</div>;
-const AuditLogs = () => <div className="text-white">Users placeholder</div>;
 
 function App() {
   return (

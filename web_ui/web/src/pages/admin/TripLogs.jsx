@@ -64,7 +64,7 @@ export default function TripLogs() {
 
   return (
     <main>
-      <PageHeader />
+      <PageHeader title={"Trip Logs"} />
 
       <div className="flex items-center gap-3 mb-4">
         <input

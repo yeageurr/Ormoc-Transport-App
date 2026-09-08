@@ -12,7 +12,7 @@
   --wrapper-bg: #134E4A;
   --chart-data-bg: #007e75;
   --button-bg: #22D3EE;
-  --stroke-color: rgba(120, 237, 255, .5);
+  --stroke-color: rgba(120, 237, 255, .2);
   --stroke-color-focus: rgb(7, 220, 253);;
   --btn-fg: #042F2E;
   --placeholder-fg: #5EEAD4;
@@ -24,15 +24,16 @@
   --button-fg-main: #7FC9D3;
   --button-active-bg: rgba(33, 119, 113, .25);
   --button-border-active: 1.5px;
+  --table-corner-radius: 7px;
 
   /* Measurements */
   --btn-stroke-w: .5px;
   --corner-radius-btn: 3px;
   --input-radius: 8px;
   --btn-stroke-alpha: 50%;
-  --button-active-alpha: 25%;
+  --button-active-alpha: 25%; 
 
-  /* Typography */
-  --poppins-font: 'Poppins', serif;
-  --roboto-font: sans-serif, 'Roboto';
+  /* 
+    users table stroke color: rgba(120, 237, 255, .5)
+  */
 }
