@@ -11,9 +11,8 @@ import IncidentLogs from "./pages/admin/IncidentLogs";
 import TripLogs from "./pages/admin/TripLogs";
 import DispatchLogs from "./pages/admin/DispatchLog";
 import AuditLogs from "./pages/admin/AuditLogs";
+import LiveMap from "./pages/admin/LiveMap";
 
-// Placeholders for the upcoming mockup screens
-const LiveMap = () => <div className="text-white">Live Map placeholder</div>;
 
 function App() {
   return (

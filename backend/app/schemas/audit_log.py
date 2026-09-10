@@ -14,11 +14,19 @@ class GeofenceEventResponse(BaseModel):
   event_time: datetime
 
 
+class AuditActorSummary(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  account_id: int
+  account_code: str
+
+
 class AuditLogResponse(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 
   audit_id: int
   actor_id: int
+  actor: AuditActorSummary | None = None
   action: AuditAction
   target_table: str
   target_id: int

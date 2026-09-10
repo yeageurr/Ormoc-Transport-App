@@ -19,6 +19,7 @@
   --labels: #22D3EE; /* the same as nav button bd left if active or fg */
   --main-text: #FFFFFF;
   --data-fg: #F0FDFA;
+  --livemap-routes-shadow: 0px 0px 25px rgba(121, 237, 255, ) ;
 
   /* Nav Bar */
   --button-fg-main: #7FC9D3;

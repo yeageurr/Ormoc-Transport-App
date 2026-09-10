@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import Sidebar from "../../components/layout/Sidebar";
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/ui/PageHeader";
@@ -36,10 +35,6 @@ export default function Users() {
   useEffect(() => {
     setShowPasswordModal(mustChangePassword);
   }, [mustChangePassword]);
-
-  const handleAddUser = (newUser) => {
-    setUsers((prev) => [newUser, ...prev]);
-  };
 
   const loadDrivers = async () => {
     setIsLoading(true);
@@ -139,6 +134,7 @@ export default function Users() {
           >
             {UserAccountStatus.map(({value, label}) => (
               <option
+                key={value}
                 value={value}
                 className="text-[#000]"
               >
@@ -228,11 +224,10 @@ export default function Users() {
         <AddUserModal
           isOpen={isAddUserModalOpen}
           onClose={() => setShowAddUserModal(false)}
-          onSuccess={
-            () => {
-              setShowAddUserModal(false);
-            }
-          }
+          onSuccess={async () => {
+            await loadDrivers();
+            setShowAddUserModal(false);
+          }}
         />
       </>
   );

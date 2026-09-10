@@ -50,6 +50,10 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
   await manager.broadcast_to(admin_ids, {
     "type": "gps_update",
     "data": {
+      # vehicle_id added so the Live Map can update the right marker
+      # directly — the frontend has no trip_id -> vehicle_id mapping of
+      # its own (LiveVehicleSummary doesn't expose trip_id).
+      "vehicle_id": trip.dispatch_log.vehicle_id,
       "trip_id": gps_log.trip_id,
       "latitude": float(gps_log.latitude),
       "longitude": float(gps_log.longitude),

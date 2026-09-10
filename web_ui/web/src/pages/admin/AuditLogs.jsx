@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
+import Sidebar from "../../components/layout/Sidebar";
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
-import PageHeader from '../../components/ui/PageHeader';
+import PageHeader from "../../components/ui/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { getAuditLogs } from "../../api/auditlogsAPI";
 
@@ -68,7 +69,10 @@ export default function AuditLogs() {
 
   return (
       <main>
-        <PageHeader title={"Audit Logs"} />
+        <div className="mb-6">
+          <p className="text-[#9fcabd] text-sm">Hello, Administrator!</p>
+          <h1 className="text-[#eafff5] text-2xl font-bold">Audit Logs</h1>
+        </div>
 
         <div className="flex items-center gap-3 mb-4">
           <input
@@ -123,7 +127,7 @@ export default function AuditLogs() {
                         month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
                       })}
                     </td>
-                    <td className="px-5 py-3 text-[#9fcabd]">Admin (#{log.actor_id})</td>
+                    <td className="px-5 py-3 text-[#9fcabd]">{log.actor?.account_code || `#${log.actor_id}`}</td>
                     <td className="px-5 py-3"><ActionBadge action={log.action} /></td>
                     <td className="px-5 py-3 text-[#9fcabd] capitalize">
                       {log.target_table} #{log.target_id}

@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import Sidebar from "../../components/layout/Sidebar";
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import { useAuth } from "../../context/AuthContext";
 import { getVehicles, getEligibleOwners, createVehicle } from "../../api/vehiclesAPI";

@@ -23,7 +23,7 @@ class User(Base):
   last_name: Mapped[str] = mapped_column(String(50), nullable=False)
   contact_number: Mapped[str] = mapped_column(String(11), unique=True, nullable=False)
   email: Mapped[str | None] = mapped_column(String(25), unique=True)
-  license_num: Mapped[str] = mapped_column(String(11), unique=True, nullable=False)
+  license_num: Mapped[str] = mapped_column(String(13), unique=True, nullable=False)
   license_expiry: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
   # Relationships
@@ -31,4 +31,3 @@ class User(Base):
   vehicle: Mapped["Vehicle"] = relationship(back_populates="owner", uselist=False)
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="driver")
   incidents: Mapped[list["Incident"]] = relationship(back_populates="reported_by_user")
-  

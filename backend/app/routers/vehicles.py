@@ -38,6 +38,7 @@ class LiveVehicleSummary(BaseModel):
   vehicle_id: int
   plate_number: str
   activity_status: str
+  body_color: str
   driver_name: str | None = None
   route_label: str | None = None
   current_speed_kmh: float | None = None
@@ -95,6 +96,7 @@ def get_live_vehicle_overview(
       vehicle_id=vehicle.vehicle_id,
       plate_number=vehicle.plate_number,
       activity_status=vehicle.activity_status.value,
+      body_color=vehicle.body_color,
       driver_name=driver_name,
       route_label=route_label,
       current_speed_kmh=current_speed,

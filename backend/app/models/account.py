@@ -20,6 +20,7 @@ class Account(Base):
   __tablename__ = "accounts"
 
   account_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  account_code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
   username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
   password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
   status: Mapped[AccountStatus] = mapped_column(

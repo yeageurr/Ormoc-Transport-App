@@ -66,7 +66,7 @@ export default function TripLogs() {
     <main>
       <PageHeader title={"Trip Logs"} />
 
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-6">
         <input
           type="text"
           placeholder="Search driver or route..."

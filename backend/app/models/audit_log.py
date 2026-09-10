@@ -16,7 +16,7 @@ class AuditLog(Base):
 
   audit_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
   actor_id: Mapped[int] = mapped_column(ForeignKey("accounts.account_id"), nullable=False)
-  action: Mapped[AuditAction] = mapped_column(Enum(AuditAction, name="audit_action"), nullable=False)
+  action: Mapped[AuditAction] = mapped_column(Enum(AuditAction, name="audit_action", values_callable=lambda enum_cls: [e.value for e in enum_cls]), nullable=False)
   target_table: Mapped[str] = mapped_column(String(50), nullable=False)
   target_id: Mapped[int] = mapped_column(nullable=False)
   details: Mapped[str] = mapped_column(Text, nullable=False)

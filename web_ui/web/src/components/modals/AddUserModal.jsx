@@ -1,16 +1,20 @@
 import { useState } from "react";
 import { X, UserPlus } from "lucide-react";
+import { createDriver } from "../../api/usersAPI";
 
-export default function AddUserModal({ isOpen, onClose, onAddUser }) {
-  const [formData, setFormData] = useState({
-    name: "",
-    role: "Driver",
+export default function AddUserModal({ isOpen, onClose, onSuccess }) {
+  const initialFormState = {
+    first_name: "",
+    last_name: "",
     email: "",
-    contact: "",
-    status: "Active",
-  });
+    contact_number: "",
+    license_num: "",
+    license_expiry: "",
+  };
 
+  const [formData, setFormData] = useState(initialFormState);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -19,26 +23,42 @@ export default function AddUserModal({ isOpen, onClose, onAddUser }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
     // Simple validation
-    if (!formData.name.trim() || !formData.contact.trim()) {
-      setError("Name and Contact # are required fields.");
+    if (
+      !formData.first_name.trim() ||
+      !formData.last_name.trim() ||
+      !formData.contact_number.trim() ||
+      !formData.license_num.trim() ||
+      !formData.license_expiry
+    ) {
+      setError("First name, last name, contact #, license #, and license expiry are required.");
       return;
     }
 
-    // Pass new user data up to the parent component
-    onAddUser({
-      ...formData,
-      id: Date.now(), // Temporary unique ID generator
-      email: formData.email.trim() || "--",
-    });
+    setIsSubmitting(true);
+    try {
+      await createDriver({
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        contact_number: formData.contact_number.trim(),
+        email: formData.email.trim() || undefined,
+        license_num: formData.license_num.trim(),
+        license_expiry: formData.license_expiry,
+      });
 
-    // Reset form and close modal
-    setFormData({ first_name: "", last_name: "", role: "Driver", email: "", contact: "", status: "Active" });
-    onClose();
+      setFormData(initialFormState);
+      onSuccess();
+    } catch (err) {
+      setError(
+        err?.response?.data?.detail || err.message || "Failed to create user. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -72,8 +92,8 @@ export default function AddUserModal({ isOpen, onClose, onAddUser }) {
               <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">First Name</label>
               <input
                 type="text"
-                name="name"
-                placeholder="e.g. Juan Dela Cruz"
+                name="first_name"
+                placeholder="e.g. Juan"
                 value={formData.first_name}
                 onChange={handleChange}
                 className="w-full bg-[#05130f] border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] placeholder:text-[#9fcabd]/50 transition-colors"
@@ -83,8 +103,8 @@ export default function AddUserModal({ isOpen, onClose, onAddUser }) {
               <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">Last Name</label>
               <input
                 type="text"
-                name="name"
-                placeholder="e.g. Juan Dela Cruz"
+                name="last_name"
+                placeholder="e.g. Dela Cruz"
                 value={formData.last_name}
                 onChange={handleChange}
                 className="w-full bg-[#05130f] border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] placeholder:text-[#9fcabd]/50 transition-colors"
@@ -92,15 +112,14 @@ export default function AddUserModal({ isOpen, onClose, onAddUser }) {
             </div>
           </div>
 
-          {/* Role & Status Grid */}
+          {/* Role (fixed to Driver) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">User Role</label>
               <select
                 disabled
                 name="role"
-                value={formData.role}
-                onChange={handleChange}
+                value="Driver"
                 className="w-full bg-[#05130f] border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors cursor-pointer"
               >
                 <option value="Driver">Driver</option>
@@ -112,6 +131,7 @@ export default function AddUserModal({ isOpen, onClose, onAddUser }) {
           <div>
             <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">Email Address (Optional)</label>
             <input
+              autoComplete="off"
               type="email"
               name="email"
               placeholder="e.g. juan@artfusion.com"
@@ -125,13 +145,42 @@ export default function AddUserModal({ isOpen, onClose, onAddUser }) {
           <div>
             <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">Contact Number</label>
             <input
+              autoComplete="off"
               type="text"
-              name="contact"
+              name="contact_number"
               placeholder="e.g. 09123456789"
-              value={formData.contact}
+              value={formData.contact_number}
               onChange={handleChange}
               className="w-full bg-[#05130f] border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] placeholder:text-[#9fcabd]/50 transition-colors"
             />
+          </div>
+
+          {/* License Number & Expiry */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">License Number</label>
+              <input
+                autoComplete="off"
+                type="text"
+                name="license_num"
+                placeholder="e.g. N01-23-456789"
+                value={formData.license_num}
+                onChange={handleChange}
+                className="w-full bg-[#05130f] border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] placeholder:text-[#9fcabd]/50 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">License Expiry</label>
+              <input
+                type="date"
+                autoComplete="off"
+                min={'2026-09-10'}
+                name="license_expiry"
+                value={formData.license_expiry}
+                onChange={handleChange}
+                className="w-full bg-[#05130f] border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors [color-scheme:dark]"
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -145,9 +194,10 @@ export default function AddUserModal({ isOpen, onClose, onAddUser }) {
             </button>
             <button
               type="submit"
-              className="bg-[#1D9E75] hover:opacity-90 text-[#04342C] font-semibold px-5 py-2.5 rounded-xl text-sm transition-opacity"
+              disabled={isSubmitting}
+              className="bg-[#1D9E75] hover:opacity-90 text-[#04342C] font-semibold px-5 py-2.5 rounded-xl text-sm transition-opacity disabled:opacity-50"
             >
-              Save User
+              {isSubmitting ? "Saving..." : "Save User"}
             </button>
           </div>
         </form>

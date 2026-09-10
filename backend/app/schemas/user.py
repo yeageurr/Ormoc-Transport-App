@@ -15,6 +15,7 @@ class AccountResponse(AccountBase):
   model_config = ConfigDict(from_attributes=True)
 
   account_id: int
+  account_code: str
   status: AccountStatus
   created_on: datetime
   last_login: datetime
