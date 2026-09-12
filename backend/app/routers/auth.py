@@ -14,12 +14,14 @@ router = APIRouter()
 
 
 @router.post("/login")
-def login(
-  credentials: LoginRequest, 
-  response: Response, 
-  db: Session = Depends(get_db)
-):
+def login(credentials: LoginRequest, response: Response, db: Session = Depends(get_db), ):
   account = db.query(Account).filter(Account.username == credentials.username).first()
+
+  print(f"[debug] login attempt username={credentials.username!r}")
+  if account:
+    print(f"[debug] stored hash={account.password_hash!r}")
+  else:
+    print("[debug] no account found for that username")
 
   invalid_credentials = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -28,6 +30,8 @@ def login(
 
   if account is None:
     raise invalid_credentials
+
+  print(f"[debug] verify_password result: {verify_password(credentials.password, account.password_hash)}")
 
   if not verify_password(credentials.password, account.password_hash):
     raise invalid_credentials
@@ -54,6 +58,8 @@ def login(
 
   # 2. Return account payload needed by AuthContext state
   return {
+    "access_token": token,
+    "token_type": "bearer",
     "user": {
       "account_id": account.account_id,
       "role": account.role,

@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -10,7 +11,8 @@ from app.models.dispatch_log import DispatchLog
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
 from app.models.gps_log import GpsLog
-from app.schemas.trip import TripStart, TripResponse, AdminTripResponse, TripDriverSummary
+from app.models.incident_log import Incident
+from app.schemas.trip import DriverDailySummary, TripStart, TripResponse, DriverTripResponse, AdminTripResponse, TripDriverSummary
 from app.core.permissions import require_role, get_current_account
 from app.enums import AccountRole, TripStatus, VehicleActivityStatus
 
@@ -113,6 +115,79 @@ def end_trip(
   return trip
 
 
+@router.get("/driver/mine", response_model=list[DriverTripResponse])
+def list_my_trips(
+  db: Session = Depends(get_db),
+  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Driver's own Trip Logs screen."""
+  trips = (
+    db.query(Trip)
+    .join(DispatchLog)
+    .filter(DispatchLog.driver_id == current_driver.user.user_id)
+    .order_by(Trip.time_departed.desc())
+    .all()
+  )
+
+  return [
+    DriverTripResponse(
+      trip_id=trip.trip_id,
+      dispatch_id=trip.dispatch_id,
+      status=trip.status,
+      time_departed=trip.time_departed,
+      time_arrived=trip.time_arrived,
+      trip_duration_minutes=trip.trip_duration_minutes,
+      average_speed_km=trip.average_speed_km,
+      is_complete=trip.is_complete,
+      vehicle_plate=trip.dispatch_log.vehicle.plate_number if trip.dispatch_log.vehicle else None,
+      route_label=(
+        f"{trip.dispatch_log.route.origin.terminal_name} → {trip.dispatch_log.route.destination.name}"
+        if trip.dispatch_log.route and trip.dispatch_log.route.origin and trip.dispatch_log.route.destination
+        else None
+      ),
+    )
+    for trip in trips
+  ]
+
+
+@router.get("/driver/summary", response_model=DriverDailySummary)
+def get_my_daily_summary(
+  db: Session = Depends(get_db),
+  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Today's completed trips and submitted incidents in Philippine time."""
+  now = datetime.now(ZoneInfo("Asia/Manila"))
+  day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+  day_end = day_start + timedelta(days=1)
+  driver_id = current_driver.user.user_id
+
+  trips_completed = (
+    db.query(func.count(Trip.trip_id))
+    .join(DispatchLog)
+    .filter(
+      DispatchLog.driver_id == driver_id,
+      Trip.is_complete.is_(True),
+      Trip.time_arrived >= day_start,
+      Trip.time_arrived < day_end,
+    )
+    .scalar()
+  )
+  incidents_reported = (
+    db.query(func.count(Incident.incident_id))
+    .filter(
+      Incident.reported_by == driver_id,
+      Incident.reported_at >= day_start,
+      Incident.reported_at < day_end,
+    )
+    .scalar()
+  )
+
+  return DriverDailySummary(
+    trips_completed=trips_completed or 0,
+    incidents_reported=incidents_reported or 0,
+  )
+
+
 @router.get("/{trip_id}", response_model=TripResponse)
 def get_trip(
   trip_id: int,
@@ -123,21 +198,6 @@ def get_trip(
   if trip is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
   return trip
-
-
-@router.get("/driver/mine", response_model=list[TripResponse])
-def list_my_trips(
-  db: Session = Depends(get_db),
-  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
-):
-  """Driver's own Trip Logs screen."""
-  return (
-    db.query(Trip)
-    .join(DispatchLog)
-    .filter(DispatchLog.driver_id == current_driver.user.user_id)
-    .order_by(Trip.time_departed.desc())
-    .all()
-  )
 
 
 @router.get("", response_model=list[AdminTripResponse])

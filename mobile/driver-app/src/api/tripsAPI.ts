@@ -2,12 +2,24 @@
 import { authClient } from './authAPI';
 
 export interface Trip {
-  id: string;
-  routeId: string;
-  routeName: string;
-  startedAt: string;
-  endedAt?: string;
-  status: 'in_progress' | 'completed' | 'cancelled';
+  trip_id: number;
+  dispatch_id: number;
+  status: 'outgoing' | 'returning';
+  time_departed: string;
+  time_arrived: string | null;
+  trip_duration_minutes: number | null;
+  average_speed_km: number | null;
+  is_complete: boolean;
+}
+
+export interface DriverTrip extends Trip {
+  vehicle_plate: string | null;
+  route_label: string | null;
+}
+
+export interface DriverDailySummary {
+  trips_completed: number;
+  incidents_reported: number;
 }
 
 export interface RecordTripPayload {
@@ -34,8 +46,15 @@ export interface IncidentReport {
  * fully separate resource, split this into its own incidentAPI.ts.
  */
 
-export async function getTripLogs(): Promise<Trip[]> {
-  const { data } = await authClient.get<Trip[]>('/trips');
+/** Returns only the signed-in driver's trips, newest first. */
+export async function getTripLogs(): Promise<DriverTrip[]> {
+  const { data } = await authClient.get<DriverTrip[]>('/trips/driver/mine');
+  return data;
+}
+
+/** Returns today's signed-in driver activity in Philippine time. */
+export async function getDailySummary(): Promise<DriverDailySummary> {
+  const { data } = await authClient.get<DriverDailySummary>('/trips/driver/summary');
   return data;
 }
 

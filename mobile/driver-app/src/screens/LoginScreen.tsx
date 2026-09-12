@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import {
   View,
   Text,
@@ -34,8 +35,19 @@ export default function LoginScreen() {
     try {
       await loginDriver(username.trim(), password);
       signIn(); // or '/home' — adjust to your actual app/ route once index.tsx's redirect logic is in place
-    } catch (e) {
-      setError('Invalid username or password.');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const detail = error.response?.data?.detail;
+        setError(
+          error.response?.status === 401
+            ? 'Invalid username or password.'
+            : detail || 'Unable to sign in. Please try again.'
+        );
+      } else if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('Unable to sign in. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -83,6 +95,8 @@ export default function LoginScreen() {
             placeholder="Password"
             placeholderTextColor="#7FA8A4"
             secureTextEntry={!showPassword}
+            autoCapitalize='none'
+            autoCorrect={false}
             value={password}
             onChangeText={setPassword}
             returnKeyType="done"

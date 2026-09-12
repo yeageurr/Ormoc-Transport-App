@@ -36,6 +36,10 @@ export async function loginDriver(
     password,
   });
 
+  if (!response.data.access_token) {
+    throw new Error('Login succeeded, but the server did not return an access token.');
+  }
+
   await SecureStore.setItemAsync(TOKEN_KEY, response.data.access_token);
 
   return response.data;

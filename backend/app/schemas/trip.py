@@ -29,6 +29,18 @@ class TripResponse(BaseModel):
   is_complete: bool
 
 
+class DriverTripResponse(TripResponse):
+  """Trip data shown in the driver's own history and home dashboard."""
+  vehicle_plate: str | None = None
+  route_label: str | None = None
+
+
+class DriverDailySummary(BaseModel):
+  """Counts for the signed-in driver's current calendar day."""
+  trips_completed: int
+  incidents_reported: int
+
+
 class TripDriverSummary(BaseModel):
   user_id: int
   first_name: str

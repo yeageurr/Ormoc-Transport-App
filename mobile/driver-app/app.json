@@ -33,7 +33,13 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Ormoc Transport Driver to access your location while you are using the app for GPS tracking."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
