@@ -1,185 +1,104 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
-import PageHeader from "../../components/ui/PageHeader";
 import CreateDispatchModal from "../../components/modals/CreateDispatchModal";
-import { useAuth } from "../../context/AuthContext";
-import { createDispatchBatch, getDispatches } from "../../api/dispatchAPI";
+import DispatchReviewModal from "../../components/modals/DispatchReviewModal";
+import EditDispatchModal from "../../components/modals/EditDispatchModal";
+import SelectDispatchRouteModal from "../../components/modals/SelectDispatchRouteModal";
+import PageHeader from "../../components/ui/PageHeader";
 import Toast from "../../components/ui/Toast";
+import { createDispatchBatch, getDispatches } from "../../api/dispatchAPI";
+import { getRoutes } from "../../api/routesAPI";
 import { getDrivers } from "../../api/usersAPI";
 import { getVehicles } from "../../api/vehiclesAPI";
-import { getRoutes } from "../../api/routesAPI";
+import { useAuth } from "../../context/AuthContext";
 
+const phDate = (value) => {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+const tomorrow = () => {
+  const [year, month, day] = phDate(new Date()).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+};
+const displayDate = (date) => new Date(`${date}T00:00:00+08:00`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
 export default function DispatchLog() {
   const { mustChangePassword, setMustChangePassword } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-
+  const [step, setStep] = useState(null);
+  const [routeId, setRouteId] = useState(null);
+  const [assignments, setAssignments] = useState([]);
   const [dispatches, setDispatches] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [routes, setRoutes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
-  const [drafts, setDrafts] = useState([]);
-  const [isSavingBatch, setIsSavingBatch] = useState(false);
   const [toast, setToast] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [addingToGroup, setAddingToGroup] = useState(null);
+  const effectiveDate = tomorrow();
 
-  useEffect(() => {
-    setShowPasswordModal(mustChangePassword);
-  }, [mustChangePassword]);
-
+  useEffect(() => setShowPasswordModal(mustChangePassword), [mustChangePassword]);
   const loadAll = async () => {
-    setIsLoading(true);
-    setError(null);
+    setIsLoading(true); setError(null);
     try {
-      const [dispatchData, driverData, vehicleData, routeData] = await Promise.all([
-        getDispatches(),
-        getDrivers(),
-        getVehicles(),
-        getRoutes(),
-      ]);
-      setDispatches(dispatchData);
-      setDrivers(driverData);
-      setVehicles(vehicleData);
-      setRoutes(routeData);
-    } catch (err) {
-      setError(err.message || "Failed to load dispatch log.");
-    } finally {
-      setIsLoading(false);
-    }
+      const [log, driverList, vehicleList, routeList] = await Promise.all([getDispatches(), getDrivers(), getVehicles(), getRoutes()]);
+      setDispatches(log); setDrivers(driverList); setVehicles(vehicleList); setRoutes(routeList);
+    } catch (loadError) { setError(loadError.message || "Failed to load dispatch log."); }
+    finally { setIsLoading(false); }
   };
+  useEffect(() => { loadAll(); }, []);
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  // Route/driver/vehicle names aren't embedded in the dispatch response —
-  // built as client-side lookup maps instead of reworking the backend for
-  // a table this small (5 routes, handful of drivers/vehicles).
-  const routeMap = useMemo(() => Object.fromEntries(routes.map((r) => [r.route_id, r.destination?.name])), [routes]);
-  const driverMap = useMemo(() => Object.fromEntries(drivers.map((d) => [d.user_id, `${d.first_name} ${d.last_name}`])), [drivers]);
-  const vehicleMap = useMemo(() => Object.fromEntries(vehicles.map((v) => [v.vehicle_id, v.plate_number])), [vehicles]);
-
-  const filteredDispatches = useMemo(() => {
-    return dispatches.filter((d) => {
-      const routeName = (routeMap[d.route_id] || "").toLowerCase();
-      const dateStr = new Date(d.effective_on).toLocaleDateString("en-US").toLowerCase();
-      return routeName.includes(search.toLowerCase()) || dateStr.includes(search.toLowerCase());
+  const routeMap = useMemo(() => Object.fromEntries(routes.map((route) => [route.route_id, route.destination?.name || `Route #${route.route_id}`])), [routes]);
+  const driverMap = useMemo(() => Object.fromEntries(drivers.map((driver) => [driver.user_id, `${driver.first_name} ${driver.last_name}`])), [drivers]);
+  const vehicleMap = useMemo(() => Object.fromEntries(vehicles.map((vehicle) => [vehicle.vehicle_id, vehicle.plate_number])), [vehicles]);
+  const vehicleDetails = useMemo(() => Object.fromEntries(vehicles.map((vehicle) => [vehicle.vehicle_id, vehicle])), [vehicles]);
+  const availableRoutes = useMemo(() => routes.filter((route) => !dispatches.some((dispatch) => dispatch.route_id === route.route_id && phDate(dispatch.effective_on) === effectiveDate)), [routes, dispatches, effectiveDate]);
+  const groups = useMemo(() => {
+    const byRouteAndDate = new Map();
+    dispatches.forEach((dispatch) => {
+      const date = phDate(dispatch.effective_on); const key = `${date}-${dispatch.route_id}`;
+      if (!byRouteAndDate.has(key)) byRouteAndDate.set(key, { key, date, routeId: dispatch.route_id, assignments: [] });
+      byRouteAndDate.get(key).assignments.push(dispatch);
     });
+    return [...byRouteAndDate.values()].filter((group) => `${displayDate(group.date)} ${routeMap[group.routeId] || ""}`.toLowerCase().includes(search.toLowerCase()));
   }, [dispatches, routeMap, search]);
 
-  const batchDate = drafts[0] ? new Date(drafts[0].effective_on).toLocaleDateString("en-CA") : null;
-  const stageDispatch = (draft) => {
-    if (drafts.some((item) => item.driver_id === draft.driver_id || item.vehicle_id === draft.vehicle_id)) {
-      setToast({ type: "error", message: "A driver and vehicle can only be staged once in a batch." });
-      return;
-    }
-    setDrafts([...drafts, draft]);
-    setShowCreateModal(false);
+  const closeCreation = () => { setStep(null); setRouteId(null); setAssignments([]); };
+  const beginReview = (selectedRouteId) => { setRouteId(selectedRouteId); setAssignments([]); setStep("review"); };
+  const save = async () => {
+    setIsSaving(true);
+    try {
+      await createDispatchBatch(assignments.map((assignment) => ({ ...assignment, route_id: routeId, effective_on: `${effectiveDate}T00:00:00+08:00` })));
+      closeCreation(); await loadAll(); setToast({ type: "success", message: "Dispatch saved successfully." });
+    } catch (saveError) { setToast({ type: "error", message: saveError.message || "Failed to save dispatch." }); }
+    finally { setIsSaving(false); }
   };
-  const saveBatch = async () => {
-    setIsSavingBatch(true);
-    try { await createDispatchBatch(drafts); setDrafts([]); await loadAll(); setToast({ type: "success", message: "Dispatch batch saved successfully." }); }
-    catch (err) { setToast({ type: "error", message: err.message || "Failed to save dispatch batch." }); }
-    finally { setIsSavingBatch(false); }
+  const addToSavedDispatch = async (assignment) => {
+    try {
+      const created = await createDispatchBatch([{ ...assignment, route_id: addingToGroup.routeId, effective_on: `${addingToGroup.date}T00:00:00+08:00` }]);
+      setEditingGroup((current) => ({ ...current, assignments: [...current.assignments, ...created] }));
+      setAddingToGroup(null); await loadAll(); setToast({ type: "success", message: "Driver added to dispatch." });
+    } catch (saveError) { setToast({ type: "error", message: saveError.message || "Failed to add driver." }); }
   };
 
-  return (
-      <main>
-        <Toast toast={toast} onDismiss={() => setToast(null)} />
-        <PageHeader title={"Dispatch"} />
-
-        <div className="flex items-center gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="Search route or date..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] max-w-xs"
-          />
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="ml-auto bg-[#1D9E75] text-[#04342C] font-semibold rounded-xl px-5 py-2.5 text-sm"
-          >
-            + Create new dispatch
-          </button>
-        </div>
-
-        {drafts.length > 0 && (
-          <div className="mb-4 rounded-2xl border border-[#1D9E75]/40 bg-[#0a2420] p-4">
-            <div className="mb-3 flex items-center justify-between"><div><h2 className="text-sm font-semibold text-[#eafff5]">Pending batch · {new Date(drafts[0].effective_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</h2><p className="text-xs text-[#9fcabd]">These dispatches are only staged until you confirm.</p></div><button onClick={saveBatch} disabled={isSavingBatch} className="rounded-xl bg-[#1D9E75] px-4 py-2 text-sm font-semibold text-[#04342C] disabled:opacity-50">{isSavingBatch ? "Saving..." : "Confirm and save"}</button></div>
-            <div className="space-y-1">{drafts.map((draft, index) => <div key={`${draft.driver_id}-${draft.vehicle_id}`} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm text-[#9fcabd]"><span>{driverMap[draft.driver_id]} · {vehicleMap[draft.vehicle_id]} · Ormoc - {routeMap[draft.route_id]}</span><button title="Remove staged dispatch" onClick={() => setDrafts(drafts.filter((_, itemIndex) => itemIndex !== index))} className="text-[#D98B72]">Remove</button></div>)}</div>
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-[#3A1B14] text-[#D98B72] text-sm rounded-xl px-4 py-3 mb-4">
-            {error}
-          </div>
-        )}
-
-        <div className="bg-[#0a2420] rounded-2xl overflow-hidden">
-          <div className="bg-white/5 px-5 py-2 text-[#5DCAA5] text-xs">
-            {filteredDispatches.length} dispatch records
-          </div>
-
-          {isLoading ? (
-            <p className="text-[#9fcabd] text-sm p-5">Loading dispatch log...</p>
-          ) : filteredDispatches.length === 0 ? (
-            <p className="text-[#9fcabd] text-sm p-5">No dispatch records found.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[#9fcabd] text-xs text-left">
-                  <th className="px-5 py-3 font-medium">Date</th>
-                  <th className="px-5 py-3 font-medium">Route</th>
-                  <th className="px-5 py-3 font-medium">Driver</th>
-                  <th className="px-5 py-3 font-medium">Vehicle</th>
-                  <th className="px-5 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDispatches.map((d) => (
-                  <tr key={d.dispatch_id} className="group border-t border-white/5">
-                    <td className="px-5 py-3 text-[#eafff5]">
-                      {new Date(d.effective_on).toLocaleDateString("en-US", {
-                        month: "long", day: "numeric", year: "numeric",
-                      })}
-                    </td>
-                    <td className="px-5 py-3 text-[#9fcabd]">Ormoc - {routeMap[d.route_id] || "—"}</td>
-                    <td className="px-5 py-3 text-[#9fcabd]">{driverMap[d.driver_id] || "—"}</td>
-                    <td className="px-5 py-3 text-[#9fcabd]">{vehicleMap[d.vehicle_id] || "—"}</td>
-                    <td className="px-5 py-3"><div className="opacity-0 transition-opacity group-hover:opacity-100"><button title="View dispatch" className="text-xs text-[#5DCAA5]">View</button></div></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {showCreateModal && (
-          <CreateDispatchModal
-            isOpen={showCreateModal}
-            drivers={drivers}
-            vehicles={vehicles}
-            routes={routes}
-            onClose={() => setShowCreateModal(false)}
-            onStage={stageDispatch}
-            lockedDate={batchDate}
-          />
-        )}
-
-        {showPasswordModal && (
-          <ChangePasswordModal
-            onClose={() => setShowPasswordModal(false)}
-            onSuccess={() => {
-              setMustChangePassword(false);
-              setShowPasswordModal(false);
-            }}
-          />
-        )}
-      </main>
-  );
+  return <main>
+    <Toast toast={toast} onDismiss={() => setToast(null)} />
+    <PageHeader title="Dispatch" />
+    <div className="mb-4 flex items-center gap-3"><input type="text" placeholder="Search route or date..." value={search} onChange={(event) => setSearch(event.target.value)} className="max-w-xs flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#eafff5] outline-none focus:border-[#1D9E75]" /><button onClick={() => setStep("route")} className="ml-auto rounded-xl bg-[#1D9E75] px-5 py-2.5 text-sm font-semibold text-[#04342C]">+ Create new dispatch</button></div>
+    {error && <div className="mb-4 rounded-xl bg-[#3A1B14] px-4 py-3 text-sm text-[#D98B72]">{error}</div>}
+    <div className="overflow-hidden rounded-2xl bg-[#0a2420]"><div className="bg-white/5 px-5 py-2 text-xs text-[#5DCAA5]">{groups.length} dispatch records</div>{isLoading ? <p className="p-5 text-sm text-[#9fcabd]">Loading dispatch log...</p> : !groups.length ? <p className="p-5 text-sm text-[#9fcabd]">No dispatch records found.</p> : <table className="w-full text-sm"><thead><tr className="text-left text-xs text-[#9fcabd]"><th className="px-5 py-3 font-medium">Effective date</th><th className="px-5 py-3 font-medium">Route</th><th className="px-5 py-3 font-medium">Assigned drivers</th><th className="px-5 py-3 font-medium">Actions</th></tr></thead><tbody>{groups.map((group) => { const editable = group.date > phDate(new Date()); return <tr key={group.key} className="group border-t border-white/5"><td className="px-5 py-3 text-[#eafff5]">{displayDate(group.date)}</td><td className="px-5 py-3 text-[#9fcabd]">Ormoc - {routeMap[group.routeId] || "—"}</td><td className="px-5 py-3 text-[#9fcabd]">{group.assignments.length}</td><td className="px-5 py-3"><button onClick={() => setEditingGroup(group)} disabled={!editable} title={editable ? "Edit dispatch" : "Current and past dispatches are finalized"} aria-label="Edit dispatch" className="text-[#5DCAA5] opacity-0 transition-opacity group-hover:opacity-100 disabled:cursor-not-allowed disabled:text-[#9fcabd]/50 disabled:group-hover:opacity-0"><Pencil size={16} /></button></td></tr>; })}</tbody></table>}</div>
+    {step === "route" && <SelectDispatchRouteModal routes={availableRoutes} onClose={closeCreation} onProceed={beginReview} />}
+    {step === "review" && <DispatchReviewModal routeName={`Ormoc - ${routeMap[routeId] || "—"}`} effectiveDate={displayDate(effectiveDate)} assignments={assignments} driverMap={driverMap} vehicleMap={vehicleMap} vehicleDetails={vehicleDetails} isSaving={isSaving} onClose={closeCreation} onAddDriver={() => setStep("assignment")} onRemove={(index) => setAssignments((current) => current.filter((_, itemIndex) => itemIndex !== index))} onConfirm={save} />}
+    {step === "assignment" && <CreateDispatchModal drivers={drivers} vehicles={vehicles} assignedDriverIds={assignments.map((assignment) => assignment.driver_id)} assignedVehicleIds={assignments.map((assignment) => assignment.vehicle_id)} onClose={() => setStep("review")} onStage={(assignment) => { setAssignments((current) => [...current, assignment]); setStep("review"); }} />}
+    {editingGroup && !addingToGroup && <EditDispatchModal group={editingGroup} routeName={`Ormoc - ${routeMap[editingGroup.routeId] || "—"}`} effectiveDate={displayDate(editingGroup.date)} driverMap={driverMap} vehicleMap={vehicleMap} vehicleDetails={vehicleDetails} onClose={() => setEditingGroup(null)} onAddDriver={() => setAddingToGroup(editingGroup)} />}
+    {addingToGroup && <CreateDispatchModal drivers={drivers} vehicles={vehicles} assignedDriverIds={addingToGroup.assignments.map((assignment) => assignment.driver_id)} assignedVehicleIds={addingToGroup.assignments.map((assignment) => assignment.vehicle_id)} onClose={() => setAddingToGroup(null)} onStage={addToSavedDispatch} />}
+    {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} onSuccess={() => { setMustChangePassword(false); setShowPasswordModal(false); }} />}
+  </main>;
 }
