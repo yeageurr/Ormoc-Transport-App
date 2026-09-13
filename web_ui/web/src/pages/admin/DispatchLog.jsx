@@ -3,7 +3,8 @@ import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import PageHeader from "../../components/ui/PageHeader";
 import CreateDispatchModal from "../../components/modals/CreateDispatchModal";
 import { useAuth } from "../../context/AuthContext";
-import { getDispatches} from "../../api/dispatchAPI";
+import { createDispatchBatch, getDispatches } from "../../api/dispatchAPI";
+import Toast from "../../components/ui/Toast";
 import { getDrivers } from "../../api/usersAPI";
 import { getVehicles } from "../../api/vehiclesAPI";
 import { getRoutes } from "../../api/routesAPI";
@@ -21,6 +22,9 @@ export default function DispatchLog() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [drafts, setDrafts] = useState([]);
+  const [isSavingBatch, setIsSavingBatch] = useState(false);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     setShowPasswordModal(mustChangePassword);
@@ -66,8 +70,25 @@ export default function DispatchLog() {
     });
   }, [dispatches, routeMap, search]);
 
+  const batchDate = drafts[0] ? new Date(drafts[0].effective_on).toLocaleDateString("en-CA") : null;
+  const stageDispatch = (draft) => {
+    if (drafts.some((item) => item.driver_id === draft.driver_id || item.vehicle_id === draft.vehicle_id)) {
+      setToast({ type: "error", message: "A driver and vehicle can only be staged once in a batch." });
+      return;
+    }
+    setDrafts([...drafts, draft]);
+    setShowCreateModal(false);
+  };
+  const saveBatch = async () => {
+    setIsSavingBatch(true);
+    try { await createDispatchBatch(drafts); setDrafts([]); await loadAll(); setToast({ type: "success", message: "Dispatch batch saved successfully." }); }
+    catch (err) { setToast({ type: "error", message: err.message || "Failed to save dispatch batch." }); }
+    finally { setIsSavingBatch(false); }
+  };
+
   return (
       <main>
+        <Toast toast={toast} onDismiss={() => setToast(null)} />
         <PageHeader title={"Dispatch"} />
 
         <div className="flex items-center gap-3 mb-4">
@@ -85,6 +106,13 @@ export default function DispatchLog() {
             + Create new dispatch
           </button>
         </div>
+
+        {drafts.length > 0 && (
+          <div className="mb-4 rounded-2xl border border-[#1D9E75]/40 bg-[#0a2420] p-4">
+            <div className="mb-3 flex items-center justify-between"><div><h2 className="text-sm font-semibold text-[#eafff5]">Pending batch · {new Date(drafts[0].effective_on).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</h2><p className="text-xs text-[#9fcabd]">These dispatches are only staged until you confirm.</p></div><button onClick={saveBatch} disabled={isSavingBatch} className="rounded-xl bg-[#1D9E75] px-4 py-2 text-sm font-semibold text-[#04342C] disabled:opacity-50">{isSavingBatch ? "Saving..." : "Confirm and save"}</button></div>
+            <div className="space-y-1">{drafts.map((draft, index) => <div key={`${draft.driver_id}-${draft.vehicle_id}`} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm text-[#9fcabd]"><span>{driverMap[draft.driver_id]} · {vehicleMap[draft.vehicle_id]} · Ormoc - {routeMap[draft.route_id]}</span><button title="Remove staged dispatch" onClick={() => setDrafts(drafts.filter((_, itemIndex) => itemIndex !== index))} className="text-[#D98B72]">Remove</button></div>)}</div>
+          </div>
+        )}
 
         {error && (
           <div className="bg-[#3A1B14] text-[#D98B72] text-sm rounded-xl px-4 py-3 mb-4">
@@ -109,11 +137,12 @@ export default function DispatchLog() {
                   <th className="px-5 py-3 font-medium">Route</th>
                   <th className="px-5 py-3 font-medium">Driver</th>
                   <th className="px-5 py-3 font-medium">Vehicle</th>
+                  <th className="px-5 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDispatches.map((d) => (
-                  <tr key={d.dispatch_id} className="border-t border-white/5">
+                  <tr key={d.dispatch_id} className="group border-t border-white/5">
                     <td className="px-5 py-3 text-[#eafff5]">
                       {new Date(d.effective_on).toLocaleDateString("en-US", {
                         month: "long", day: "numeric", year: "numeric",
@@ -122,6 +151,7 @@ export default function DispatchLog() {
                     <td className="px-5 py-3 text-[#9fcabd]">Ormoc - {routeMap[d.route_id] || "—"}</td>
                     <td className="px-5 py-3 text-[#9fcabd]">{driverMap[d.driver_id] || "—"}</td>
                     <td className="px-5 py-3 text-[#9fcabd]">{vehicleMap[d.vehicle_id] || "—"}</td>
+                    <td className="px-5 py-3"><div className="opacity-0 transition-opacity group-hover:opacity-100"><button title="View dispatch" className="text-xs text-[#5DCAA5]">View</button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -136,10 +166,8 @@ export default function DispatchLog() {
             vehicles={vehicles}
             routes={routes}
             onClose={() => setShowCreateModal(false)}
-            onSuccess={() => {
-              setShowCreateModal(false);
-              loadAll();
-            }}
+            onStage={stageDispatch}
+            lockedDate={batchDate}
           />
         )}
 

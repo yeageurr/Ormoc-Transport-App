@@ -33,3 +33,23 @@ class GpsLogResponse(BaseModel):
   longitude: float
   recorded_at: datetime
   speed_kmh: float
+
+
+class CurrentLocationPing(BaseModel):
+  latitude: float
+  longitude: float
+  speed_kmh: float = 0
+
+  @field_validator("latitude")
+  @classmethod
+  def validate_current_lat(cls, v: float) -> float:
+    if not -90 <= v <= 90:
+      raise ValueError("latitude must be between -90 and 90")
+    return v
+
+  @field_validator("longitude")
+  @classmethod
+  def validate_current_lng(cls, v: float) -> float:
+    if not -180 <= v <= 180:
+      raise ValueError("longitude must be between -180 and 180")
+    return v

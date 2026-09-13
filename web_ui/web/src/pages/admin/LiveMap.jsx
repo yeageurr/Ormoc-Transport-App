@@ -61,6 +61,13 @@ export default function LiveMap() {
     loadInitialState();
   }, [loadInitialState]);
 
+  // The WebSocket is the fast path. Polling keeps the display fresh if a
+  // browser blocks the socket upgrade or it is reconnecting.
+  useEffect(() => {
+    const timer = setInterval(() => loadInitialState({ silent: true }), 15000);
+    return () => clearInterval(timer);
+  }, [loadInitialState]);
+
   const handleGpsUpdate = useCallback((data) => {
     // data: { vehicle_id, trip_id, latitude, longitude, speed_kmh, recorded_at }
     // vehicle_id assumes the small gps.py broadcast patch documented

@@ -1,12 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
+import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
 import { useAuth } from '@/hooks/useAuth';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function ProfileScreen() {
   const { signOut } = useAuth();
+  const [currentDispatch, setCurrentDispatch] = useState<CurrentDispatch | null>(null);
+
+  const loadCurrentDispatch = useCallback(async () => {
+    try {
+      setCurrentDispatch(await getCurrentDispatch());
+    } catch {
+      setCurrentDispatch(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCurrentDispatch();
+  }, [loadCurrentDispatch]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -25,15 +40,17 @@ export default function ProfileScreen() {
         <Text style={styles.sectionTitle}>My Information</Text>
         <View style={styles.infoCard}>
           <InfoRow icon="calendar-outline" value="September 19, 2006 (19 yrs. old)" label="Birthday" />
-          <InfoRow icon="git-compare-outline" value="Valencia - Ormoc" label="Route" />
-          <InfoRow icon="car-sport-outline" value="Multicab - ABC 123" label="Vehicle" />
+          <InfoRow icon="git-compare-outline" value={currentDispatch?.route_label || 'Currently not assigned'} label="Route" />
+          <InfoRow icon="car-sport-outline" value={currentDispatch?.vehicle_plate || 'Currently not assigned'} label="Vehicle" />
           <InfoRow icon="people-outline" value="SAVAMTCO" label="Cooperative" last />
         </View>
 
-        <Text style={styles.sectionTitle}>Account</Text>
-        <View style={styles.accountCard}>
-          <AccountRow icon="lock-closed-outline" label="Change password" />
-          <AccountRow icon="person-outline" label="Edit profile" last />
+        <View style={styles.accountSection}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.accountCard}>
+            <AccountRow icon="lock-closed-outline" label="Change password" />
+            <AccountRow icon="person-outline" label="Edit profile" last />
+          </View>
         </View>
 
         <Pressable onPress={signOut} style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}>
@@ -75,6 +92,7 @@ const styles = StyleSheet.create({
   driverId: { color: '#C4DFDB', fontSize: 10, marginTop: 3 },
   sectionTitle: { color: '#D5F1ED', fontSize: 14, marginBottom: 10 },
   infoCard: { borderRadius: 14, backgroundColor: '#07594F', overflow: 'hidden' },
+  accountSection: { marginTop: 22 },
   infoRow: { minHeight: 61, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 17 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(169, 209, 204, 0.16)' },
   rowCopy: { flex: 1 },

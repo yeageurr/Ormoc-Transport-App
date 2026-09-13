@@ -15,3 +15,6 @@ export const createDispatch = async (payload) => {
   const response = await axiosClient.post("/dispatch", payload);
   return response.data;
 };
+
+export const createDispatchBatch = async (dispatches) => (await axiosClient.post("/dispatch/batch", { dispatches })).data;
+export const updateDispatch = async (dispatchId, payload) => (await axiosClient.patch(`/dispatch/${dispatchId}`, payload)).data;

@@ -3,15 +3,16 @@ import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/ui/PageHeader";
 import AddUserModal from "../../components/modals/AddUserModal";
+import UserActionConfirmModal from "../../components/modals/UserActionConfirmModal";
+import EditUserModal from "../../components/modals/EditUserModal";
+import Toast from "../../components/ui/Toast";
 import {
   getDrivers,
   suspendDriver,
   reactivateDriver,
   deleteDriver,
 } from "../../api/usersAPI";
-import {
-  Search
-} from 'lucide-react';
+import { Edit3, Power, RotateCcw, Search, Trash2 } from 'lucide-react';
 
 export default function Users() {
   const { mustChangePassword, setMustChangePassword } = useAuth();
@@ -24,12 +25,15 @@ export default function Users() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [actioningId, setActioningId] = useState(null);
+  const [pendingAction, setPendingAction] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [editingDriver, setEditingDriver] = useState(null);
 
   const UserAccountStatus = [
-    { value: "All", label: "All Status" },
-    { value: "Active", label: "Active" },
-    { value: "Suspended", label: "Suspended" },
-    { value: "Disabled", label: "Disabled" },
+    { value: "all", label: "All Status" },
+    { value: "active", label: "Active" },
+    { value: "suspended", label: "Suspended" },
+    { value: "disabled", label: "Disabled" },
   ]
 
   useEffect(() => {
@@ -63,36 +67,29 @@ export default function Users() {
     });
   }, [drivers, search, statusFilter]);
 
-  const handleSuspendToggle = async (driver) => {
+  const showToast = (type, message) => setToast({ type, message });
+
+  const handleConfirmedAction = async () => {
+    if (!pendingAction) return;
+
+    const { type, driver } = pendingAction;
     setActioningId(driver.user_id);
     try {
-      if (driver.account?.status === "suspended") {
+      if (type === "reactivate") {
         await reactivateDriver(driver.user_id);
-      } else {
+      } else if (type === "suspend") {
         await suspendDriver(driver.user_id);
+      } else {
+        await deleteDriver(driver.user_id);
       }
       await loadDrivers();
+      const verb = type === "reactivate" ? "reactivated" : type === "suspend" ? "suspended" : "disabled";
+      showToast("success", `${driver.first_name} ${driver.last_name} has been ${verb}.`);
     } catch (err) {
-      setError(err.message || "Action failed.");
+      showToast("error", err.message || "Action failed. Please try again.");
     } finally {
       setActioningId(null);
-    }
-  };
-
-  const handleDelete = async (driver) => {
-    const confirmed = window.confirm(
-      `Disable ${driver.first_name} ${driver.last_name}'s account? This preserves their history but blocks login.`
-    );
-    if (!confirmed) return;
-
-    setActioningId(driver.user_id);
-    try {
-      await deleteDriver(driver.user_id);
-      await loadDrivers();
-    } catch (err) {
-      setError(err.message || "Failed to disable account.");
-    } finally {
-      setActioningId(null);
+      setPendingAction(null);
     }
   };
 
@@ -112,6 +109,7 @@ export default function Users() {
   return (
 
       <>
+        <Toast toast={toast} onDismiss={() => setToast(null)} />
         <PageHeader title={"Users"}/>
 
         <div className="flex items-center justify-between h-11 gap-3 mb-4">
@@ -179,7 +177,7 @@ export default function Users() {
               </thead>
               <tbody>
                 {filteredDrivers.map((driver) => (
-                  <tr key={driver.user_id} className="border-t border-white/5">
+                  <tr key={driver.user_id} className="group border-t border-white/5">
                     <td className="px-5 py-3 text-[#eafff5]">
                       {driver.first_name} {driver.last_name}
                     </td>
@@ -187,21 +185,22 @@ export default function Users() {
                     <td className="px-5 py-3 text-[#9fcabd]">{driver.contact_number}</td>
                     <td className="px-5 py-3">{statusBadge(driver.account?.status)}</td>
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                        <button title="Edit User" aria-label="Edit User" disabled={driver.account?.status === "disabled"} className="rounded-lg p-1.5 text-[#5DCAA5] hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30" onClick={() => setEditingDriver(driver)}><Edit3 size={15} /></button>
                         <button
-                          className="text-[#5DCAA5] text-xs disabled:opacity-40"
-                          disabled={actioningId === driver.user_id || driver.account?.status === "disabled"}
-                          onClick={() => handleSuspendToggle(driver)}
-                        >
-                          {driver.account?.status === "suspended" ? "Reactivate" : "Suspend"}
-                        </button>
+                          title={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
+                          aria-label={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
+                          className="rounded-lg p-1.5 text-[#F0B55B] hover:bg-white/10 disabled:opacity-40"
+                          disabled={actioningId === driver.user_id}
+                          onClick={() => setPendingAction({ type: driver.account?.status === "active" ? "suspend" : "reactivate", driver })}
+                        >{driver.account?.status === "active" ? <Power size={15} /> : <RotateCcw size={15} />}</button>
                         <button
-                          className="text-[#D98B72] text-xs disabled:opacity-40"
+                          title="Disable User"
+                          aria-label="Disable User"
+                          className="rounded-lg p-1.5 text-[#D98B72] hover:bg-white/10 disabled:opacity-40"
                           disabled={actioningId === driver.user_id || driver.account?.status === "disabled"}
-                          onClick={() => handleDelete(driver)}
-                        >
-                          Delete
-                        </button>
+                          onClick={() => setPendingAction({ type: "delete", driver })}
+                        ><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
@@ -224,11 +223,21 @@ export default function Users() {
         <AddUserModal
           isOpen={isAddUserModalOpen}
           onClose={() => setShowAddUserModal(false)}
-          onSuccess={async () => {
+          onSuccess={async (driver) => {
             await loadDrivers();
             setShowAddUserModal(false);
+            showToast("success", `${driver.first_name} ${driver.last_name} was created successfully.`);
           }}
+          onError={(message) => showToast("error", message)}
         />
+        <UserActionConfirmModal
+          action={pendingAction?.type}
+          driver={pendingAction?.driver}
+          isSubmitting={actioningId === pendingAction?.driver.user_id}
+          onClose={() => !actioningId && setPendingAction(null)}
+          onConfirm={handleConfirmedAction}
+        />
+        {editingDriver && <EditUserModal driver={editingDriver} onClose={() => setEditingDriver(null)} onSuccess={async (driver) => { await loadDrivers(); setEditingDriver(null); showToast("success", `${driver.first_name} ${driver.last_name} was updated successfully.`); }} onError={(message) => showToast("error", message)} />}
       </>
   );
 }

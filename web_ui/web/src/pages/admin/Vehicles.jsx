@@ -1,8 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import { useAuth } from "../../context/AuthContext";
-import { getVehicles, getEligibleOwners, createVehicle } from "../../api/vehiclesAPI";
+import { getVehicles, getEligibleOwners, createVehicle, deleteVehicle } from "../../api/vehiclesAPI";
 import PageHeader from "../../components/ui/PageHeader";
+import Toast from "../../components/ui/Toast";
+import EditVehicleModal from "../../components/modals/EditVehicleModal";
+import VehicleDeleteConfirmModal from "../../components/modals/VehicleDeleteConfirmModal";
+import { Edit3, Trash2 } from "lucide-react";
 
 
 function getContrastTextColor(hex) {
@@ -25,7 +29,7 @@ function ColorSwatch({ hex }) {
   );
 }
 
-function AddVehicleModal({ onClose, onSuccess }) {
+function AddVehicleModal({ onClose, onSuccess, onError }) {
   const [owners, setOwners] = useState([]);
   const [form, setForm] = useState({
     owner_id: "",
@@ -49,10 +53,12 @@ function AddVehicleModal({ onClose, onSuccess }) {
     setError(null);
     setIsSubmitting(true);
     try {
-      await createVehicle({ ...form, owner_id: Number(form.owner_id) });
-      onSuccess();
+      const vehicle = await createVehicle({ ...form, owner_id: Number(form.owner_id) });
+      onSuccess(vehicle);
     } catch (err) {
-      setError(err.message || "Failed to register vehicle.");
+      const message = err.message || "Failed to register vehicle.";
+      setError(message);
+      onError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -165,6 +171,10 @@ export default function Vehicles() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [toast, setToast] = useState(null);
+  const [editingVehicle, setEditingVehicle] = useState(null);
+  const [vehiclePendingDelete, setVehiclePendingDelete] = useState(null);
+  const [deletingVehicleId, setDeletingVehicleId] = useState(null);
 
   useEffect(() => {
     setShowPasswordModal(mustChangePassword);
@@ -191,8 +201,25 @@ export default function Vehicles() {
     return vehicles.filter((v) => v.plate_number.toLowerCase().includes(search.toLowerCase()));
   }, [vehicles, search]);
 
+  const handleDeleteVehicle = async () => {
+    if (!vehiclePendingDelete) return;
+    const vehicle = vehiclePendingDelete;
+    setDeletingVehicleId(vehicle.vehicle_id);
+    try {
+      await deleteVehicle(vehicle.vehicle_id);
+      await loadVehicles();
+      setToast({ type: "success", message: `${vehicle.plate_number} was deleted successfully.` });
+      setVehiclePendingDelete(null);
+    } catch (err) {
+      setToast({ type: "error", message: err.message || "Failed to delete vehicle." });
+    } finally {
+      setDeletingVehicleId(null);
+    }
+  };
+
   return (
       <main>
+        <Toast toast={toast} onDismiss={() => setToast(null)} />
         <PageHeader title={"Vehicles"}/>
 
         <div className="flex items-center gap-3 mb-4">
@@ -240,7 +267,7 @@ export default function Vehicles() {
               </thead>
               <tbody>
                 {filteredVehicles.map((v) => (
-                  <tr key={v.vehicle_id} className="border-t border-white/5">
+                  <tr key={v.vehicle_id} className="group border-t border-white/5">
                     <td className="px-5 py-3 text-[#eafff5]">{v.plate_number}</td>
                     <td className="px-5 py-3 text-[#9fcabd]">{v.body_number}</td>
                     <td className="px-5 py-3 text-[#9fcabd]">
@@ -255,14 +282,9 @@ export default function Vehicles() {
                       })}
                     </td>
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-3">
-                        <button className="text-[#5DCAA5] text-xs">Edit</button>
-                        <span
-                          className="text-[#5b7a70] text-xs cursor-not-allowed"
-                          title="Delete isn't available yet — no backend endpoint for this"
-                        >
-                          Delete
-                        </span>
+                      <div className="flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                        <button title="Edit Vehicle" aria-label="Edit Vehicle" onClick={() => setEditingVehicle(v)} className="rounded-lg p-1.5 text-[#5DCAA5] hover:bg-white/10"><Edit3 size={15} /></button>
+                        <button title="Delete Vehicle" aria-label="Delete Vehicle" onClick={() => setVehiclePendingDelete(v)} className="rounded-lg p-1.5 text-[#D98B72] hover:bg-white/10"><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
@@ -274,12 +296,32 @@ export default function Vehicles() {
         {showAddModal && (
           <AddVehicleModal
             onClose={() => setShowAddModal(false)}
-            onSuccess={() => {
+            onSuccess={(vehicle) => {
               setShowAddModal(false);
               loadVehicles();
+              setToast({ type: "success", message: `${vehicle.plate_number} was added successfully.` });
             }}
+            onError={(message) => setToast({ type: "error", message })}
           />
         )}
+        {editingVehicle && (
+          <EditVehicleModal
+            vehicle={editingVehicle}
+            onClose={() => setEditingVehicle(null)}
+            onSuccess={async (vehicle) => {
+              await loadVehicles();
+              setEditingVehicle(null);
+              setToast({ type: "success", message: `${vehicle.plate_number} was updated successfully.` });
+            }}
+            onError={(message) => setToast({ type: "error", message })}
+          />
+        )}
+        <VehicleDeleteConfirmModal
+          vehicle={vehiclePendingDelete}
+          isSubmitting={deletingVehicleId === vehiclePendingDelete?.vehicle_id}
+          onClose={() => !deletingVehicleId && setVehiclePendingDelete(null)}
+          onConfirm={handleDeleteVehicle}
+        />
 
         {showPasswordModal && (
           <ChangePasswordModal

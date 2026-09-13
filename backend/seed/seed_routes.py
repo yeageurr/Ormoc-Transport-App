@@ -23,19 +23,19 @@ load_dotenv()
 # should replace these placeholders before running against production.
 TERMINAL_DATA = {
   "terminal_name": "Ormoc City Bus Terminal",
-  "min_latitude": 11.0055,
-  "max_latitude": 11.0075,
-  "min_longitude": 124.6065,
-  "max_longitude": 124.6085,
+  "min_latitude": 11.004567,
+  "max_latitude": 11.005029,
+  "min_longitude": 124.607085,
+  "max_longitude": 124.607465,
   "address": "Ormoc City Bus Terminal, Ormoc City, Leyte",
 }
 
 PILOT_DESTINATIONS = [
-  {"name": "Montebello", "latitude": 11.0870, "longitude": 124.6130, "address": "Montebello, Ormoc City"},
-  {"name": "Sabang Bao", "latitude": 10.9500, "longitude": 124.5700, "address": "Sabang Bao, Ormoc City"},
-  {"name": "Puertobello", "latitude": 10.9200, "longitude": 124.5900, "address": "Puertobello, Ormoc City"},
-  {"name": "Valencia", "latitude": 10.9500, "longitude": 124.6300, "address": "Valencia, Ormoc City"},
-  {"name": "Albuera", "latitude": 11.0300, "longitude": 124.4700, "address": "Albuera, Leyte"},
+  {"name": "Montebello", "latitude": 11.159727, "longitude": 124.561810, "address": "Montebello, Ormoc City, Leyte"},
+  {"name": "Sabang Bao", "latitude": 11.072899, "longitude": 124.538564, "address": "Sabang Bao, Ormoc City, Leyte"},
+  {"name": "Puertobello", "latitude": 10.978837, "longitude": 124.533172, "address": "Puertobello, Ormoc City, Leyte"},
+  {"name": "Valencia", "latitude": 11.106700, "longitude": 124.577017, "address": "Valencia, Ormoc City, Leyte"},
+  {"name": "Albuera", "latitude": 10.918459, "longitude": 124.694315, "address": "Albuera, Leyte"}, 
 ]
 
 # Manual fallback distances (km), used only if OSRM is unreachable —

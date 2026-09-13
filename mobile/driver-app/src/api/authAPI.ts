@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 // testing on a physical device via Expo Go (localhost won't resolve on-device).
 // Consider pulling this from an env var (e.g. via expo-constants) instead of
 // hardcoding once you have dev/staging/prod backends.
-const API_BASE_URL = 'http://192.168.1.63:8000';
+const API_BASE_URL = 'http://192.168.1.43:8000';
 
 const TOKEN_KEY = 'art_fusion_driver_token';
 
@@ -19,8 +19,15 @@ export const authClient = axios.create({
 export interface LoginResponse {
   access_token: string;
   token_type: string;
-  // add any other fields your backend returns on login,
-  // e.g. driver_id, name, assigned_route
+  user: AuthenticatedUser;
+  must_change_password: boolean;
+}
+
+export interface AuthenticatedUser {
+  account_id: number;
+  role: string;
+  username: string;
+  first_name: string | null;
 }
 
 /**
@@ -53,6 +60,12 @@ export async function getStoredToken(): Promise<string | null> {
 /** Clears the stored JWT on logout. */
 export async function logoutDriver(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
+}
+
+/** Returns the current driver's profile details for an existing session. */
+export async function getCurrentUser(): Promise<AuthenticatedUser> {
+  const { data } = await authClient.get<AuthenticatedUser>('/auth/me');
+  return data;
 }
 
 // Attaches the stored token to every outgoing request automatically,

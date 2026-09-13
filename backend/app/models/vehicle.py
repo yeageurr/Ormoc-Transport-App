@@ -20,7 +20,7 @@ class Vehicle(Base):
   owner_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
   body_color: Mapped[str] = mapped_column(String(7), nullable=False)  # hex value, e.g. "#1D9E75"
   body_number: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
-  plate_number: Mapped[str] = mapped_column(String(7), unique=True, nullable=False)
+  plate_number: Mapped[str] = mapped_column(String(8), unique=True, nullable=False)
   vehicle_type: Mapped[str] = mapped_column(String(50), nullable=False)
   condition: Mapped[VehicleCondition] = mapped_column(
     Enum(VehicleCondition, name="vehicle_condition"), nullable=False, default=VehicleCondition.NEW

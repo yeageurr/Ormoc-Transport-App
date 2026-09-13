@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, UserPlus } from "lucide-react";
 import { createDriver } from "../../api/usersAPI";
 
-export default function AddUserModal({ isOpen, onClose, onSuccess }) {
+export default function AddUserModal({ isOpen, onClose, onSuccess, onError }) {
   const initialFormState = {
     first_name: "",
     last_name: "",
@@ -35,13 +35,15 @@ export default function AddUserModal({ isOpen, onClose, onSuccess }) {
       !formData.license_num.trim() ||
       !formData.license_expiry
     ) {
-      setError("First name, last name, contact #, license #, and license expiry are required.");
+      const message = "First name, last name, contact #, license #, and license expiry are required.";
+      setError(message);
+      onError?.(message);
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await createDriver({
+      const driver = await createDriver({
         first_name: formData.first_name.trim(),
         last_name: formData.last_name.trim(),
         contact_number: formData.contact_number.trim(),
@@ -51,11 +53,11 @@ export default function AddUserModal({ isOpen, onClose, onSuccess }) {
       });
 
       setFormData(initialFormState);
-      onSuccess();
+      onSuccess(driver);
     } catch (err) {
-      setError(
-        err?.response?.data?.detail || err.message || "Failed to create user. Please try again."
-      );
+      const message = err?.response?.data?.error?.message || err?.response?.data?.detail || err.message || "Failed to create user. Please try again.";
+      setError(message);
+      onError?.(message);
     } finally {
       setIsSubmitting(false);
     }

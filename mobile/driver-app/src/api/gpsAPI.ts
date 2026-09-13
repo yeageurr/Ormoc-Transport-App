@@ -15,6 +15,19 @@ export interface GpsSession {
   startedAt: string;
 }
 
+/** Updates the admin Live Map with this driver's latest foreground fix. */
+export async function updateCurrentLocation(ping: {
+  latitude: number;
+  longitude: number;
+  speedKph?: number;
+}): Promise<void> {
+  await authClient.post('/gps/current', {
+    latitude: ping.latitude,
+    longitude: ping.longitude,
+    speed_kmh: ping.speedKph ?? 0,
+  });
+}
+
 /**
  * ASSUMPTION — NOT YET VERIFIED against the real backend router (same
  * caveat as authAPI.ts's /auth/login guess). Endpoint paths and body

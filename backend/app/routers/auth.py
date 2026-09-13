@@ -63,7 +63,8 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
     "user": {
       "account_id": account.account_id,
       "role": account.role,
-      "username": account.username
+      "username": account.username,
+      "first_name": account.user.first_name if account.user else None,
     },
     "must_change_password": account.must_change_password,
   }
@@ -75,7 +76,8 @@ def get_me(current_account: Account = Depends(get_current_account)):
   return {
     "account_id": current_account.account_id,
     "role": current_account.role,
-    "username": current_account.username
+    "username": current_account.username,
+    "first_name": current_account.user.first_name if current_account.user else None,
   }
 
 

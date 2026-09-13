@@ -14,8 +14,10 @@ export const getVehicle = async (vehicleId) => {
 
 // Admin: drivers with no vehicle linked yet — for the owner dropdown
 // on the Add Vehicle form (ownership is strictly 1 vehicle : 1 driver)
-export const getEligibleOwners = async () => {
-  const response = await axiosClient.get("/vehicles/eligible-owners");
+export const getEligibleOwners = async (vehicleId) => {
+  const response = await axiosClient.get("/vehicles/eligible-owners", {
+    params: vehicleId ? { vehicle_id: vehicleId } : undefined,
+  });
   return response.data;
 };
 
@@ -31,6 +33,12 @@ export const createVehicle = async (payload) => {
 export const updateVehicle = async (vehicleId, payload) => {
   const response = await axiosClient.patch(`/vehicles/${vehicleId}`, payload);
   return response.data;
+};
+
+// Admin: permanently remove an unused vehicle. The API protects vehicles
+// that already have dispatch history.
+export const deleteVehicle = async (vehicleId) => {
+  await axiosClient.delete(`/vehicles/${vehicleId}`);
 };
 
 // Live snapshot for the Live Map's initial load (before WS pings arrive).

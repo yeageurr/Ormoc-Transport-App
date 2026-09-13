@@ -25,7 +25,9 @@ class VehicleCreate(VehicleBase):
 
 
 class VehicleUpdate(BaseModel):
+  owner_id: int | None = None
   body_color: str | None = None
+  plate_number: str | None = None
   condition: VehicleCondition | None = None
   registry_expiration: datetime | None = None
 

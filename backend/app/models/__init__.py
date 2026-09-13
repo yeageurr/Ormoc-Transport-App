@@ -7,6 +7,7 @@ from app.models.route import Route
 from app.models.dispatch_log import DispatchLog
 from app.models.trip import Trip
 from app.models.gps_log import GpsLog
+from app.models.driver_location import DriverLocation
 from app.models.incident_log import Incident
 from app.models.notification import Notification, BroadcastNotification
 from app.models.geofence_event import GeofenceEvent
@@ -22,6 +23,7 @@ __all__ = [
   "DispatchLog",
   "Trip",
   "GpsLog",
+  "DriverLocation",
   "Incident",
   "Notification",
   "BroadcastNotification",

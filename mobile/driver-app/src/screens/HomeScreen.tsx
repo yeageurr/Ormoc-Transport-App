@@ -4,15 +4,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 
 import { getDailySummary, getTripLogs, type DriverDailySummary, type DriverTrip } from '@/api/tripsAPI';
+import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
 import RecentTripCard from '@/components/RecentTripCard';
+import { useAuth } from '@/hooks/useAuth';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function HomeScreen() {
+  const { firstName } = useAuth();
   const [recentTrips, setRecentTrips] = useState<DriverTrip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(true);
   const [tripError, setTripError] = useState(false);
   const [summary, setSummary] = useState<DriverDailySummary | null>(null);
+  const [currentDispatch, setCurrentDispatch] = useState<CurrentDispatch | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'checking' | 'connected' | 'unavailable' | 'denied'>('checking');
 
   const loadRecentTrips = useCallback(async () => {
@@ -33,6 +37,14 @@ export default function HomeScreen() {
       setSummary(await getDailySummary());
     } catch {
       setSummary(null);
+    }
+  }, []);
+
+  const loadCurrentDispatch = useCallback(async () => {
+    try {
+      setCurrentDispatch(await getCurrentDispatch());
+    } catch {
+      setCurrentDispatch(null);
     }
   }, []);
 
@@ -57,8 +69,9 @@ export default function HomeScreen() {
   const refreshHome = useCallback(() => {
     void loadRecentTrips();
     void loadSummary();
+    void loadCurrentDispatch();
     void checkGpsStatus();
-  }, [checkGpsStatus, loadRecentTrips, loadSummary]);
+  }, [checkGpsStatus, loadCurrentDispatch, loadRecentTrips, loadSummary]);
 
   const handleGpsPress = useCallback(() => {
     if (gpsStatus === 'denied') {
@@ -95,10 +108,10 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.welcomeSection}>
-          <Text style={styles.welcome}>Welcome back, Driver 👋</Text>
+          <Text style={styles.welcome}>Welcome back, {firstName || 'Driver'} 👋</Text>
           <View style={styles.driverDetails}>
-            <Detail icon="car-sport-outline" label="ABC-1235" />
-            <Detail icon="git-compare-outline" label="Valencia ↔ Ormoc" />
+            <Detail icon="car-sport-outline" label={currentDispatch?.vehicle_plate || '--'} />
+            <Detail icon="git-compare-outline" label={currentDispatch?.route_label || '--'} />
             <View style={styles.onlineStatus}>
               <View style={styles.onlineDot} />
               <Text style={styles.detailText}>Online</Text>

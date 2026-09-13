@@ -1,33 +1,17 @@
 import { useState } from "react";
-import { createDispatch } from "../../api/dispatchAPI";
 
-export default function CreateDispatchModal({ isOpen, drivers, vehicles, routes, onClose, onSuccess }) {
+export default function CreateDispatchModal({ drivers, vehicles, routes, onClose, onStage, lockedDate }) {
   const [form, setForm] = useState({
     driver_id: "",
     vehicle_id: "",
     route_id: "",
-    effective_on: "",
+    effective_on: lockedDate || new Date().toLocaleDateString("en-CA"),
   });
   const [error, setError] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setIsSubmitting(true);
-    try {
-      await createDispatch({
-        driver_id: Number(form.driver_id),
-        vehicle_id: Number(form.vehicle_id),
-        route_id: Number(form.route_id),
-        effective_on: new Date(form.effective_on).toISOString(),
-      });
-      onSuccess();
-    } catch (err) {
-      setError(err.message || "Failed to create dispatch.");
-    } finally {
-      setIsSubmitting(false);
-    }
+    onStage({ ...form, driver_id: Number(form.driver_id), vehicle_id: Number(form.vehicle_id), route_id: Number(form.route_id), effective_on: new Date(`${form.effective_on}T00:00:00`).toISOString() });
   };
 
   return (
@@ -100,6 +84,8 @@ export default function CreateDispatchModal({ isOpen, drivers, vehicles, routes,
               type="date"
               required
               value={form.effective_on}
+              min={new Date().toLocaleDateString("en-CA")}
+              disabled={Boolean(lockedDate)}
               onChange={(e) => setForm({ ...form, effective_on: e.target.value })}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none"
             />
@@ -115,10 +101,10 @@ export default function CreateDispatchModal({ isOpen, drivers, vehicles, routes,
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={false}
               className="flex-1 bg-[#1D9E75] text-[#04342C] font-semibold rounded-xl py-2.5 text-sm disabled:opacity-60"
             >
-              {isSubmitting ? "Creating..." : "Create dispatch"}
+              Add to batch
             </button>
           </div>
         </form>

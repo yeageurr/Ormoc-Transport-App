@@ -33,14 +33,16 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      await loginDriver(username.trim(), password);
-      signIn(); // or '/home' — adjust to your actual app/ route once index.tsx's redirect logic is in place
+      const response = await loginDriver(username.trim(), password);
+      signIn(response.user.first_name);
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        const detail = error.response?.data?.detail;
+        const detail = error.response?.data?.error?.message || error.response?.data?.detail;
         setError(
           error.response?.status === 401
             ? 'Invalid username or password.'
+            : error.response?.status === 403 && detail?.toLowerCase().includes('suspended')
+              ? 'Your account has been suspended. Please contact the terminal administrator.'
             : detail || 'Unable to sign in. Please try again.'
         );
       } else if (error instanceof Error) {
