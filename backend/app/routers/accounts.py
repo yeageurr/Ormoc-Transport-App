@@ -27,8 +27,6 @@ def create_driver(
   db: Session = Depends(get_db),
   current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
-  """Admin creates a driver — username is the driver's phone number,
-  per the decision that drivers log in with contact_number as username."""
 
   existing_account = db.query(Account).filter(Account.username == payload.contact_number).first()
   if existing_account:

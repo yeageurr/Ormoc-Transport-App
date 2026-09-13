@@ -28,10 +28,7 @@ class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="auth/login", auto_error=False)
 
 
-def get_current_account(
-  token: Optional[str] = Depends(oauth2_scheme),
-  db: Session = Depends(get_db)
-) -> Account:
+def get_current_account( token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db) ) -> Account:
   credentials_exception = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Could not validate credentials",

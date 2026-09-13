@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import CreateDispatchModal from "../../components/modals/CreateDispatchModal";
 import DispatchReviewModal from "../../components/modals/DispatchReviewModal";
 import EditDispatchModal from "../../components/modals/EditDispatchModal";
+import DispatchDeleteConfirmModal from "../../components/modals/DispatchDeleteConfirmModal";
 import SelectDispatchRouteModal from "../../components/modals/SelectDispatchRouteModal";
 import PageHeader from "../../components/ui/PageHeader";
 import Toast from "../../components/ui/Toast";
-import { createDispatchBatch, getDispatches } from "../../api/dispatchAPI";
+import { createDispatchBatch, deleteDispatchGroup, getDispatches } from "../../api/dispatchAPI";
 import { getRoutes } from "../../api/routesAPI";
 import { getDrivers } from "../../api/usersAPI";
 import { getVehicles } from "../../api/vehiclesAPI";
@@ -42,6 +43,8 @@ export default function DispatchLog() {
   const [toast, setToast] = useState(null);
   const [editingGroup, setEditingGroup] = useState(null);
   const [addingToGroup, setAddingToGroup] = useState(null);
+  const [deletingGroup, setDeletingGroup] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const effectiveDate = tomorrow();
 
   useEffect(() => setShowPasswordModal(mustChangePassword), [mustChangePassword]);
@@ -87,18 +90,27 @@ export default function DispatchLog() {
       setAddingToGroup(null); await loadAll(); setToast({ type: "success", message: "Driver added to dispatch." });
     } catch (saveError) { setToast({ type: "error", message: saveError.message || "Failed to add driver." }); }
   };
+  const deleteGroup = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteDispatchGroup(deletingGroup.routeId, deletingGroup.date);
+      setDeletingGroup(null); await loadAll(); setToast({ type: "success", message: "Dispatch deleted successfully." });
+    } catch (deleteError) { setToast({ type: "error", message: deleteError.message || "Failed to delete dispatch." }); }
+    finally { setIsDeleting(false); }
+  };
 
   return <main>
     <Toast toast={toast} onDismiss={() => setToast(null)} />
     <PageHeader title="Dispatch" />
     <div className="mb-4 flex items-center gap-3"><input type="text" placeholder="Search route or date..." value={search} onChange={(event) => setSearch(event.target.value)} className="max-w-xs flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-[#eafff5] outline-none focus:border-[#1D9E75]" /><button onClick={() => setStep("route")} className="ml-auto rounded-xl bg-[#1D9E75] px-5 py-2.5 text-sm font-semibold text-[#04342C]">+ Create new dispatch</button></div>
     {error && <div className="mb-4 rounded-xl bg-[#3A1B14] px-4 py-3 text-sm text-[#D98B72]">{error}</div>}
-    <div className="overflow-hidden rounded-2xl bg-[#0a2420]"><div className="bg-white/5 px-5 py-2 text-xs text-[#5DCAA5]">{groups.length} dispatch records</div>{isLoading ? <p className="p-5 text-sm text-[#9fcabd]">Loading dispatch log...</p> : !groups.length ? <p className="p-5 text-sm text-[#9fcabd]">No dispatch records found.</p> : <table className="w-full text-sm"><thead><tr className="text-left text-xs text-[#9fcabd]"><th className="px-5 py-3 font-medium">Effective date</th><th className="px-5 py-3 font-medium">Route</th><th className="px-5 py-3 font-medium">Assigned drivers</th><th className="px-5 py-3 font-medium">Actions</th></tr></thead><tbody>{groups.map((group) => { const editable = group.date > phDate(new Date()); return <tr key={group.key} className="group border-t border-white/5"><td className="px-5 py-3 text-[#eafff5]">{displayDate(group.date)}</td><td className="px-5 py-3 text-[#9fcabd]">Ormoc - {routeMap[group.routeId] || "—"}</td><td className="px-5 py-3 text-[#9fcabd]">{group.assignments.length}</td><td className="px-5 py-3"><button onClick={() => setEditingGroup(group)} disabled={!editable} title={editable ? "Edit dispatch" : "Current and past dispatches are finalized"} aria-label="Edit dispatch" className="text-[#5DCAA5] opacity-0 transition-opacity group-hover:opacity-100 disabled:cursor-not-allowed disabled:text-[#9fcabd]/50 disabled:group-hover:opacity-0"><Pencil size={16} /></button></td></tr>; })}</tbody></table>}</div>
+    <div className="overflow-hidden rounded-2xl bg-[#0a2420]"><div className="bg-white/5 px-5 py-2 text-xs text-[#5DCAA5]">{groups.length} dispatch records</div>{isLoading ? <p className="p-5 text-sm text-[#9fcabd]">Loading dispatch log...</p> : !groups.length ? <p className="p-5 text-sm text-[#9fcabd]">No dispatch records found.</p> : <table className="w-full text-sm"><thead><tr className="text-left text-xs text-[#9fcabd]"><th className="px-5 py-3 font-medium">Effective date</th><th className="px-5 py-3 font-medium">Route</th><th className="px-5 py-3 font-medium">Assigned drivers</th><th className="px-5 py-3 font-medium">Actions</th></tr></thead><tbody>{groups.map((group) => { const editable = group.date > phDate(new Date()); return <tr key={group.key} className="group border-t border-white/5"><td className="px-5 py-3 text-[#eafff5]">{displayDate(group.date)}</td><td className="px-5 py-3 text-[#9fcabd]">Ormoc - {routeMap[group.routeId] || "—"}</td><td className="px-5 py-3 text-[#9fcabd]">{group.assignments.length}</td><td className="px-5 py-3"><div className="flex gap-3 opacity-0 transition-opacity group-hover:opacity-100"><button onClick={() => setEditingGroup(group)} disabled={!editable} title={editable ? "Edit dispatch" : "Current and past dispatches are finalized"} aria-label="Edit dispatch" className="text-[#5DCAA5] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"><Pencil size={16} /></button><button onClick={() => setDeletingGroup(group)} disabled={!editable} title={editable ? "Delete dispatch" : "Current and past dispatches are finalized"} aria-label="Delete dispatch" className="text-[#D98B72] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"><Trash2 size={16} /></button></div></td></tr>; })}</tbody></table>}</div>
     {step === "route" && <SelectDispatchRouteModal routes={availableRoutes} onClose={closeCreation} onProceed={beginReview} />}
     {step === "review" && <DispatchReviewModal routeName={`Ormoc - ${routeMap[routeId] || "—"}`} effectiveDate={displayDate(effectiveDate)} assignments={assignments} driverMap={driverMap} vehicleMap={vehicleMap} vehicleDetails={vehicleDetails} isSaving={isSaving} onClose={closeCreation} onAddDriver={() => setStep("assignment")} onRemove={(index) => setAssignments((current) => current.filter((_, itemIndex) => itemIndex !== index))} onConfirm={save} />}
     {step === "assignment" && <CreateDispatchModal drivers={drivers} vehicles={vehicles} assignedDriverIds={assignments.map((assignment) => assignment.driver_id)} assignedVehicleIds={assignments.map((assignment) => assignment.vehicle_id)} onClose={() => setStep("review")} onStage={(assignment) => { setAssignments((current) => [...current, assignment]); setStep("review"); }} />}
     {editingGroup && !addingToGroup && <EditDispatchModal group={editingGroup} routeName={`Ormoc - ${routeMap[editingGroup.routeId] || "—"}`} effectiveDate={displayDate(editingGroup.date)} driverMap={driverMap} vehicleMap={vehicleMap} vehicleDetails={vehicleDetails} onClose={() => setEditingGroup(null)} onAddDriver={() => setAddingToGroup(editingGroup)} />}
     {addingToGroup && <CreateDispatchModal drivers={drivers} vehicles={vehicles} assignedDriverIds={addingToGroup.assignments.map((assignment) => assignment.driver_id)} assignedVehicleIds={addingToGroup.assignments.map((assignment) => assignment.vehicle_id)} onClose={() => setAddingToGroup(null)} onStage={addToSavedDispatch} />}
+    {deletingGroup && <DispatchDeleteConfirmModal group={deletingGroup} routeName={`Ormoc - ${routeMap[deletingGroup.routeId] || "—"}`} effectiveDate={displayDate(deletingGroup.date)} isDeleting={isDeleting} onClose={() => setDeletingGroup(null)} onConfirm={deleteGroup} />}
     {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} onSuccess={() => { setMustChangePassword(false); setShowPasswordModal(false); }} />}
   </main>;
 }

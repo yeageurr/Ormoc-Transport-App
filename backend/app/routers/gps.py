@@ -19,14 +19,12 @@ router = APIRouter()
 
 
 @router.post("/current")
-async def update_current_location(
-  payload: CurrentLocationPing,
-  db: Session = Depends(get_db),
-  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
-):
+async def update_current_location( payload: CurrentLocationPing, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)), ):
   """Store and broadcast the latest foreground fix for today's dispatch."""
   now = datetime.now(ZoneInfo("Asia/Manila"))
+
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
   dispatch = (
     db.query(DispatchLog)
     .filter(
@@ -37,13 +35,19 @@ async def update_current_location(
     .order_by(DispatchLog.effective_on.desc())
     .first()
   )
+
   vehicle = dispatch.vehicle if dispatch else current_driver.user.vehicle
+
   if vehicle is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No vehicle is assigned to this driver")
+    raise HTTPException(
+      status_code = status.HTTP_404_NOT_FOUND, 
+      detail = "No vehicle is assigned to this driver"
+    )
 
   location = db.query(DriverLocation).filter(
     DriverLocation.driver_id == current_driver.user.user_id
   ).first()
+
   if location is None:
     location = DriverLocation(driver_id=current_driver.user.user_id)
     db.add(location)
@@ -61,6 +65,7 @@ async def update_current_location(
     account_id for (account_id,) in db.query(Account.account_id)
     .filter(Account.role == AccountRole.ADMIN).all()
   ]
+
   await manager.broadcast_to(admin_ids, {
   "type": "gps_update",
     "data": {
@@ -80,18 +85,21 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
 
   trip = db.query(Trip).filter(Trip.trip_id == payload.trip_id).first()
   if trip is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    raise HTTPException(
+      status_code = status.HTTP_404_NOT_FOUND,
+      detail="Trip not found"
+    )
 
   if trip.dispatch_log.driver.account_id != current_driver.account_id:
     raise HTTPException(
-      status_code=status.HTTP_403_FORBIDDEN,
-      detail="This trip does not belong to you",
+      status_code = status.HTTP_403_FORBIDDEN,
+      detail = "This trip does not belong to you",
     )
 
   if trip.is_complete:
     raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail="Cannot log GPS pings for a completed trip",
+      status_code = status.HTTP_400_BAD_REQUEST,
+      detail = "Cannot log GPS pings for a completed trip",
     )
 
   gps_log = GpsLog(
@@ -100,6 +108,7 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
     longitude=payload.longitude,
     speed_kmh=payload.speed_kmh,
   )
+
   db.add(gps_log)
   db.commit()
   db.refresh(gps_log)
@@ -109,6 +118,7 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
     acc.account_id
     for acc in db.query(Account).filter(Account.role == AccountRole.ADMIN).all()
   ]
+
   await manager.broadcast_to(admin_ids, {
     "type": "gps_update",
     "data": {
@@ -136,7 +146,10 @@ def get_trip_path(
   """Full GPS trail for a trip — used to draw the route path after the fact."""
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
   if trip is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    raise HTTPException(
+      status_code = status.HTTP_404_NOT_FOUND, 
+      detail = "Trip not found"
+    )
 
   return (
     db.query(GpsLog)

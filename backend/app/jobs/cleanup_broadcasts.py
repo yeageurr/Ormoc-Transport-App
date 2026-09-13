@@ -1,10 +1,3 @@
-"""
-Daily cleanup of broadcast_notifications — these are ephemeral by design
-(passenger queue alerts, incident broadcasts), unlike targeted `notifications`
-which persist indefinitely. Meant to run once a day via cron or APScheduler.
-
-Usage: python -m jobs.cleanup_broadcasts
-"""
 import os
 import sys
 from datetime import datetime, timedelta, timezone

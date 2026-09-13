@@ -33,16 +33,16 @@ def geofence_ping(
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == payload.vehicle_id).first()
   if vehicle is None:
     raise HTTPException(
-      status_code=status.HTTP_404_NOT_FOUND, 
-      detail="Vehicle not found"
+      status_code = status.HTTP_404_NOT_FOUND, 
+      detail = "Vehicle not found"
     )
 
   # Single-terminal scope — no terminal_id needed in the request.
   terminal = db.query(Terminal).first()
   if terminal is None:
     raise HTTPException(
-      status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-      detail="No terminal configured"
+      status_code = status.HTTP_500_INTERNAL_SERVER_ERROR, 
+      detail = "No terminal configured"
     )
 
   result = process_vehicle_position(db, vehicle, payload.latitude, payload.longitude, terminal)
