@@ -13,9 +13,14 @@ axiosClient.interceptors.response.use(
   (response) => response,
   (error) => {
     const backendError = error.response?.data?.error;
+    const publicAuthPaths = new Set([
+      "/login",
+      "/forgot-password",
+      "/reset-password",
+    ]);
 
     if (error.response?.status === 401) {
-      if (window.location.pathname !== "/login") {
+      if (!publicAuthPaths.has(window.location.pathname)) {
         window.location.href = "/login";
       }
     }

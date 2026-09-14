@@ -23,3 +23,6 @@ export const changePassword = async (currentPassword, newPassword, confirmPasswo
   });
   return response.data;
 };
+
+export const requestPasswordReset = async (email) => (await axiosClient.post("/auth/forgot-password", { email })).data;
+export const resetPassword = async (token, newPassword, confirmPassword) => (await axiosClient.post("/auth/reset-password", { token, new_password: newPassword, confirm_password: confirmPassword })).data;

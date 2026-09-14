@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Eye, EyeClosed, User, Key } from 'lucide-react';
 
@@ -126,12 +126,12 @@ export default function Login() {
                 </div>
               </div>
             </div>
-            <a
-              href=""
+            <Link
+              to="/forgot-password"
               className="text-right text-[var(--labels)] w-full text-xs hover:underline"
             >
               Forgot Password?
-            </a>
+            </Link>
 
             <button
               type="submit"
