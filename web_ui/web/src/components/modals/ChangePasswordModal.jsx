@@ -2,7 +2,10 @@ import { useState } from "react";
 import { changePassword } from '../../api/authAPI';
 import { CheckCheck, CircleX, Eye, EyeClosed } from "lucide-react";
 
-export default function ChangePasswordModal({ isOpen, onClose, onSuccess }) {
+const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+const PASSWORD_REQUIREMENT = "Use at least 8 characters, including uppercase and lowercase letters and a number.";
+
+export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequired = false }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -20,6 +23,11 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    if (!PASSWORD_PATTERN.test(newPassword)) {
+      setError(PASSWORD_REQUIREMENT);
+      return;
+    }
 
     if (newPassword !== confirmPassword) {
       setError("New password and confirmation do not match.");
@@ -42,15 +50,8 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }) {
       <div className="bg-[#0a2420] rounded-2xl p-6 w-full max-w-sm">
         <h3 className="text-[#eafff5] text-lg font-semibold mb-1">Change your password</h3>
         <p className="text-[#9fcabd] text-sm mb-5">
-          For your security, please set a new password before continuing.
+          For your security, please set a new password before continuing. {PASSWORD_REQUIREMENT}
         </p>
-
-        {error && (
-          <div className="bg-[#3A1B14] text-[#D98B72] text-sm rounded-xl px-4 py-3 mb-4 flex items-center gap-2">
-            <CircleX className="w-4 h-4 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
@@ -74,6 +75,9 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }) {
               }
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              minLength={8}
+              pattern={PASSWORD_PATTERN.source}
+              title={PASSWORD_REQUIREMENT}
               required
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors"
             />
@@ -124,14 +128,23 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess }) {
             </div>
           )}
 
+          {error && (
+            <div className="text-[#D98B72] text-xs flex items-center gap-1.5 pt-1" role="alert">
+              <CircleX className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <div className="flex gap-3 pt-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-transparent border border-white/15 text-[#9fcabd] font-medium rounded-xl py-2.5 text-sm transition-colors hover:bg-white/5"
-            >
-              Later
-            </button>
+            {!isRequired && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 bg-transparent border border-white/15 text-[#9fcabd] font-medium rounded-xl py-2.5 text-sm transition-colors hover:bg-white/5"
+              >
+                Later
+              </button>
+            )}
             <button
               type="submit"
               disabled={isSubmitting || !passwordsMatch}

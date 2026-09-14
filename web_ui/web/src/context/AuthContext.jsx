@@ -14,6 +14,7 @@ export function AuthProvider({ children }) {
       try {
         const userData = await getCurrentUser();
         setAccount(userData);
+        setMustChangePassword(userData.must_change_password);
       } catch (err) {
         setAccount(null);
       } finally {

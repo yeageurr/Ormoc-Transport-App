@@ -33,7 +33,7 @@ def create_access_token(account_id: int, role: AccountRole) -> str:
   payload = {
     "account_id": account_id,
     "role": role.value,
-    "exxp": expire.timestamp()
+    "exp": expire,
   }
 
   return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)

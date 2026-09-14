@@ -8,7 +8,8 @@ from app.models.account import Account
 from app.schemas.auth import LoginRequest, ChangePasswordRequest
 from app.core.security import verify_password, hash_password, create_access_token
 from app.core.permissions import get_current_account
-from app.enums import AccountStatus
+from app.enums import AccountStatus, AuditAction
+from app.services.audit_service import log_action
 
 router = APIRouter()
 
@@ -78,6 +79,7 @@ def get_me(current_account: Account = Depends(get_current_account)):
     "role": current_account.role,
     "username": current_account.username,
     "first_name": current_account.user.first_name if current_account.user else None,
+    "must_change_password": current_account.must_change_password,
   }
 
 
@@ -90,6 +92,7 @@ def logout(response: Response):
 @router.post("/change-password")
 def change_password(
   payload: ChangePasswordRequest,
+  response: Response,
   db: Session = Depends(get_db),
   current_account: Account = Depends(get_current_account),
 ):
@@ -109,4 +112,17 @@ def change_password(
   current_account.must_change_password = False
   db.commit()
 
-  return {"detail": "Password updated successfully"}
+  log_action(
+    db,
+    current_account.account_id,
+    AuditAction.UPDATE,
+    "accounts",
+    current_account.account_id,
+    "Changed account password",
+  )
+
+  # End the current browser session. The UI then explicitly directs the user
+  # to sign in again, which issues a fresh authentication cookie/JWT.
+  response.delete_cookie(key="access_token", path="/")
+
+  return {"detail": "Password updated successfully. Please sign in again."}
