@@ -1,11 +1,9 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-// TODO: point this at your actual backend — use your machine's LAN IP when
-// testing on a physical device via Expo Go (localhost won't resolve on-device).
-// Consider pulling this from an env var (e.g. via expo-constants) instead of
-// hardcoding once you have dev/staging/prod backends.
-const API_BASE_URL = 'http://192.168.1.43:8000';
+// Configure this per environment. For USB development, adb reverse maps the
+// device's 127.0.0.1:8000 to the backend running on the development machine.
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 const TOKEN_KEY = 'art_fusion_driver_token';
 

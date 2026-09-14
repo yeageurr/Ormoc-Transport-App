@@ -1,10 +1,17 @@
 import * as Location from 'expo-location';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { updateCurrentLocation } from '@/api/gpsAPI';
 
+export interface DriverLocation {
+  latitude: number;
+  longitude: number;
+}
+
 /** Sends foreground location fixes for a dispatched driver to the admin map. */
 export function useCurrentLocation() {
+  const [location, setLocation] = useState<DriverLocation | null>(null);
+
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
     let active = true;
@@ -18,6 +25,10 @@ export function useCurrentLocation() {
 
       const sendLocation = (position: Location.LocationObject) => {
         if (!active) return;
+        setLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
         void updateCurrentLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -48,4 +59,6 @@ export function useCurrentLocation() {
       subscription?.remove();
     };
   }, []);
+
+  return location;
 }

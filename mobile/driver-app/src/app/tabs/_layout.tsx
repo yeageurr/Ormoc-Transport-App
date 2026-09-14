@@ -2,15 +2,16 @@ import { Slot } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import BottomNav from '@/components/BottomNav';
-import { useCurrentLocation } from '@/hooks/useCurrentLocation';
+import { DriverLocationProvider } from '@/hooks/useDriverLocation';
 
 export default function TabsLayout() {
-  useCurrentLocation();
   return (
-    <View style={styles.container}>
-      <View style={styles.page}><Slot /></View>
-      <BottomNav />
-    </View>
+    <DriverLocationProvider>
+      <View style={styles.container}>
+        <View style={styles.page}><Slot /></View>
+        <BottomNav />
+      </View>
+    </DriverLocationProvider>
   );
 }
 

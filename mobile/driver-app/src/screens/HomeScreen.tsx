@@ -5,6 +5,7 @@ import { ActivityIndicator, Linking, Pressable, SafeAreaView, ScrollView, Status
 
 import { getDailySummary, getTripLogs, type DriverDailySummary, type DriverTrip } from '@/api/tripsAPI';
 import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
+import DriverMap from '@/components/DriverMap';
 import RecentTripCard from '@/components/RecentTripCard';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -89,9 +90,10 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadRecentTrips();
     void loadSummary();
+    void loadCurrentDispatch();
     // This displays the platform location-permission prompt on first use.
     void checkGpsStatus(true);
-  }, [checkGpsStatus, loadRecentTrips, loadSummary]);
+  }, [checkGpsStatus, loadCurrentDispatch, loadRecentTrips, loadSummary]);
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -129,6 +131,9 @@ export default function HomeScreen() {
           <View style={[styles.gpsDot, gpsStatus !== 'connected' && styles.gpsDotInactive]} />
           <Text style={styles.gpsText}>{gpsStatus === 'checking' ? 'GPS Location: Checking…' : gpsStatus === 'connected' ? 'GPS Location: Connected' : gpsStatus === 'denied' ? 'GPS Location: Permission required' : 'GPS Location: Unavailable'}</Text>
         </Pressable>
+
+        <Text style={styles.mapTitle}>Live Location</Text>
+        <DriverMap />
 
         <View style={styles.divider} />
         <View style={styles.recentHeader}><Text style={styles.sectionTitle}>Recent Trips</Text></View>
@@ -194,6 +199,7 @@ const styles = StyleSheet.create({
   gpsDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#41EA43', shadowColor: '#41EA43', shadowOpacity: 0.8, shadowRadius: 4 },
   gpsDotInactive: { backgroundColor: '#FFAD0A', shadowColor: '#FFAD0A' },
   gpsText: { color: '#C0FFF8', fontSize: 9, fontWeight: '700' },
+  mapTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginTop: 24 },
   divider: { height: 1, backgroundColor: 'rgba(169, 209, 204, 0.48)', marginVertical: 26 },
   recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   emptyTrips: { minHeight: 144, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(8, 97, 88, 0.62)' },
