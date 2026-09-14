@@ -3,6 +3,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import { useAuth } from "../../context/AuthContext";
 import { getAllTrips } from "../../api/tripsAPI";
+import { AdminSearchField, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 
 function statusBadge(status) {
   const styles = {
@@ -67,17 +68,11 @@ export default function TripLogs() {
       <PageHeader title={"Trip Logs"} />
 
       <div className="flex items-center gap-3 mb-6">
-        <input
-          type="text"
-          placeholder="Search driver or route..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] max-w-xs"
-        />
+        <AdminSearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search driver or route..." />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#9fcabd] text-sm outline-none"
+          className={adminFilterClassName}
         >
           <option value="all">All trip statuses</option>
           <option value="outgoing">Outgoing</option>

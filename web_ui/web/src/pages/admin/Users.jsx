@@ -12,7 +12,8 @@ import {
   reactivateDriver,
   deleteDriver,
 } from "../../api/usersAPI";
-import { Edit3, Power, RotateCcw, Search, Trash2 } from 'lucide-react';
+import { Edit3, Power, RotateCcw, Trash2 } from 'lucide-react';
+import { AdminSearchField, adminCreateButtonClassName, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 
 export default function Users() {
   const { mustChangePassword, setMustChangePassword } = useAuth();
@@ -113,22 +114,12 @@ export default function Users() {
         <PageHeader title={"Users"}/>
 
         <div className="flex items-center justify-between h-11 gap-3 mb-4">
-          <div className="relative w-max h-full">
-            <Search size={'18px'} stroke="var(--placeholder-fg)" className="absolute top-1/2 left-5 -translate-x-1/2 -translate-y-1/2" />
-
-            <input
-            type="text"
-            placeholder="Search for route..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="text-[#fff] font-poppins bg-transparent h-full w-60 px-10 border border-[var(--stroke-color)] rounded-[var(--input-radius)] outline-none focus:border-[var(--stroke-color-focus)] transition-colors placeholder:text-[var(--placeholder-fg)] placeholder:font-inter placeholder:font-light placeholder:text-[13px]]"
-            />
-          </div>
+          <AdminSearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." />
           
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-transparent border border-[var(--stroke-color)] rounded-xl px-4 py-2.5 text-[#9fcabd] text-sm outline-none"
+            className={adminFilterClassName}
           >
             {UserAccountStatus.map(({value, label}) => (
               <option
@@ -142,7 +133,7 @@ export default function Users() {
             ))}
           </select>
           <button 
-            className="ml-auto bg-[var(--button-bg)] text-[#000] font-inter font-medium rounded-[var(--corner-radius-btn)] px-5 py-2.5 text-[14px]"
+            className={adminCreateButtonClassName}
             onClick={() => {setShowAddUserModal(true)}}
           >
             + Add user

@@ -4,6 +4,7 @@ import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import PageHeader from "../../components/ui/PageHeader";
 import { useAuth } from "../../context/AuthContext";
 import { getAuditLogs } from "../../api/auditlogsAPI";
+import { AdminSearchField, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 
 const actionBadgeStyles = {
   create: "bg-[#0F6E56] text-[#9FE1CB]",
@@ -75,17 +76,11 @@ export default function AuditLogs() {
         </div>
 
         <div className="flex items-center gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="Search action or details..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] max-w-xs"
-          />
+          <AdminSearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search action or details..." />
           <select
             value={targetTable}
             onChange={(e) => setTargetTable(e.target.value)}
-            className="bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#9fcabd] text-sm outline-none"
+            className={adminFilterClassName}
           >
             {targetTableOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>

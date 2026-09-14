@@ -7,6 +7,7 @@ import Toast from "../../components/ui/Toast";
 import EditVehicleModal from "../../components/modals/EditVehicleModal";
 import VehicleDeleteConfirmModal from "../../components/modals/VehicleDeleteConfirmModal";
 import { Edit3, Trash2 } from "lucide-react";
+import { AdminSearchField, adminCreateButtonClassName } from "../../components/ui/AdminToolbarControls";
 
 
 function getContrastTextColor(hex) {
@@ -223,16 +224,10 @@ export default function Vehicles() {
         <PageHeader title={"Vehicles"}/>
 
         <div className="flex items-center gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="Search for a vehicle..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] max-w-xs"
-          />
+          <AdminSearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search vehicles..." />
           <button
             onClick={()=> {setShowAddModal(true)}}
-            className="ml-auto bg-[#1D9E75] text-[#04342C] font-semibold rounded-xl px-5 py-2.5 text-sm"
+            className={adminCreateButtonClassName}
           >
             + Add new vehicle
           </button>

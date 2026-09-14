@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import PageHeader from "../../components/ui/PageHeader";
-import { Search, Eye, Loader2 } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { fetchIncidents } from "../../api/incidentAPI";
+import { AdminSearchField } from "../../components/ui/AdminToolbarControls";
 
 export default function IncidentLogs() {
   const [incidents, setIncidents] = useState([]);
@@ -51,16 +52,7 @@ export default function IncidentLogs() {
 
       {/* Search Bar */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9fcabd]" />
-          <input
-            type="text"
-            placeholder="Search incident logs..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-[#0a2420] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-[#eafff5] text-sm outline-none placeholder:text-[#9fcabd]/50 focus:border-[#1D9E75] transition-colors"
-          />
-        </div>
+        <AdminSearchField value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search incident logs..." />
       </div>
 
       {/* Table Container */}
