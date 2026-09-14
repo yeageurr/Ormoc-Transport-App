@@ -11,7 +11,7 @@ from app.models.gps_log import GpsLog
 from app.models.driver_location import DriverLocation
 from app.models.dispatch_log import DispatchLog
 from app.schemas.gps_log import CurrentLocationPing, GpsPing, GpsLogResponse
-from app.core.permissions import require_role
+from app.core.permissions import get_driver_profile, require_role
 from app.enums import AccountRole
 from app.websocket.connection_manager import manager
 
@@ -22,13 +22,14 @@ router = APIRouter()
 async def update_current_location( payload: CurrentLocationPing, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)), ):
   """Store and broadcast the latest foreground fix for today's dispatch."""
   now = datetime.now(ZoneInfo("Asia/Manila"))
+  driver = get_driver_profile(db, current_driver)
 
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
   dispatch = (
     db.query(DispatchLog)
     .filter(
-      DispatchLog.driver_id == current_driver.user.user_id,
+      DispatchLog.driver_id == driver.user_id,
       DispatchLog.effective_on >= day_start,
       DispatchLog.effective_on < day_start + timedelta(days=1),
     )
@@ -36,7 +37,7 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
     .first()
   )
 
-  vehicle = dispatch.vehicle if dispatch else current_driver.user.vehicle
+  vehicle = dispatch.vehicle if dispatch else driver.vehicle
 
   if vehicle is None:
     raise HTTPException(
@@ -45,11 +46,11 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
     )
 
   location = db.query(DriverLocation).filter(
-    DriverLocation.driver_id == current_driver.user.user_id
+    DriverLocation.driver_id == driver.user_id
   ).first()
 
   if location is None:
-    location = DriverLocation(driver_id=current_driver.user.user_id)
+    location = DriverLocation(driver_id=driver.user_id)
     db.add(location)
 
   location.vehicle_id = vehicle.vehicle_id

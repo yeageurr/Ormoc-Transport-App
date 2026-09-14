@@ -72,6 +72,12 @@ export async function recordTrip(payload: RecordTripPayload): Promise<Trip> {
   return data;
 }
 
+/** Starts the driver's current dispatched trip after the vehicle is loading. */
+export async function startTrip(dispatchId: number): Promise<Trip> {
+  const { data } = await authClient.post<Trip>('/trips/start', { dispatch_id: dispatchId });
+  return data;
+}
+
 export async function endTrip(tripId: string): Promise<Trip> {
   const { data } = await authClient.post<Trip>(`/trips/${tripId}/end`);
   return data;

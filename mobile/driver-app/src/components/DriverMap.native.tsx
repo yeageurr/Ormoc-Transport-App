@@ -16,7 +16,7 @@ if (mapboxToken) {
   void Mapbox.setAccessToken(mapboxToken);
 }
 
-export default function DriverMap() {
+export default function DriverMap({ fullScreen = false }: { fullScreen?: boolean }) {
   const location = useDriverLocation();
   const centerCoordinate: [number, number] = location
     ? [location.longitude, location.latitude]
@@ -32,7 +32,7 @@ export default function DriverMap() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, fullScreen && styles.fullScreenContainer]}>
       <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled={false}>
         <Mapbox.Camera centerCoordinate={centerCoordinate} zoomLevel={location ? 15 : 12} animationDuration={700} />
         {location && (
@@ -48,16 +48,19 @@ export default function DriverMap() {
           </Mapbox.ShapeSource>
         )}
       </Mapbox.MapView>
-      <View style={styles.label} pointerEvents="none">
-        <View style={styles.dot} />
-        <Text style={styles.labelText}>{location ? 'Your live location' : 'Waiting for GPS location…'}</Text>
-      </View>
+      {!fullScreen && (
+        <View style={styles.label} pointerEvents="none">
+          <View style={styles.dot} />
+          <Text style={styles.labelText}>{location ? 'Your live location' : 'Waiting for GPS location…'}</Text>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { height: 250, marginTop: 12, overflow: 'hidden', borderRadius: 12, borderWidth: 1, borderColor: '#168F79' },
+  fullScreenContainer: { flex: 1, height: undefined, marginTop: 0, borderRadius: 0, borderWidth: 0 },
   map: { flex: 1 },
   label: { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(4, 47, 46, 0.88)' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#41EA43' },

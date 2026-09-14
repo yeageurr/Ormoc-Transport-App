@@ -8,7 +8,7 @@ from app.models.account import Account
 from app.models.trip import Trip
 from app.models.incident_log import Incident
 from app.schemas.incident import IncidentCreate, IncidentUpdate, IncidentResponse, IncidentReporterSummary, IncidentRouteSummary
-from app.core.permissions import require_role, get_current_account
+from app.core.permissions import get_driver_profile, require_role, get_current_account
 from app.enums import AccountRole, IncidentStatus
 from app.services.audit_service import log_action
 from app.enums import AuditAction
@@ -41,6 +41,8 @@ def _build_incident_response(incident: Incident) -> IncidentResponse:
 @router.post("", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
 async def report_incident(payload: IncidentCreate, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)), ):
 
+  driver = get_driver_profile(db, current_driver)
+
   trip = db.query(Trip).filter(Trip.trip_id == payload.trip_id).first()
   if trip is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
@@ -53,7 +55,7 @@ async def report_incident(payload: IncidentCreate, db: Session = Depends(get_db)
 
   incident = Incident(
     trip_id=payload.trip_id,
-    reported_by=current_driver.user.user_id,
+    reported_by=driver.user_id,
     incident_type=payload.incident_type,
     description=payload.description,
     latitude=payload.latitude,

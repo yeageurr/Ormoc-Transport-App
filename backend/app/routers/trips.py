@@ -13,7 +13,7 @@ from app.models.vehicle import Vehicle
 from app.models.gps_log import GpsLog
 from app.models.incident_log import Incident
 from app.schemas.trip import DriverDailySummary, TripStart, TripResponse, DriverTripResponse, AdminTripResponse, TripDriverSummary
-from app.core.permissions import require_role, get_current_account
+from app.core.permissions import get_driver_profile, require_role, get_current_account
 from app.enums import AccountRole, TripStatus, VehicleActivityStatus
 
 router = APIRouter()
@@ -121,10 +121,11 @@ def list_my_trips(
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
   """Driver's own Trip Logs screen."""
+  driver = get_driver_profile(db, current_driver)
   trips = (
     db.query(Trip)
     .join(DispatchLog)
-    .filter(DispatchLog.driver_id == current_driver.user.user_id)
+    .filter(DispatchLog.driver_id == driver.user_id)
     .order_by(Trip.time_departed.desc())
     .all()
   )
@@ -159,7 +160,7 @@ def get_my_daily_summary(
   now = datetime.now(ZoneInfo("Asia/Manila"))
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
   day_end = day_start + timedelta(days=1)
-  driver_id = current_driver.user.user_id
+  driver_id = get_driver_profile(db, current_driver).user_id
 
   trips_completed = (
     db.query(func.count(Trip.trip_id))

@@ -22,12 +22,6 @@ router = APIRouter()
 def login(credentials: LoginRequest, response: Response, db: Session = Depends(get_db), ):
   account = db.query(Account).filter(Account.username == credentials.username).first()
 
-  print(f"[debug] login attempt username={credentials.username!r}")
-  if account:
-    print(f"[debug] stored hash={account.password_hash!r}")
-  else:
-    print("[debug] no account found for that username")
-
   invalid_credentials = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Invalid username or password",
@@ -35,8 +29,6 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
 
   if account is None:
     raise invalid_credentials
-
-  print(f"[debug] verify_password result: {verify_password(credentials.password, account.password_hash)}")
 
   if not verify_password(credentials.password, account.password_hash):
     raise invalid_credentials

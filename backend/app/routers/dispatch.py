@@ -9,7 +9,7 @@ from app.models.vehicle import Vehicle
 from app.models.route import Route
 from app.models.dispatch_log import DispatchLog
 from app.schemas.dispatch import CurrentDriverDispatch, DispatchBatchCreate, DispatchCreate, DispatchResponse, DispatchUpdate
-from app.core.permissions import require_role
+from app.core.permissions import get_driver_profile, require_role
 from app.enums import AccountRole, AccountStatus, AuditAction, VehicleCondition
 from app.services.audit_service import log_action
 
@@ -91,7 +91,8 @@ def validate_dispatch(db: Session, item: DispatchCreate, ignore_id: int | None =
 @router.get("/driver/current", response_model=CurrentDriverDispatch)
 def current_driver_dispatch(db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER))):
   start, end = day_bounds(datetime.now(PH))
-  dispatch = db.query(DispatchLog).filter(DispatchLog.driver_id == current_driver.user.user_id, DispatchLog.effective_on >= start, DispatchLog.effective_on < end).order_by(DispatchLog.effective_on.desc()).first()
+  driver = get_driver_profile(db, current_driver)
+  dispatch = db.query(DispatchLog).filter(DispatchLog.driver_id == driver.user_id, DispatchLog.effective_on >= start, DispatchLog.effective_on < end).order_by(DispatchLog.effective_on.desc()).first()
   
   if not dispatch: 
     raise HTTPException(

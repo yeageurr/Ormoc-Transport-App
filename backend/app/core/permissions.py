@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.core.security import decode_access_token
 from app.models.account import Account
+from app.models.user import User
 from app.enums import AccountRole, AccountStatus
 
 
@@ -68,3 +69,19 @@ def require_role(*allowed_roles: AccountRole):
       )
     return account
   return role_checker
+
+
+def get_driver_profile(db: Session, account: Account) -> User:
+  """Return the user profile belonging to an authenticated driver account.
+
+  A driver account without its required profile is invalid application data.
+  Raise a client-safe error instead of allowing endpoint code to dereference
+  ``account.user`` and return a 500.
+  """
+  driver = db.query(User).filter(User.account_id == account.account_id).first()
+  if driver is None:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="This driver account does not have a driver profile",
+    )
+  return driver
