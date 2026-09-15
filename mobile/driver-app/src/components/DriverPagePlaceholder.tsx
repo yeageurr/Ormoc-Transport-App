@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function DriverPagePlaceholder({
   title,
@@ -9,7 +10,8 @@ export default function DriverPagePlaceholder({
   icon: keyof typeof Ionicons.glyphMap;
 }) {
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <StatusBar barStyle="light-content" />
       <Text style={styles.title}>{title}</Text>
       <View style={styles.emptyState}>
         <Ionicons name={icon} size={42} color="#2DD4BF" />
