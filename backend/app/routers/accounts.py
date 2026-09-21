@@ -10,7 +10,7 @@ from app.models.user import User
 from app.schemas.user import DriverCreate, DriverAdminUpdate, UserResponse
 from app.core.security import hash_password
 from app.core.permissions import require_role
-from app.services.account_service import generate_account_code
+from app.services.account_service import generate_account_code, generate_driver_id
 from app.enums import AccountRole, AccountStatus
 
 router = APIRouter()
@@ -47,6 +47,7 @@ def create_driver(
   account = Account(
     account_code=generate_account_code(db),
     username=payload.contact_number,
+    email=payload.email,
     password_hash=hash_password(temp_password),
     role=AccountRole.DRIVER,
     status=AccountStatus.ACTIVE,
@@ -56,6 +57,7 @@ def create_driver(
   db.flush()  # get account.account_id before creating the linked User row
 
   driver = User(
+    driver_id=generate_driver_id(db),
     account_id=account.account_id,
     first_name=payload.first_name,
     last_name=payload.last_name,

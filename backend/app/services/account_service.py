@@ -1,9 +1,11 @@
 import random
+import secrets
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.models.account import Account
+from app.models.user import User
 
 
 def generate_account_code(db: Session) -> str:
@@ -22,3 +24,21 @@ def generate_account_code(db: Session) -> str:
       return code
 
   raise RuntimeError("Could not generate a unique account_code after 20 attempts")
+
+
+def generate_driver_id(db: Session) -> str:
+  """Create a unique public driver ID, e.g. ``22342-2026``.
+
+  The random five-digit portion avoids exposing the internal sequential
+  ``users.user_id`` value.  The database unique constraint remains the final
+  collision safeguard.
+  """
+  year = datetime.now().year
+
+  for _ in range(20):
+    code = f"{secrets.randbelow(100_000):05d}-{year}"
+    exists = db.query(User.user_id).filter(User.driver_id == code).first()
+    if not exists:
+      return code
+
+  raise RuntimeError("Could not generate a unique driver_id after 20 attempts")

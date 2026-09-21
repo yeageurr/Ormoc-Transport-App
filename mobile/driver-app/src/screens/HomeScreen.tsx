@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getDailySummary, getTripLogs, type DriverDailySummary, type DriverTrip } from '@/api/tripsAPI';
 import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
 import RecentTripCard from '@/components/RecentTripCard';
+import { NotificationBell } from '@/components/NotificationCenter';
 import { useAuth } from '@/hooks/useAuth';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -67,13 +68,6 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const refreshHome = useCallback(() => {
-    void loadRecentTrips();
-    void loadSummary();
-    void loadCurrentDispatch();
-    void checkGpsStatus();
-  }, [checkGpsStatus, loadCurrentDispatch, loadRecentTrips, loadSummary]);
-
   const handleGpsPress = useCallback(() => {
     if (gpsStatus === 'denied') {
       void checkGpsStatus(true).then(() => {
@@ -99,41 +93,30 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          <Text style={styles.pageTitle}>Home</Text>
+          <View style={styles.topBar}>
+          <View><Text style={styles.welcome}>Welcome Back, {firstName || 'Driver'} 👋</Text><Text style={styles.subtitle}>Ready for your ride today?</Text></View>
           <View style={styles.topActions}>
-            <Pressable onPress={refreshHome} hitSlop={10}>
-              <Ionicons name="refresh-outline" size={23} color="#2DD4BF" />
-            </Pressable>
-            <Ionicons name="notifications-outline" size={23} color="#2DD4BF" />
+            <NotificationBell />
           </View>
         </View>
 
-        <View style={styles.welcomeSection}>
-          <Text style={styles.welcome}>Welcome back, {firstName || 'Driver'} 👋</Text>
-          <View style={styles.driverDetails}>
-            <Detail icon="car-sport-outline" label={currentDispatch?.vehicle_plate || '--'} />
-            <Detail icon="git-compare-outline" label={currentDispatch?.route_label || '--'} />
-            <View style={styles.onlineStatus}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.detailText}>Online</Text>
-            </View>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Today’s Summary</Text>
+        <Text style={styles.sectionTitle}>Overview</Text>
         <View style={styles.summaryRow}>
           <SummaryCard icon="flag-outline" iconColor="#27E0D2" label="Trips Completed" value={summary?.trips_completed} variant="teal" />
           <SummaryCard icon="document-text-outline" iconColor="#FFAD0A" label="Incidents Reported" value={summary?.incidents_reported} variant="amber" />
         </View>
 
-        <Pressable onPress={handleGpsPress} style={[styles.gpsPill, gpsStatus !== 'connected' && styles.gpsPillInactive]}>
-          <View style={[styles.gpsDot, gpsStatus !== 'connected' && styles.gpsDotInactive]} />
-          <Text style={styles.gpsText}>{gpsStatus === 'checking' ? 'GPS Location: Checking…' : gpsStatus === 'connected' ? 'GPS Location: Connected' : gpsStatus === 'denied' ? 'GPS Location: Permission required' : 'GPS Location: Unavailable'}</Text>
-        </Pressable>
+        <View style={styles.divider} />
+        <View style={styles.assignmentHeader}><Text style={styles.assignmentTitle}>Today’s Assignment</Text><View style={styles.datePill}><Ionicons name="calendar-outline" size={12} color="#26D5C4" /><Text style={styles.dateText}>{new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</Text></View></View>
+        <View style={styles.assignmentCard}>
+          <AssignmentStop title={currentDispatch?.route_label?.split('↔')[0]?.trim() || '--'} />
+          <Ionicons name="swap-horizontal" size={28} color="#6CC3D4" />
+          <AssignmentStop title={currentDispatch?.route_label?.split('↔')[1]?.trim() || '--'} />
+        </View>
+        <View style={styles.assignmentFoot}><Detail icon="car-sport-outline" label={currentDispatch?.vehicle_plate || '--'} /><Pressable onPress={handleGpsPress} style={styles.gpsInline}><View style={[styles.gpsDot, gpsStatus !== 'connected' && styles.gpsDotInactive]} /><Text style={styles.gpsText}>GPS Status: {gpsStatus === 'connected' ? 'Connected' : gpsStatus === 'checking' ? 'Checking…' : 'Unavailable'}</Text></Pressable></View>
 
         <View style={styles.divider} />
-        <View style={styles.recentHeader}><Text style={styles.sectionTitle}>Recent Trips</Text></View>
+        <View style={styles.recentHeader}><Text style={styles.sectionTitle}>Trips Overview</Text></View>
 
         {isLoadingTrips ? (
           <View style={styles.emptyTrips}><ActivityIndicator color="#2DD4BF" /><Text style={styles.emptyTripsText}>Loading recent trips…</Text></View>
@@ -151,6 +134,10 @@ export default function HomeScreen() {
 
 function Detail({ icon, label }: { icon: IconName; label: string }) {
   return <View style={styles.detail}><Ionicons name={icon} size={13} color="#A9D1CC" /><Text style={styles.detailText}>{label}</Text></View>;
+}
+
+function AssignmentStop({ title }: { title: string }) {
+  return <View style={styles.stop}><View style={styles.stopIcon}><Ionicons name="location-outline" size={22} color="#25D2C0" /></View><Text style={styles.stopText}>{title}</Text></View>;
 }
 
 function SummaryCard({ icon, iconColor, label, value, variant }: { icon: IconName; iconColor: string; label: string; value: number | undefined; variant: 'teal' | 'amber' }) {
@@ -173,30 +160,39 @@ function EmptyTrips({ icon, message }: { icon: IconName; message: string }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#042F2E' },
-  content: { paddingHorizontal: 18, paddingTop: 16, paddingBottom: 118 },
+  content: { paddingHorizontal: 25, paddingTop: 13, paddingBottom: 30 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pageTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: '700' },
+  subtitle: { color: '#B6D7D2', fontSize: 10, marginTop: 2 },
   topActions: { flexDirection: 'row', gap: 20 },
-  welcomeSection: { marginTop: 50, alignItems: 'center' },
-  welcome: { color: '#FFFFFF', fontSize: 20, fontWeight: '600', textAlign: 'center' },
+  welcome: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
   driverDetails: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 14, marginTop: 11 },
   detail: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   detailText: { color: '#A9D1CC', fontSize: 10 },
   onlineStatus: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#57D561' },
-  sectionTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginTop: 32 },
+  sectionTitle: { color: '#B9E2DC', fontSize: 12, fontWeight: '700', marginTop: 36 },
   summaryRow: { flexDirection: 'row', gap: 16, marginTop: 16 },
-  summaryCard: { flexDirection: 'row', flex: 1, alignItems: 'center', gap: 11, padding: 12, minHeight: 76, borderRadius: 15, borderWidth: 1 },
+  summaryCard: { flexDirection: 'row', flex: 1, alignItems: 'center', gap: 11, padding: 11, minHeight: 54, borderRadius: 14, borderWidth: 1 },
   tealCard: { backgroundColor: '#106A67', borderColor: '#28A79E' },
   amberCard: { backgroundColor: '#3A300E', borderColor: '#CE9100' },
   summaryLabel: { color: '#A9D1CC', fontSize: 11, fontWeight: '600', lineHeight: 14 },
-  summaryValue: { color: '#FFFFFF', fontSize: 28, fontWeight: '800', lineHeight: 32 },
+  summaryValue: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', lineHeight: 28 },
   gpsPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingHorizontal: 9, paddingVertical: 5, marginTop: 13, borderRadius: 12, backgroundColor: 'rgba(17, 105, 72, 0.55)' },
   gpsPillInactive: { backgroundColor: 'rgba(116, 82, 18, 0.55)' },
   gpsDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#41EA43', shadowColor: '#41EA43', shadowOpacity: 0.8, shadowRadius: 4 },
   gpsDotInactive: { backgroundColor: '#FFAD0A', shadowColor: '#FFAD0A' },
   gpsText: { color: '#C0FFF8', fontSize: 9, fontWeight: '700' },
-  divider: { height: 1, backgroundColor: 'rgba(169, 209, 204, 0.48)', marginVertical: 26 },
+  divider: { height: 1, backgroundColor: 'rgba(169, 209, 204, 0.48)', marginTop: 18, marginBottom: 14 },
+  assignmentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  assignmentTitle: { color: '#DDF8F4', fontSize: 12, fontWeight: '700' },
+  datePill: { flexDirection: 'row', gap: 5, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#087A72', borderRadius: 6 },
+  dateText: { color: '#D3FFFA', fontSize: 8 },
+  assignmentCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 11 },
+  stop: { width: 104, minHeight: 64, backgroundColor: '#034F49', borderRadius: 9, alignItems: 'center', justifyContent: 'center', padding: 6 },
+  stopIcon: { marginBottom: 2 },
+  stopText: { color: '#FFF', fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  assignmentFoot: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  gpsInline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   recentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   emptyTrips: { minHeight: 144, borderRadius: 10, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: 'rgba(8, 97, 88, 0.62)' },
   emptyTripsText: { color: '#A9D1CC', fontSize: 13 },

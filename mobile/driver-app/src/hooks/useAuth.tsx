@@ -1,5 +1,14 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { getCurrentUser, getStoredToken, logoutDriver as logoutDriverRequest } from '@/api/authAPI';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
+
+import {
+  getCurrentUser,
+  getStoredToken,
+  isSessionRevoked,
+  logoutDriver as logoutDriverRequest,
+} from '@/api/authAPI';
+
+const SESSION_CHECK_INTERVAL_MS = 15_000;
 
 interface AuthContextValue {
   isAuthenticated: boolean;
@@ -21,6 +30,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [firstName, setFirstName] = useState<string | null>(null);
 
+  const signOut = useCallback(async () => {
+    await logoutDriverRequest();
+    setFirstName(null);
+    setIsAuthenticated(false);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
@@ -35,8 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const user = await getCurrentUser();
         if (mounted) setFirstName(user.first_name);
-      } catch {
-        // Keep the existing token session; unavailable profile data falls back to "Driver".
+      } catch (error) {
+        if (isSessionRevoked(error)) {
+          await signOut();
+        }
+        // Keep a session during temporary connectivity failures so it can retry.
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -47,18 +65,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [signOut]);
 
   const signIn = (name?: string | null) => {
     setFirstName(name ?? null);
     setIsAuthenticated(true);
   };
 
-  const signOut = async () => {
-    await logoutDriverRequest();
-    setFirstName(null);
-    setIsAuthenticated(false);
-  };
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const checkAccountStatus = async () => {
+      try {
+        const user = await getCurrentUser();
+        setFirstName(user.first_name);
+      } catch (error) {
+        if (isSessionRevoked(error)) {
+          await signOut();
+        }
+      }
+    };
+
+    void checkAccountStatus();
+    const interval = setInterval(() => {
+      void checkAccountStatus();
+    }, SESSION_CHECK_INTERVAL_MS);
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void checkAccountStatus();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      appStateSubscription.remove();
+    };
+  }, [isAuthenticated, signOut]);
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, isLoading, firstName, signIn, signOut }}>

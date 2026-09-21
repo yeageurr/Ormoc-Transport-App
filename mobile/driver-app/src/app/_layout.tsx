@@ -4,6 +4,7 @@ import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { NotificationCenterProvider } from '@/components/NotificationCenter';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 
 SplashScreen.preventAutoHideAsync();
@@ -27,6 +28,8 @@ function RootNavigator() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={isAuthenticated}>
         <Stack.Screen name="tabs" />
+        <Stack.Screen name="edit-profile" />
+        <Stack.Screen name="change-password" />
       </Stack.Protected>
       <Stack.Protected guard={!isAuthenticated}>
         <Stack.Screen name="login" />
@@ -43,7 +46,9 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <AnimatedSplashOverlay />
         <AuthProvider>
-          <RootNavigator />
+          <NotificationCenterProvider>
+            <RootNavigator />
+          </NotificationCenterProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

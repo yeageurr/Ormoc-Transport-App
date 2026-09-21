@@ -83,6 +83,32 @@ def list_incidents(
   return [_build_incident_response(i) for i in incidents]
 
 
+@router.get("/driver/all", response_model=list[IncidentResponse])
+def list_driver_visible_incidents(
+  db: Session = Depends(get_db),
+  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Reports feed shown in the driver app. Driver identity is intentionally
+  limited to the summary returned by IncidentResponse."""
+  incidents = db.query(Incident).order_by(Incident.reported_at.desc()).all()
+  return [_build_incident_response(incident) for incident in incidents]
+
+
+@router.get("/driver/mine", response_model=list[IncidentResponse])
+def list_my_incidents(
+  db: Session = Depends(get_db),
+  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  driver = get_driver_profile(db, current_driver)
+  incidents = (
+    db.query(Incident)
+    .filter(Incident.reported_by == driver.user_id)
+    .order_by(Incident.reported_at.desc())
+    .all()
+  )
+  return [_build_incident_response(incident) for incident in incidents]
+
+
 @router.get("/{incident_id}", response_model=IncidentResponse)
 def get_incident(
   incident_id: int,

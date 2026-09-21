@@ -1,108 +1,226 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 
 import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
+import { NotificationBell } from '@/components/NotificationCenter';
+import { getMyProfile, type DriverProfile } from '@/api/profileAPI';
 import { useAuth } from '@/hooks/useAuth';
 
-type IconName = keyof typeof Ionicons.glyphMap;
-
 export default function ProfileScreen() {
+  const router = useRouter();
   const { signOut } = useAuth();
-  const [currentDispatch, setCurrentDispatch] = useState<CurrentDispatch | null>(null);
 
-  const loadCurrentDispatch = useCallback(async () => {
-    try {
-      setCurrentDispatch(await getCurrentDispatch());
-    } catch {
-      setCurrentDispatch(null);
-    }
+  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  const [dispatch, setDispatch] = useState<CurrentDispatch | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+
+    const [profileResult, dispatchResult] = await Promise.all([
+      getMyProfile().catch(() => null),
+      getCurrentDispatch().catch(() => null),
+    ]);
+
+    setProfile(profileResult);
+    setDispatch(dispatchResult);
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    void loadCurrentDispatch();
-  }, [loadCurrentDispatch]);
+    void loadProfile();
+  }, [loadProfile]);
+
+  const fullName = profile
+    ? `${profile.first_name} ${profile.last_name}`
+    : 'Driver';
+  const initials = fullName
+    .split(' ')
+    .map((namePart) => namePart[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>My Profile</Text>
 
-        <View style={styles.identity}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>AD</Text></View>
-          <View>
-            <Text style={styles.name}>Anthony Domasig</Text>
-            <Text style={styles.driverId}>Driver ID: 123-2212-121</Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>My Profile</Text>
+          <NotificationBell />
         </View>
 
-        <Text style={styles.sectionTitle}>My Information</Text>
-        <View style={styles.infoCard}>
-          <InfoRow icon="calendar-outline" value="September 19, 2006 (19 yrs. old)" label="Birthday" />
-          <InfoRow icon="git-compare-outline" value={currentDispatch?.route_label || 'Currently not assigned'} label="Route" />
-          <InfoRow icon="car-sport-outline" value={currentDispatch?.vehicle_plate || 'Currently not assigned'} label="Vehicle" />
-          <InfoRow icon="people-outline" value="SAVAMTCO" label="Cooperative" last />
-        </View>
+        {loading ? (
+          <ActivityIndicator style={styles.loader} color="#20D7C5" />
+        ) : (
+          <>
+            <View style={styles.identity}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
 
-        <View style={styles.accountSection}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.accountCard}>
-            <AccountRow icon="lock-closed-outline" label="Change password" />
-            <AccountRow icon="person-outline" label="Edit profile" last />
-          </View>
-        </View>
+              <View>
+                <Text style={styles.name}>{fullName}</Text>
+                <Text style={styles.id}>
+                  Driver ID: {profile?.driver_id ?? '--'}
+                </Text>
+              </View>
+            </View>
 
-        <Pressable onPress={signOut} style={({ pressed }) => [styles.logoutButton, pressed && styles.pressed]}>
-          <Ionicons name="log-out-outline" size={23} color="#FFB08C" />
-          <Text style={styles.logoutText}>Log out</Text>
-        </Pressable>
+            <Text style={styles.sectionTitle}>My Information</Text>
+            <View style={styles.infoCard}>
+              <ProfileInfoRow icon="call-outline" value={profile?.contact_number ?? '--'} label="Phone number" />
+              <ProfileInfoRow icon="mail-outline" value={profile?.email ?? '--'} label="Email" />
+              <ProfileInfoRow icon="git-compare-outline" value={dispatch?.route_label ?? 'Currently not assigned'} label="Route" />
+              <ProfileInfoRow icon="car-sport-outline" value={dispatch?.vehicle_plate ?? 'Currently not assigned'} label="Vehicle" />
+              <ProfileInfoRow icon="card-outline" value={profile?.license_num ?? '--'} label="License number" last />
+            </View>
+
+            <Text style={styles.sectionTitle}>Account</Text>
+            <View style={styles.accountCard}>
+              <AccountAction icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password' as never)} />
+              <AccountAction icon="person-outline" label="Edit profile" onPress={() => router.push('/edit-profile' as never)} last />
+            </View>
+
+            <Pressable onPress={() => setLogoutOpen(true)} style={styles.logout}>
+              <Ionicons name="log-out-outline" size={21} color="#FFB27B" />
+              <Text style={styles.logoutText}>Log out</Text>
+            </Pressable>
+          </>
+        )}
       </ScrollView>
+
+      <LogoutModal visible={logoutOpen} onClose={() => setLogoutOpen(false)} onConfirm={() => void signOut()} />
     </SafeAreaView>
   );
 }
 
-function InfoRow({ icon, value, label, last = false }: { icon: IconName; value: string; label: string; last?: boolean }) {
+type IconName = keyof typeof Ionicons.glyphMap;
+
+interface ProfileInfoRowProps {
+  icon: IconName;
+  value: string;
+  label: string;
+  last?: boolean;
+}
+
+function ProfileInfoRow({ icon, value, label, last = false }: ProfileInfoRowProps) {
   return (
-    <View style={[styles.infoRow, !last && styles.rowBorder]}>
-      <Ionicons name={icon} size={23} color="#27B9AD" />
-      <View style={styles.rowCopy}><Text style={styles.infoValue}>{value}</Text><Text style={styles.infoLabel}>{label}</Text></View>
+    <View style={[styles.info, !last && styles.line]}>
+      <Ionicons name={icon} size={20} color="#26BEAD" />
+      <View>
+        <Text style={styles.value}>{value}</Text>
+        <Text style={styles.label}>{label}</Text>
+      </View>
     </View>
   );
 }
 
-function AccountRow({ icon, label, last = false }: { icon: IconName; label: string; last?: boolean }) {
+interface AccountActionProps {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  last?: boolean;
+}
+
+function AccountAction({ icon, label, onPress, last = false }: AccountActionProps) {
   return (
-    <Pressable style={({ pressed }) => [styles.accountRow, !last && styles.rowBorder, pressed && styles.pressed]}>
-      <Ionicons name={icon} size={22} color="#27B9AD" />
-      <Text style={styles.accountLabel}>{label}</Text>
-      <Ionicons name="chevron-forward" size={21} color="#D5F1ED" />
+    <Pressable onPress={onPress} style={[styles.account, !last && styles.line]}>
+      <Ionicons name={icon} size={20} color="#26BEAD" />
+      <Text style={styles.accountText}>{label}</Text>
+      <Ionicons name="chevron-forward" size={20} color="#D6EFEB" />
     </Pressable>
   );
 }
 
+interface LogoutModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}
+
+function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
+          <View style={styles.handle} />
+          <Ionicons name="log-out-outline" size={29} color="#FFB27B" />
+          <Text style={styles.sheetTitle}>Log out?</Text>
+          <Text style={styles.sheetText}>Are you sure you want to log out of your driver account?</Text>
+
+          <Pressable onPress={onConfirm} style={styles.confirm}>
+            <Text style={styles.confirmText}>Log out</Text>
+          </Pressable>
+          <Pressable onPress={onClose} style={styles.cancel}>
+            <Text style={styles.cancelText}>Cancel</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#042F2E' },
-  content: { paddingHorizontal: 28, paddingTop: 16, paddingBottom: 36 },
-  title: { color: '#FFFFFF', fontSize: 24, fontWeight: '700' },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 40, marginBottom: 27 },
-  avatar: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#20AE94' },
-  avatarText: { color: '#042F2E', fontSize: 13, fontWeight: '800' },
-  name: { color: '#FFFFFF', fontSize: 19, fontWeight: '700' },
-  driverId: { color: '#C4DFDB', fontSize: 10, marginTop: 3 },
-  sectionTitle: { color: '#D5F1ED', fontSize: 14, marginBottom: 10 },
-  infoCard: { borderRadius: 14, backgroundColor: '#07594F', overflow: 'hidden' },
-  accountSection: { marginTop: 22 },
-  infoRow: { minHeight: 61, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 17 },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: 'rgba(169, 209, 204, 0.16)' },
-  rowCopy: { flex: 1 },
-  infoValue: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
-  infoLabel: { color: '#A9D1CC', fontSize: 9, marginTop: 2 },
-  accountCard: { borderRadius: 14, backgroundColor: '#07594F', overflow: 'hidden' },
-  accountRow: { height: 51, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14 },
-  accountLabel: { flex: 1, color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
-  logoutButton: { height: 47, marginTop: 30, borderRadius: 10, borderWidth: 1, borderColor: '#E8763E', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8 },
-  logoutText: { color: '#FFB08C', fontSize: 16, fontWeight: '700' },
-  pressed: { opacity: 0.65 },
+  screen: { flex: 1, backgroundColor: '#003F3A' },
+  content: { padding: 25, paddingTop: 13, paddingBottom: 28 },
+  title: { color: '#FFF', fontSize: 21, fontWeight: '700' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  loader: { marginTop: 70 },
+  identity: {
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 39, marginBottom: 27,
+  },
+  avatar: {
+    width: 39, height: 39, borderRadius: 20, backgroundColor: '#22AC8D', alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { color: '#003F3A', fontSize: 12, fontWeight: '800' },
+  name: { color: '#FFF', fontSize: 17, fontWeight: '700' },
+  id: { color: '#B3D6D1', fontSize: 9, marginTop: 2 },
+  sectionTitle: { color: '#D7F5F0', fontSize: 12, marginBottom: 9 },
+  infoCard: { backgroundColor: '#075D54', borderRadius: 13, overflow: 'hidden', marginBottom: 19 },
+  info: {
+    minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13,
+  },
+  line: { borderBottomWidth: 1, borderBottomColor: '#19756C' },
+  value: { color: '#FFF', fontSize: 13, fontWeight: '600' },
+  label: { color: '#A1C8C2', fontSize: 8, marginTop: 2 },
+  accountCard: { backgroundColor: '#075D54', borderRadius: 13, overflow: 'hidden' },
+  account: {
+    height: 51, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13,
+  },
+  accountText: { color: '#FFF', fontSize: 13, fontWeight: '600', flex: 1 },
+  logout: {
+    height: 42, borderColor: '#F07E27', borderWidth: 1, borderRadius: 9, marginTop: 31,
+    alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7,
+  },
+  logoutText: { color: '#FFC095', fontSize: 14, fontWeight: '700' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.5)', justifyContent: 'flex-end' },
+  sheet: {
+    padding: 22, backgroundColor: '#061C35', borderTopLeftRadius: 25, borderTopRightRadius: 25,
+    alignItems: 'center',
+  },
+  handle: { width: 80, height: 5, backgroundColor: '#8092A2', borderRadius: 3, marginBottom: 21 },
+  sheetTitle: { color: '#FFF', fontSize: 21, fontWeight: '700', marginTop: 8 },
+  sheetText: { color: '#BFD0DF', fontSize: 12, textAlign: 'center', marginTop: 7 },
+  confirm: {
+    backgroundColor: '#D66A4B', height: 46, borderRadius: 8, alignSelf: 'stretch',
+    alignItems: 'center', justifyContent: 'center', marginTop: 22,
+  },
+  confirmText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+  cancel: { height: 44, justifyContent: 'center' },
+  cancelText: { color: '#BCE6E1', fontWeight: '700' },
 });

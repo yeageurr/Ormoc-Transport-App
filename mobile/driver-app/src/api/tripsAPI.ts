@@ -29,12 +29,27 @@ export interface RecordTripPayload {
 }
 
 export interface IncidentReport {
-  tripId?: string;
-  type: string;
+  tripId: number;
+  incidentType: IncidentType;
   description: string;
   latitude?: number;
   longitude?: number;
   occurredAt: string; // ISO 8601
+}
+
+export type IncidentType = 'vehicle_breakdown' | 'flooded_road' | 'crime_incident' | 'road_accident';
+
+export interface DriverIncident {
+  incident_id: number;
+  trip_id: number;
+  incident_type: IncidentType;
+  description: string | null;
+  latitude: number;
+  longitude: number;
+  status: 'open' | 'under_review' | 'resolved';
+  reported_at: string;
+  reporter?: { first_name: string; last_name: string } | null;
+  route?: { route_name: string | null } | null;
 }
 
 /**
@@ -86,10 +101,19 @@ export async function endTrip(tripId: string): Promise<Trip> {
 export async function reportIncident(report: IncidentReport): Promise<void> {
   await authClient.post('/incidents', {
     trip_id: report.tripId,
-    type: report.type,
+    incident_type: report.incidentType,
     description: report.description,
     latitude: report.latitude,
     longitude: report.longitude,
-    occurred_at: report.occurredAt,
   });
+}
+
+export async function getMyIncidents(): Promise<DriverIncident[]> {
+  const { data } = await authClient.get<DriverIncident[]>('/incidents/driver/mine');
+  return data;
+}
+
+export async function getAllIncidents(): Promise<DriverIncident[]> {
+  const { data } = await authClient.get<DriverIncident[]>('/incidents/driver/all');
+  return data;
 }

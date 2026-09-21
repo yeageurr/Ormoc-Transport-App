@@ -12,10 +12,10 @@ export default function RecentTripCard({ trip }: { trip: DriverTrip }) {
   return (
     <View style={styles.card}>
       <View style={styles.topRow}>
-        <View style={styles.plate}><Ionicons name="car-sport-outline" size={13} color="#A9D1CC" /><Text style={styles.plateText}>{trip.vehicle_plate ?? `Trip #${trip.trip_id}`}</Text></View>
-        <View style={styles.status}><Ionicons name={trip.status === 'returning' ? 'arrow-down-outline' : 'arrow-up-outline'} size={10} color="#C0FFF8" /><Text style={styles.statusText}>{status}</Text></View>
+        <View style={styles.plate}><Ionicons name="car-sport-outline" size={12} color="#A9D1CC" /><Text style={styles.plateText}>{trip.vehicle_plate ?? `Trip #${trip.trip_id}`}</Text></View>
+        <View style={[styles.status, trip.status === 'outgoing' && styles.outgoing]}><Text style={styles.statusText}>{status}</Text></View>
       </View>
-      <View style={styles.routeRow}><Ionicons name="location-outline" size={16} color="#27E0D2" /><Text style={styles.route}>{trip.route_label ?? 'Assigned route'}</Text></View>
+      <View style={styles.routeRow}><Ionicons name="location-outline" size={14} color="#27E0D2" /><Text style={styles.route}>{trip.route_label ?? 'Assigned route'}</Text></View>
       <Text style={styles.meta}>{duration ?? 'Trip in progress'} • {formatDate(departed)}</Text>
       <View style={styles.divider} />
       <TripTime label="Departed" time={formatTime(departed)} color="#57D561" />
@@ -37,11 +37,12 @@ function formatTime(date: Date) {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: 11, marginBottom: 9, borderRadius: 5, backgroundColor: '#086158' },
+  card: { padding: 11, marginBottom: 9, borderRadius: 5, backgroundColor: '#07564F' },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   plate: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   plateText: { color: '#A9D1CC', fontSize: 10 },
-  status: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 3, backgroundColor: '#168F79' },
+  status: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: '#66847D' },
+  outgoing: { backgroundColor: '#185B9D' },
   statusText: { color: '#C0FFF8', fontSize: 8 },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 8 },
   route: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },

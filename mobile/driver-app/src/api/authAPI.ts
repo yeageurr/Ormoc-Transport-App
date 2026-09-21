@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
 // Configure this per environment. For USB development, adb reverse maps the
@@ -64,6 +65,31 @@ export async function logoutDriver(): Promise<void> {
 export async function getCurrentUser(): Promise<AuthenticatedUser> {
   const { data } = await authClient.get<AuthenticatedUser>('/auth/me');
   return data;
+}
+
+/**
+ * Account status is checked by the backend on every authenticated request.
+ * Only authentication failures and account deactivation should end a local
+ * session; network errors must leave the driver signed in for retry.
+ */
+export function isSessionRevoked(error: unknown): boolean {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  const response = error as AxiosError<{
+    detail?: string;
+    error?: { message?: string };
+  }>;
+  const status = response.response?.status;
+  const detail = response.response?.data?.detail
+    ?? response.response?.data?.error?.message
+    ?? '';
+
+  return status === 401 || (
+    status === 403 &&
+    (detail.includes('Account is disabled') || detail.includes('Account is suspended'))
+  );
 }
 
 // Attaches the stored token to every outgoing request automatically,

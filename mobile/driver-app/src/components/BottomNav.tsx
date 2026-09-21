@@ -10,8 +10,8 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { label: 'Home', icon: 'home-outline', href: '/tabs' },
-  { label: 'Trip Logs', icon: 'car-sport-outline', href: '/tabs/trip-logs' },
-  { label: 'Go', icon: 'navigate', href: '/tabs/record-trip' },
+  { label: 'Trip Logs', icon: 'reader-outline', href: '/tabs/trip-logs' },
+  { label: 'Start Trip', icon: 'navigate', href: '/tabs/record-trip' },
   { label: 'Reports', icon: 'list-outline', href: '/tabs/report-incident' },
   { label: 'Me', icon: 'person-outline', href: '/tabs/profile' },
 ];
@@ -42,14 +42,16 @@ export default function BottomNav() {
 
 const styles = StyleSheet.create({
   nav: {
-    minHeight: 76,
+    minHeight: 72,
     paddingTop: 9,
     paddingBottom: 8,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#087C73',
+    backgroundColor: '#087B73',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(45, 224, 210, 0.18)',
+    borderColor: '#25AD9F',
   },
   item: {
     flex: 1,

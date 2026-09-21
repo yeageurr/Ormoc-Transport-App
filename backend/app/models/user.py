@@ -16,6 +16,9 @@ class User(Base):
   __tablename__ = "users"
 
   user_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  # Public identifier shown to drivers.  This is deliberately separate from
+  # the internal numeric user_id used by foreign keys throughout the system.
+  driver_id: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
   account_id: Mapped[int] = mapped_column(
     ForeignKey("accounts.account_id"), unique=True, nullable=False
   )
