@@ -134,6 +134,7 @@ function AddVehicleModal({ onClose, onSuccess, onError }) {
             <label className="block text-[#9fcabd] text-xs mb-1.5">Registry expiration</label>
             <input
               type="date"
+              min={new Date().toISOString().split("T")[0]}
               required
               value={form.registry_expiration}
               onChange={(e) => setForm({ ...form, registry_expiration: e.target.value })}
