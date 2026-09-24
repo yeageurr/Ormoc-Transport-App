@@ -54,6 +54,7 @@ class LiveVehicleSummary(BaseModel):
   activity_status: str
   body_color: str
   driver_name: str | None = None
+  route_id: int | None = None
   route_label: str | None = None
   current_speed_kmh: float | None = None
   current_latitude: float | None = None
@@ -75,6 +76,7 @@ def get_live_vehicle_overview(
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
   for vehicle in vehicles:
     driver_name = None
+    route_id = None
     route_label = None
     current_speed = None
     current_lat = None
@@ -96,6 +98,7 @@ def get_live_vehicle_overview(
 
     if dispatch:
       driver_name = f"{dispatch.driver.first_name} {dispatch.driver.last_name}"
+      route_id = dispatch.route_id
       route_label = dispatch.route.destination.name if dispatch.route and dispatch.route.destination else None
 
     if current_location:
@@ -115,6 +118,7 @@ def get_live_vehicle_overview(
       activity_status=vehicle.activity_status.value,
       body_color=vehicle.body_color,
       driver_name=driver_name,
+      route_id=route_id,
       route_label=route_label,
       current_speed_kmh=current_speed,
       current_latitude=current_lat,

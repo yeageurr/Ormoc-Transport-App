@@ -24,7 +24,7 @@ function mapData(terminal, routes, vehicles, selectedVehicleId) {
   return {
     geofence: { type: "FeatureCollection", features: geofence ? [geofence] : [] },
     routes: { type: "FeatureCollection", features: center ? routes.filter((route) => route.destination).map((route, index) => ({
-      type: "Feature", properties: { color: ROUTE_PALETTE[index % ROUTE_PALETTE.length] },
+      type: "Feature", properties: { color: route.mapColor || ROUTE_PALETTE[index % ROUTE_PALETTE.length] },
       geometry: route.route_geometry?.type === "LineString" && route.route_geometry.coordinates?.length >= 2
         ? route.route_geometry
         : { type: "LineString", coordinates: [center, [route.destination.longitude, route.destination.latitude]] },

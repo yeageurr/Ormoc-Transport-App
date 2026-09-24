@@ -31,6 +31,12 @@ const targetTableOptions = [
   { value: "dispatch_logs", label: "Dispatch Logs" },
 ];
 
+const phDate = (value) => {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
 export default function AuditLogs() {
   const { mustChangePassword, setMustChangePassword } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -40,6 +46,8 @@ export default function AuditLogs() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [targetTable, setTargetTable] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     setShowPasswordModal(mustChangePassword);
@@ -62,11 +70,12 @@ export default function AuditLogs() {
   }, [targetTable]);
 
   const filteredLogs = useMemo(() => {
-    return logs.filter((log) =>
-      log.details.toLowerCase().includes(search.toLowerCase()) ||
-      log.action.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [logs, search]);
+    return logs.filter((log) => {
+      const matchesSearch = log.details.toLowerCase().includes(search.toLowerCase()) || log.action.toLowerCase().includes(search.toLowerCase());
+      const date = phDate(log.created_at);
+      return matchesSearch && (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+    });
+  }, [dateFrom, dateTo, logs, search]);
 
   return (
       <main>
@@ -75,7 +84,7 @@ export default function AuditLogs() {
           <h1 className="text-[#eafff5] text-2xl font-bold">Audit Logs</h1>
         </div>
 
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3 mb-4">
           <AdminSearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search action or details..." />
           <select
             value={targetTable}
@@ -86,6 +95,15 @@ export default function AuditLogs() {
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
+          <label className="flex items-center gap-2 text-xs text-[#9fcabd]">
+            From
+            <input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} className={adminFilterClassName} />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-[#9fcabd]">
+            To
+            <input type="date" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} className={adminFilterClassName} />
+          </label>
+          {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }} className="text-xs font-medium text-[#5DCAA5] hover:text-[#9AE6C8]">Clear dates</button>}
         </div>
 
         {error && (
@@ -104,14 +122,15 @@ export default function AuditLogs() {
           ) : filteredLogs.length === 0 ? (
             <p className="text-[#9fcabd] text-sm p-5">No audit log entries found.</p>
           ) : (
+            <div className="max-h-[775px] overflow-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[#9fcabd] text-xs text-left">
-                  <th className="px-5 py-3 font-medium">Date</th>
-                  <th className="px-5 py-3 font-medium">Actor</th>
-                  <th className="px-5 py-3 font-medium">Action</th>
-                  <th className="px-5 py-3 font-medium">Target</th>
-                  <th className="px-5 py-3 font-medium">Details</th>
+              <thead className="sticky top-0 z-10 bg-[#0a2420]">
+                <tr className="text-[#ffffff] text-[20px] text-left">
+                  <th className="px-5 py-3 font-semibold">Date</th>
+                  <th className="px-5 py-3 font-semibold">Actor</th>
+                  <th className="px-5 py-3 font-semibold">Action</th>
+                  <th className="px-5 py-3 font-semibold">Target</th>
+                  <th className="px-5 py-3 font-semibold">Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -132,6 +151,7 @@ export default function AuditLogs() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

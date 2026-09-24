@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PageHeader from "../../components/ui/PageHeader";
 import LiveMapView from "../../components/map/LiveMap";
 import { getLiveVehicles } from "../../api/vehiclesAPI";
@@ -19,6 +19,11 @@ const ACTIVITY_DOT_COLORS = {
 };
 
 const ROUTE_PALETTE = ["#22D3EE", "#F59E0B", "#F472B6", "#A78BFA", "#34D399"];
+const OVERLAY_MARGIN = 12;
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
 
 export default function LiveMap() {
   const [vehicles, setVehicles] = useState({}); // keyed by vehicle_id
@@ -27,6 +32,12 @@ export default function LiveMap() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedRouteId, setSelectedRouteId] = useState(null);
+  const [isRoutesMinimized, setIsRoutesMinimized] = useState(false);
+  const [routesOverlayPosition, setRoutesOverlayPosition] = useState(null);
+  const mapFrameRef = useRef(null);
+  const routesOverlayRef = useRef(null);
+  const dragRef = useRef(null);
 
   const loadInitialState = useCallback(async ({ silent = false } = {}) => {
     if (silent) setIsRefreshing(true);
@@ -95,7 +106,74 @@ export default function LiveMap() {
     },
   });
 
+  const routesWithColors = useMemo(
+    () => routes.map((route, index) => ({ ...route, mapColor: ROUTE_PALETTE[index % ROUTE_PALETTE.length] })),
+    [routes],
+  );
   const vehicleList = useMemo(() => Object.values(vehicles), [vehicles]);
+  const visibleRoutes = useMemo(
+    () => selectedRouteId === null ? routesWithColors : routesWithColors.filter((route) => route.route_id === selectedRouteId),
+    [routesWithColors, selectedRouteId],
+  );
+  const visibleVehicles = useMemo(
+    () => selectedRouteId === null ? vehicleList : vehicleList.filter((vehicle) => vehicle.route_id === selectedRouteId),
+    [vehicleList, selectedRouteId],
+  );
+
+  useEffect(() => {
+    const mapFrame = mapFrameRef.current;
+    const overlay = routesOverlayRef.current;
+    if (!mapFrame || !overlay) return undefined;
+
+    const keepOverlayInBounds = () => {
+      const maxX = mapFrame.clientWidth - overlay.offsetWidth - OVERLAY_MARGIN;
+      const maxY = mapFrame.clientHeight - overlay.offsetHeight - OVERLAY_MARGIN;
+      setRoutesOverlayPosition((current) => {
+        if (current === null) {
+          return {
+            x: Math.max(OVERLAY_MARGIN, maxX - 28),
+            y: Math.max(OVERLAY_MARGIN, (mapFrame.clientHeight - overlay.offsetHeight) / 2),
+          };
+        }
+        return { x: clamp(current.x, OVERLAY_MARGIN, maxX), y: clamp(current.y, OVERLAY_MARGIN, maxY) };
+      });
+    };
+
+    keepOverlayInBounds();
+    const resizeObserver = new ResizeObserver(keepOverlayInBounds);
+    resizeObserver.observe(mapFrame);
+    resizeObserver.observe(overlay);
+    return () => resizeObserver.disconnect();
+  }, [isRoutesMinimized, routesWithColors.length]);
+
+  const handleOverlayPointerDown = useCallback((event) => {
+    if (event.button !== 0 || routesOverlayPosition === null) return;
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      overlayX: routesOverlayPosition.x,
+      overlayY: routesOverlayPosition.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }, [routesOverlayPosition]);
+
+  const handleOverlayPointerMove = useCallback((event) => {
+    const drag = dragRef.current;
+    const mapFrame = mapFrameRef.current;
+    const overlay = routesOverlayRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !mapFrame || !overlay) return;
+    const maxX = mapFrame.clientWidth - overlay.offsetWidth - OVERLAY_MARGIN;
+    const maxY = mapFrame.clientHeight - overlay.offsetHeight - OVERLAY_MARGIN;
+    setRoutesOverlayPosition({
+      x: clamp(drag.overlayX + event.clientX - drag.startX, OVERLAY_MARGIN, maxX),
+      y: clamp(drag.overlayY + event.clientY - drag.startY, OVERLAY_MARGIN, maxY),
+    });
+  }, []);
+
+  const handleOverlayPointerEnd = useCallback((event) => {
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+  }, []);
 
   return (
     <div>
@@ -124,7 +202,7 @@ export default function LiveMap() {
         {socketStatus === "open" ? "Live" : socketStatus === "closed" ? "Reconnecting…" : "Connecting…"}
       </div>
 
-      <div className="relative z-10">
+      <div ref={mapFrameRef} className="relative z-10">
         {/* Map container keeps rounded corners & clipping isolated to itself */}
         <div className="h-[750px] rounded-[var(--input-radius)] overflow-hidden border border-white/10">
           {isLoading ? (
@@ -132,37 +210,79 @@ export default function LiveMap() {
               Loading map data…
             </div>
           ) : (
-            <LiveMapView terminal={terminal} routes={routes} vehicles={vehicleList} />
+            <LiveMapView terminal={terminal} routes={visibleRoutes} vehicles={visibleVehicles} />
           )}
         </div>
 
-        {/* Raised z-index to z-20 so it sits cleanly on top of Leaflet/Mapbox canvas layers */}
-        <aside className="absolute top-1/2 right-10 -translate-y-1/2 h-max z-[400] w-64 bg-[#0a2420] border border-white/10 rounded-2xl p-4 overflow-y-auto">
-          <h2 className="text-[#eafff5] text-sm font-semibold mb-3">Routes</h2>
-          <ul className="space-y-2 mb-6">
-            {routes.map((route, i) => (
-              <li key={route.route_id} className="flex items-center gap-2 text-sm text-[#9fcabd]">
-                <span
-                  className="h-2.5 w-6 rounded-full shrink-0"
-                  style={{ background: ROUTE_PALETTE[i % ROUTE_PALETTE.length] }}
-                />
-                {route.destination?.name || `Route ${route.route_id}`}
-              </li>
-            ))}
-          </ul>
+        <aside
+          ref={routesOverlayRef}
+          className="absolute z-[400] w-64 overflow-y-auto rounded-2xl border border-white/10 bg-[#0a2420] shadow-xl"
+          style={routesOverlayPosition ? { left: routesOverlayPosition.x, top: routesOverlayPosition.y } : { visibility: "hidden" }}
+        >
+          <div
+            className="flex touch-none cursor-grab items-center justify-between gap-3 px-4 py-3 active:cursor-grabbing"
+            onPointerDown={handleOverlayPointerDown}
+            onPointerMove={handleOverlayPointerMove}
+            onPointerUp={handleOverlayPointerEnd}
+            onPointerCancel={handleOverlayPointerEnd}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[#9fcabd]" aria-hidden="true">⠿</span>
+              <h2 className="text-sm font-semibold text-[#eafff5]">Routes</h2>
+            </div>
+            <button
+              type="button"
+              aria-label={isRoutesMinimized ? "Expand route filters" : "Minimize route filters"}
+              aria-expanded={!isRoutesMinimized}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() => setIsRoutesMinimized((current) => !current)}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-[#9fcabd] transition-colors hover:bg-white/10 hover:text-[#eafff5]"
+            >
+              {isRoutesMinimized ? "+" : "−"}
+            </button>
+          </div>
 
-          <h2 className="text-[#eafff5] text-sm font-semibold mb-3">Status</h2>
-          <ul className="space-y-2">
-            {Object.entries(ACTIVITY_LABELS).map(([key, label]) => (
-              <li key={key} className="flex items-center gap-2 text-sm text-[#9fcabd]">
-                <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ background: ACTIVITY_DOT_COLORS[key] }}
-                />
-                {label}
-              </li>
-            ))}
-          </ul>
+          {!isRoutesMinimized && <div className="px-4 pb-4">
+            <div className="flex flex-wrap gap-2 mb-6">
+            <button
+              type="button"
+              onClick={() => setSelectedRouteId(null)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${selectedRouteId === null ? "border-[#22D3EE] bg-[#0D5C64] text-[#E7FFFB]" : "border-white/15 bg-white/5 text-[#9fcabd] hover:bg-white/10"}`}
+            >
+              All routes
+            </button>
+            {routesWithColors.map((route) => {
+              const isSelected = selectedRouteId === route.route_id;
+              const vehicleCount = vehicleList.filter((vehicle) => vehicle.route_id === route.route_id && vehicle.current_latitude != null && vehicle.current_longitude != null).length;
+              return (
+                <button
+                  key={route.route_id}
+                  type="button"
+                  onClick={() => setSelectedRouteId(route.route_id)}
+                  aria-pressed={isSelected}
+                  className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${isSelected ? "border-[#E7FFFB] bg-[#123E49] text-[#E7FFFB]" : "border-white/15 bg-white/5 text-[#9fcabd] hover:bg-white/10"}`}
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ background: route.mapColor }} />
+                  {route.destination?.name || `Route ${route.route_id}`}
+                  {vehicleCount > 0 && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] text-[#D9FFFA]">{vehicleCount}</span>}
+                </button>
+              );
+            })}
+            </div>
+
+            <h2 className="text-[#eafff5] text-sm font-semibold mb-3">Status</h2>
+            <ul className="space-y-2">
+              {Object.entries(ACTIVITY_LABELS).map(([key, label]) => (
+                <li key={key} className="flex items-center gap-2 text-sm text-[#9fcabd]">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ background: ACTIVITY_DOT_COLORS[key] }}
+                  />
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>}
         </aside>
       </div>
     </div>

@@ -44,7 +44,7 @@ export const deleteVehicle = async (vehicleId) => {
 // Live snapshot for the Live Map's initial load (before WS pings arrive).
 // Response fields (per the real `/vehicles/live` router — see
 // LiveVehicleSummary in routers/vehicles.py):
-//   vehicle_id, plate_number, activity_status, driver_name, route_label,
+//   vehicle_id, plate_number, activity_status, driver_name, route_id, route_label,
 //   current_speed_kmh, current_latitude, current_longitude, body_color
 // (body_color assumes the small backend patch documented alongside this
 // file — without it, this field will just come back undefined and

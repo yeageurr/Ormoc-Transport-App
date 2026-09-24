@@ -61,9 +61,9 @@ export default function IncidentLogs() {
           {isLoading ? "Loading incidents..." : `${filteredIncidents.length} incidents`}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[560px] overflow-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-[#0a2420]">
               <tr className="border-b border-white/10 text-[#9fcabd] text-xs">
                 <th className="py-3.5 px-6 font-medium">DATE & TIME</th>
                 <th className="py-3.5 px-6 font-medium">SUBMITTED BY</th>

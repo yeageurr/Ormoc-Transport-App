@@ -13,7 +13,7 @@ import { getRoutes } from "../../api/routesAPI";
 import { getDrivers } from "../../api/usersAPI";
 import { getVehicles } from "../../api/vehiclesAPI";
 import { useAuth } from "../../context/AuthContext";
-import { AdminSearchField, adminCreateButtonClassName } from "../../components/ui/AdminToolbarControls";
+import { AdminSearchField, adminCreateButtonClassName, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 
 const phDate = (value) => {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value));
@@ -41,6 +41,7 @@ export default function DispatchLog() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
   const [toast, setToast] = useState(null);
   const [editingGroup, setEditingGroup] = useState(null);
   const [addingToGroup, setAddingToGroup] = useState(null);
@@ -71,8 +72,12 @@ export default function DispatchLog() {
       if (!byRouteAndDate.has(key)) byRouteAndDate.set(key, { key, date, routeId: dispatch.route_id, assignments: [] });
       byRouteAndDate.get(key).assignments.push(dispatch);
     });
-    return [...byRouteAndDate.values()].filter((group) => `${displayDate(group.date)} ${routeMap[group.routeId] || ""}`.toLowerCase().includes(search.toLowerCase()));
-  }, [dispatches, routeMap, search]);
+    return [...byRouteAndDate.values()].filter((group) => {
+      const matchesSearch = `${displayDate(group.date)} ${routeMap[group.routeId] || ""}`.toLowerCase().includes(search.toLowerCase());
+      const matchesDate = !selectedDate || group.date === selectedDate;
+      return matchesSearch && matchesDate;
+    });
+  }, [selectedDate, dispatches, routeMap, search]);
 
   const closeCreation = () => { setStep(null); setRouteId(null); setAssignments([]); };
   const beginReview = (selectedRouteId) => { setRouteId(selectedRouteId); setAssignments([]); setStep("review"); };
@@ -103,9 +108,20 @@ export default function DispatchLog() {
   return <main>
     <Toast toast={toast} onDismiss={() => setToast(null)} />
     <PageHeader title="Dispatch" />
-    <div className="mb-4 flex items-center gap-3"><AdminSearchField value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search routes or dates..." /><button onClick={() => setStep("route")} className={adminCreateButtonClassName}>+ Create new dispatch</button></div>
+    <div className="mb-4 flex flex-wrap items-center gap-3">
+      <AdminSearchField value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search routes or dates..." />
+      <label className="flex items-center gap-2 text-xs text-[#9fcabd]">
+        Date
+        <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className={adminFilterClassName} />
+      </label>
+      {selectedDate && <button type="button" onClick={() => setSelectedDate("")} className="text-xs font-medium text-[#5DCAA5] hover:text-[#9AE6C8]">Clear date</button>}
+      <button onClick={() => setStep("route")} className={adminCreateButtonClassName}>+ Create new dispatch</button>
+    </div>
     {error && <div className="mb-4 rounded-xl bg-[#3A1B14] px-4 py-3 text-sm text-[#D98B72]">{error}</div>}
-    <div className="overflow-hidden rounded-2xl bg-[#0a2420]"><div className="bg-white/5 px-5 py-2 text-xs text-[#5DCAA5]">{groups.length} dispatch records</div>{isLoading ? <p className="p-5 text-sm text-[#9fcabd]">Loading dispatch log...</p> : !groups.length ? <p className="p-5 text-sm text-[#9fcabd]">No dispatch records found.</p> : <table className="w-full text-sm"><thead><tr className="text-left text-xs text-[#9fcabd]"><th className="px-5 py-3 font-medium">Effective date</th><th className="px-5 py-3 font-medium">Route</th><th className="px-5 py-3 font-medium">Assigned drivers</th><th className="px-5 py-3 font-medium">Actions</th></tr></thead><tbody>{groups.map((group) => { const editable = group.date > phDate(new Date()); return <tr key={group.key} className="group border-t border-white/5"><td className="px-5 py-3 text-[#eafff5]">{displayDate(group.date)}</td><td className="px-5 py-3 text-[#9fcabd]">Ormoc - {routeMap[group.routeId] || "—"}</td><td className="px-5 py-3 text-[#9fcabd]">{group.assignments.length}</td><td className="px-5 py-3"><div className="flex gap-3 opacity-0 transition-opacity group-hover:opacity-100"><button onClick={() => setEditingGroup(group)} disabled={!editable} title={editable ? "Edit dispatch" : "Current and past dispatches are finalized"} aria-label="Edit dispatch" className="text-[#5DCAA5] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"><Pencil size={16} /></button><button onClick={() => setDeletingGroup(group)} disabled={!editable} title={editable ? "Delete dispatch" : "Current and past dispatches are finalized"} aria-label="Delete dispatch" className="text-[#D98B72] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"><Trash2 size={16} /></button></div></td></tr>; })}</tbody></table>}</div>
+    <div className="overflow-hidden rounded-2xl bg-[#0a2420]">
+      <div className="bg-white/5 px-5 py-2 text-xs text-[#5DCAA5]">{groups.length} dispatch records</div>
+      {isLoading ? <p className="p-5 text-sm text-[#9fcabd]">Loading dispatch log...</p> : !groups.length ? <p className="p-5 text-sm text-[#9fcabd]">No dispatch records found.</p> : <div className="max-h-[560px] overflow-auto"><table className="w-full text-sm"><thead className="sticky top-0 z-10 bg-[#0a2420]"><tr className="text-left text-xs text-[#9fcabd]"><th className="px-5 py-3 font-medium">Effective date</th><th className="px-5 py-3 font-medium">Route</th><th className="px-5 py-3 font-medium">Assigned drivers</th><th className="px-5 py-3 font-medium">Actions</th></tr></thead><tbody>{groups.map((group) => { const editable = group.date > phDate(new Date()); return <tr key={group.key} className="group border-t border-white/5"><td className="px-5 py-3 text-[#eafff5]">{displayDate(group.date)}</td><td className="px-5 py-3 text-[#9fcabd]">Ormoc - {routeMap[group.routeId] || "—"}</td><td className="px-5 py-3 text-[#9fcabd]">{group.assignments.length}</td><td className="px-5 py-3"><div className="flex gap-3 opacity-0 transition-opacity group-hover:opacity-100"><button onClick={() => setEditingGroup(group)} disabled={!editable} title={editable ? "Edit dispatch" : "Current and past dispatches are finalized"} aria-label="Edit dispatch" className="text-[#5DCAA5] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"><Pencil size={16} /></button><button onClick={() => setDeletingGroup(group)} disabled={!editable} title={editable ? "Delete dispatch" : "Current and past dispatches are finalized"} aria-label="Delete dispatch" className="text-[#D98B72] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"><Trash2 size={16} /></button></div></td></tr>; })}</tbody></table></div>}
+    </div>
     {step === "route" && <SelectDispatchRouteModal routes={availableRoutes} onClose={closeCreation} onProceed={beginReview} />}
     {step === "review" && <DispatchReviewModal routeName={`Ormoc - ${routeMap[routeId] || "—"}`} effectiveDate={displayDate(effectiveDate)} assignments={assignments} driverMap={driverMap} vehicleMap={vehicleMap} vehicleDetails={vehicleDetails} isSaving={isSaving} onClose={closeCreation} onAddDriver={() => setStep("assignment")} onRemove={(index) => setAssignments((current) => current.filter((_, itemIndex) => itemIndex !== index))} onConfirm={save} />}
     {step === "assignment" && <CreateDispatchModal drivers={drivers} vehicles={vehicles} assignedDriverIds={assignments.map((assignment) => assignment.driver_id)} assignedVehicleIds={assignments.map((assignment) => assignment.vehicle_id)} onClose={() => setStep("review")} onStage={(assignment) => { setAssignments((current) => [...current, assignment]); setStep("review"); }} />}

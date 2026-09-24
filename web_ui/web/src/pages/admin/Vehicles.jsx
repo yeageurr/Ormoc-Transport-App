@@ -250,8 +250,8 @@ export default function Vehicles() {
           ) : filteredVehicles.length === 0 ? (
             <p className="text-[#9fcabd] text-sm p-5">No vehicles found.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
+            <div className="max-h-[560px] overflow-auto"><table className="w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-[#0a2420]">
                 <tr className="text-[#9fcabd] text-xs text-left">
                   <th className="px-5 py-3 font-medium">Plate number</th>
                   <th className="px-5 py-3 font-medium">Body number</th>
@@ -286,7 +286,7 @@ export default function Vehicles() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
         {showAddModal && (
