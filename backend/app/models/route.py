@@ -1,4 +1,4 @@
-from sqlalchemy import Numeric, ForeignKey
+from sqlalchemy import JSON, Numeric, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
@@ -19,6 +19,7 @@ class Route(Base):
   destination_id: Mapped[int] = mapped_column(ForeignKey("destinations.destination_id"), nullable=False)
   distance: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
   average_travel_duration: Mapped[float | None] = mapped_column(Numeric(6, 2))
+  route_geometry: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
   origin: Mapped["Terminal"] = relationship(back_populates="routes")

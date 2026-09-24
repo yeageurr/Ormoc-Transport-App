@@ -61,7 +61,7 @@ export default function RecordTripScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" />
-      <DriverMap fullScreen />
+      <DriverMap fullScreen routeGeometry={dispatch?.route_geometry} />
       <SafeAreaView style={styles.overlay} edges={['top']} pointerEvents="box-none">
         <View style={styles.topRow} pointerEvents="box-none">
           {activeTrip ? <View style={styles.directionPill}><View style={styles.directionIcon}><Ionicons name="navigate" size={17} color="#D6FFFA" /></View><View><Text style={styles.heading}>Heading to</Text><Text style={styles.destination}>{dispatch?.route_label?.split('↔')[1]?.trim() || 'Destination'}</Text></View><View style={styles.distance}><Text style={styles.distanceValue}>-- km</Text><Text style={styles.heading}>remaining</Text></View></View> : <View style={styles.titlePill}><Ionicons name="navigate" size={17} color="#35E8D8" /><Text style={styles.title}>Start Trip</Text></View>}

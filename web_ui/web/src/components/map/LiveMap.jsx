@@ -25,7 +25,9 @@ function mapData(terminal, routes, vehicles, selectedVehicleId) {
     geofence: { type: "FeatureCollection", features: geofence ? [geofence] : [] },
     routes: { type: "FeatureCollection", features: center ? routes.filter((route) => route.destination).map((route, index) => ({
       type: "Feature", properties: { color: ROUTE_PALETTE[index % ROUTE_PALETTE.length] },
-      geometry: { type: "LineString", coordinates: [center, [route.destination.longitude, route.destination.latitude]] },
+      geometry: route.route_geometry?.type === "LineString" && route.route_geometry.coordinates?.length >= 2
+        ? route.route_geometry
+        : { type: "LineString", coordinates: [center, [route.destination.longitude, route.destination.latitude]] },
     })) : [] },
     vehicles: { type: "FeatureCollection", features: vehicles
       .filter((vehicle) => vehicle.current_latitude != null && vehicle.current_longitude != null)
@@ -47,7 +49,7 @@ function addMapLayers(map) {
   map.addLayer({ id: "terminal-geofence-fill", type: "fill", source: "terminal-geofence", paint: { "fill-color": "#1D9E75", "fill-opacity": 0.08 } });
   map.addLayer({ id: "terminal-geofence-outline", type: "line", source: "terminal-geofence", paint: { "line-color": "#1D9E75", "line-width": 2, "line-dasharray": [2, 2] } });
   map.addSource("routes", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-  map.addLayer({ id: "routes-line", type: "line", source: "routes", paint: { "line-color": ["get", "color"], "line-width": 3, "line-opacity": 0.9 } });
+  map.addLayer({ id: "routes-line", type: "line", source: "routes", paint: { "line-color": ["get", "color"], "line-width": 7, "line-opacity": 0.95 } });
   map.addSource("vehicles", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
   map.addLayer({ id: "vehicle-points", type: "circle", source: "vehicles", paint: {
     "circle-radius": ["case", ["get", "selected"], 12, 9], "circle-color": ["get", "color"],

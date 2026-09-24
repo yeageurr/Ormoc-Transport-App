@@ -102,7 +102,13 @@ def current_driver_dispatch(db: Session = Depends(get_db), current_driver: Accou
 
   
   route_label = f"{dispatch.route.origin.terminal_name} ↔ {dispatch.route.destination.name}" if dispatch.route and dispatch.route.origin and dispatch.route.destination else "—"
-  return CurrentDriverDispatch(dispatch_id=dispatch.dispatch_id, vehicle_plate=dispatch.vehicle.plate_number if dispatch.vehicle else "—", route_label=route_label)
+  return CurrentDriverDispatch(
+    dispatch_id=dispatch.dispatch_id,
+    route_id=dispatch.route_id,
+    vehicle_plate=dispatch.vehicle.plate_number if dispatch.vehicle else "—",
+    route_label=route_label,
+    route_geometry=dispatch.route.route_geometry if dispatch.route else None,
+  )
 
 
 @router.post("", response_model=DispatchResponse, status_code=status.HTTP_201_CREATED)

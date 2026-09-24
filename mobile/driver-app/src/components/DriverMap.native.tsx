@@ -2,6 +2,7 @@ import Mapbox from '@rnmapbox/maps';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useDriverLocation } from '@/hooks/useDriverLocation';
+import type { RouteGeometry } from '@/api/dispatchAPI';
 
 const ORMOC_CENTER: [number, number] = [124.6075, 11.0064];
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
@@ -16,7 +17,7 @@ if (mapboxToken) {
   void Mapbox.setAccessToken(mapboxToken);
 }
 
-export default function DriverMap({ fullScreen = false }: { fullScreen?: boolean }) {
+export default function DriverMap({ fullScreen = false, routeGeometry = null }: { fullScreen?: boolean; routeGeometry?: RouteGeometry | null }) {
   const location = useDriverLocation();
   const centerCoordinate: [number, number] = location
     ? [location.longitude, location.latitude]
@@ -33,8 +34,16 @@ export default function DriverMap({ fullScreen = false }: { fullScreen?: boolean
 
   return (
     <View style={[styles.container, fullScreen && styles.fullScreenContainer]}>
-      <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled={false}>
+      <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street}>
         <Mapbox.Camera centerCoordinate={centerCoordinate} zoomLevel={location ? 15 : 12} animationDuration={700} />
+        {routeGeometry && (
+          <Mapbox.ShapeSource id="assigned-route" shape={routeGeometry}>
+            <Mapbox.LineLayer
+              id="assigned-route-line"
+              style={{ lineColor: '#22D3EE', lineWidth: 8, lineOpacity: 0.95, lineJoin: 'round', lineCap: 'round' }}
+            />
+          </Mapbox.ShapeSource>
+        )}
         {location && (
           <Mapbox.ShapeSource
             id="driver-current-location"

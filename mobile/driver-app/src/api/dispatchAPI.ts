@@ -1,9 +1,16 @@
 import { authClient } from './authAPI';
 
+export interface RouteGeometry {
+  type: 'LineString';
+  coordinates: [number, number][];
+}
+
 export interface CurrentDispatch {
   dispatch_id: number;
+  route_id: number;
   vehicle_plate: string;
   route_label: string;
+  route_geometry: RouteGeometry | null;
 }
 
 export async function getCurrentDispatch(): Promise<CurrentDispatch | null> {

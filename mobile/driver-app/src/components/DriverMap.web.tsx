@@ -1,6 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-export default function DriverMap({ fullScreen = false }: { fullScreen?: boolean }) {
+import type { RouteGeometry } from '@/api/dispatchAPI';
+
+export default function DriverMap({ fullScreen = false }: { fullScreen?: boolean; routeGeometry?: RouteGeometry | null }) {
   return (
     <View style={[styles.card, fullScreen && styles.fullScreenCard]}>
       <Text style={styles.title}>Live map is available in the driver mobile app.</Text>
