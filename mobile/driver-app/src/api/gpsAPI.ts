@@ -28,6 +28,14 @@ export async function updateCurrentLocation(ping: {
   });
 }
 
+/** Sends an idle vehicle's position so the backend can detect terminal loading. */
+export async function pingGeofence(ping: {
+  latitude: number;
+  longitude: number;
+}): Promise<void> {
+  await authClient.post('/geofence/ping', ping);
+}
+
 /**
  * ASSUMPTION — NOT YET VERIFIED against the real backend router (same
  * caveat as authAPI.ts's /auth/login guess). Endpoint paths and body

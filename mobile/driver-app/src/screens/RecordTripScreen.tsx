@@ -17,8 +17,8 @@ export default function RecordTripScreen() {
   const [finishOpen, setFinishOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
 
-  const loadDispatch = useCallback(async () => {
-    setIsLoading(true);
+  const loadDispatch = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     setMessage(null);
     try {
       setDispatch(await getCurrentDispatch());
@@ -26,11 +26,15 @@ export default function RecordTripScreen() {
       setDispatch(null);
       setMessage('Unable to load today’s dispatch.');
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => { void loadDispatch(); }, [loadDispatch]);
+  useEffect(() => {
+    const interval = setInterval(() => { void loadDispatch(false); }, 10000);
+    return () => clearInterval(interval);
+  }, [loadDispatch]);
 
   const handleStart = useCallback(async () => {
     if (!dispatch || isStarting) return;
@@ -39,7 +43,7 @@ export default function RecordTripScreen() {
     try {
       setActiveTrip(await startTrip(dispatch.dispatch_id));
     } catch (error: any) {
-      setMessage(error?.message || 'Unable to start this trip. Make sure the vehicle is marked Loading.');
+      setMessage(error?.response?.data?.detail || 'Unable to start this trip. Check your connection and try again.');
     } finally {
       setIsStarting(false);
     }
@@ -90,7 +94,7 @@ export default function RecordTripScreen() {
             <Text style={styles.vehicleText}>{dispatch.vehicle_plate}</Text>
             <View style={styles.cardDivider} />
             <View style={styles.startRow}>
-              <View><Text style={styles.caption}>Today’s assigned route</Text><Text style={styles.readyText}>Ready when vehicle is loading</Text></View>
+              <View><Text style={styles.caption}>Vehicle status: {dispatch.vehicle_activity_status}</Text><Text style={styles.readyText}>{dispatch.vehicle_activity_status === 'loading' ? 'Ready to start' : 'Stay at the terminal for about 50 seconds'}</Text></View>
               <Pressable onPress={() => void handleStart()} disabled={isStarting} style={[styles.startButton, isStarting && styles.startButtonDisabled]}>
                 {isStarting ? <ActivityIndicator color="#003E3A" /> : <><Ionicons name="navigate-outline" size={19} color="#003E3A" /><Text style={styles.startText}>Start</Text></>}
               </Pressable>

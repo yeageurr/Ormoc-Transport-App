@@ -33,5 +33,6 @@ class CurrentDriverDispatch(BaseModel):
   dispatch_id: int
   route_id: int
   vehicle_plate: str
+  vehicle_activity_status: str
   route_label: str
   route_geometry: dict | None = None

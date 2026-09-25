@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 
-import { updateCurrentLocation } from '@/api/gpsAPI';
+import { pingGeofence, updateCurrentLocation } from '@/api/gpsAPI';
 
 export interface DriverLocation {
   latitude: number;
@@ -36,6 +36,12 @@ export function useCurrentLocation() {
         }).catch(() => {
           // A missing current dispatch and temporary network failures do not
           // stop foreground GPS watching.
+        });
+        void pingGeofence({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }).catch(() => {
+          // Geofence updates are best-effort while location/network is unavailable.
         });
       };
 
