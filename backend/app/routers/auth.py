@@ -50,6 +50,7 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
     httponly=True,
     samesite="none",
     secure=True,
+    path="/"
   )
 
   # 2. Return account payload needed by AuthContext state
