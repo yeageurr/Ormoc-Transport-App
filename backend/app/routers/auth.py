@@ -48,9 +48,8 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
     key="access_token",
     value=f"Bearer {token}",
     httponly=True,
-    samesite="lax",
-    secure=False,   # Set to True in production with HTTPS!
-    path="/"
+    samesite="none",
+    secure=True,
   )
 
   # 2. Return account payload needed by AuthContext state
