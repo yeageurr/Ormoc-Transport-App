@@ -14,8 +14,10 @@ import {
 } from "../../api/usersAPI";
 import { Edit3, Power, RotateCcw, Trash2 } from 'lucide-react';
 import { AdminSearchField, adminCreateButtonClassName, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
+import setTitle from "../../components/pageTitle";
 
 export default function Users() {
+  setTitle('Users');
   const { mustChangePassword, setMustChangePassword } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isAddUserModalOpen, setShowAddUserModal] = useState(false)

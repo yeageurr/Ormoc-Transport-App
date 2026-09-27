@@ -4,8 +4,10 @@ import StatCard from "../../components/ui/StatCard";
 import { getDashboardStats, getTripVolume, getRecentIncidents } from "../../api/dashboardApi";
 import { Bus, Clock, TrendingUp, TrendingDown, TriangleAlert, UserRoundCheck } from 'lucide-react';
 import PageHeader from "../../components/ui/PageHeader";
+import setTitle from "../../components/pageTitle";
 
 export default function Dashboard() {
+  setTitle('Dashboard');
   const [stats, setStats] = useState(null);
   const [tripVolume, setTripVolume] = useState([]);
   const [recentIncidents, setRecentIncidents] = useState([]);

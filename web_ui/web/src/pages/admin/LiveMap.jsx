@@ -5,6 +5,7 @@ import { getLiveVehicles } from "../../api/vehiclesAPI";
 import { getTerminals } from "../../api/terminalsAPI";
 import { getRoutes } from "../../api/routesAPI";
 import { useWebSocket } from "../../hooks/useWebsocket";
+import setTitle from "../../components/pageTitle";
 
 const ACTIVITY_LABELS = {
   active: "Active",
@@ -26,6 +27,7 @@ function clamp(value, min, max) {
 }
 
 export default function LiveMap() {
+  setTitle('Live Map');
   const [vehicles, setVehicles] = useState({}); // keyed by vehicle_id
   const [routes, setRoutes] = useState([]);
   const [terminal, setTerminal] = useState(null);

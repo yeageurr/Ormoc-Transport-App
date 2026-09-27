@@ -3,8 +3,10 @@ import PageHeader from "../../components/ui/PageHeader";
 import { Eye, Loader2 } from "lucide-react";
 import { fetchIncidents } from "../../api/incidentAPI";
 import { AdminSearchField } from "../../components/ui/AdminToolbarControls";
+import setTitle from "../../components/pageTitle";
 
 export default function IncidentLogs() {
+  setTitle('Incident Logs');
   const [incidents, setIncidents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);

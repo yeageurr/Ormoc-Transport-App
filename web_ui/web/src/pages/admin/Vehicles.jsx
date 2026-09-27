@@ -8,6 +8,7 @@ import EditVehicleModal from "../../components/modals/EditVehicleModal";
 import VehicleDeleteConfirmModal from "../../components/modals/VehicleDeleteConfirmModal";
 import { Edit3, Trash2 } from "lucide-react";
 import { AdminSearchField, adminCreateButtonClassName } from "../../components/ui/AdminToolbarControls";
+import setTitle from "../../components/pageTitle";
 
 
 function getContrastTextColor(hex) {
@@ -165,6 +166,7 @@ function AddVehicleModal({ onClose, onSuccess, onError }) {
 }
 
 export default function Vehicles() {
+  setTitle('Vehicles');
   const { mustChangePassword, setMustChangePassword } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);

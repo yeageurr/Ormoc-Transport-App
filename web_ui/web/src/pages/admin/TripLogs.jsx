@@ -4,6 +4,7 @@ import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import { useAuth } from "../../context/AuthContext";
 import { getAllTrips } from "../../api/tripsAPI";
 import { AdminSearchField, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
+import setTitle from "../../components/pageTitle";
 
 function statusBadge(status) {
   const styles = {
@@ -19,6 +20,7 @@ function statusBadge(status) {
 }
 
 export default function TripLogs() {
+  setTitle('Trip Logs');
   const { mustChangePassword, setMustChangePassword } = useAuth();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
