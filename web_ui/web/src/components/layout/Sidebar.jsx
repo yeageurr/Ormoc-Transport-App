@@ -44,17 +44,15 @@ export default function Sidebar({ onOpenChangePassword, onOpenLogout }) {
       <div>
         {/* App Logo / Brand Header */}
         <NavLink key={"/dashboard"} to={"/dashboard"} className="flex items-center gap-3 p-3.5 rounded-2xl mb-6">
-          <div className="w-10 h-10 rounded-xl bg-[#1D9E75] flex items-center justify-center text-white text-xl font-bold shadow-sm">
-            🚌
-          </div>
+          
           <div>
-            <h1 className="text-[#eafff5] text-sm font-bold tracking-tight">Ormoc Transport App</h1>
-            <p className="text-[#9fcabd] text-[10px]">Admin Portal</p>
+            <h1 className="text-[#eafff5] text-[23px] font-bold tracking-tight">Ormoc Transport App</h1>
+            <p className="text-[#9fcabd] font-semibold text-[13px]">Admin Portal</p>
           </div>
         </NavLink>
 
         {/* Main Navigation Group */}
-        <div className="mb-6">
+        <div className="mb-10">
           <p className="text-[#9fcabd] text-[11px] font-semibold uppercase tracking-wider px-3 mb-2">
             Main
           </p>

@@ -2,9 +2,47 @@ import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, LabelList } from "recharts";
 import StatCard from "../../components/ui/StatCard";
 import { getDashboardStats, getTripVolume, getRecentIncidents } from "../../api/dashboardApi";
-import { Bus, Clock, TrendingUp, TrendingDown, TriangleAlert, UserRoundCheck } from 'lucide-react';
+import { Bus, Clock, TrendingUp, TrendingDown, Minus, TriangleAlert, UserRoundCheck } from 'lucide-react';
 import PageHeader from "../../components/ui/PageHeader";
 import setTitle from "../../components/pageTitle";
+
+function TrendIndicator({ current, previous, period }) {
+  if (current == null || previous == null) {
+    return (
+      <span className="flex items-center gap-2 text-[#9fcabd]">
+        <Minus className="w-3.5 h-3.5" />
+      </span>
+    );
+  }
+
+  if (previous === 0 && current > 0) {
+    return (
+      <span className="flex items-center gap-2 text-[#60FFE8]">
+        <TrendingUp className="w-3.5 h-3.5" />
+        <span>New {period}</span>
+      </span>
+    );
+  }
+
+  const changePercent = previous === 0 ? 0 : ((current - previous) / previous) * 100;
+  const roundedChange = Math.round(changePercent * 10) / 10;
+  const difference = current - previous;
+  const TrendIcon = difference > 0 ? TrendingUp : difference < 0 ? TrendingDown : Minus;
+  let changeLabel = '0%';
+  if (difference !== 0) {
+    changeLabel = roundedChange === 0
+      ? `${difference > 0 ? '+' : '-'}<0.1%`
+      : `${difference > 0 ? '+' : ''}${roundedChange}%`;
+  }
+  const directionColor = difference === 0 ? 'text-[#9fcabd]' : 'text-[#60FFE8]';
+
+  return (
+    <span className={`flex items-center gap-2 ${directionColor}`}>
+      <TrendIcon className="w-3.5 h-3.5" />
+      <span>{changeLabel} {period}</span>
+    </span>
+  );
+}
 
 export default function Dashboard() {
   setTitle('Dashboard');
@@ -66,46 +104,26 @@ export default function Dashboard() {
               label="Total Trips Today" 
               value={stats?.total_trips_today ?? "—"} 
               icon={Bus} 
-              subtext={
-                <span className="flex items-center gap-2">
-                  <TrendingUp className="w-3.5 h-3.5 stroke-[#60FFE8]" />
-                  <span>+3 Today</span>
-                </span>
-              }
+              subtext={<TrendIndicator current={stats?.total_trips_today} previous={stats?.total_trips_yesterday} period="vs yesterday" />}
             />
             <StatCard
-              label="Avg Trip Duration"
+              label="Avg Trip Duration (7 days)"
               value={stats?.avg_trip_duration_minutes != null ? `${stats.avg_trip_duration_minutes}min.` : "—"}
               icon={Clock}
-              subtext={
-                <span className="flex items-center gap-2">
-                  <TrendingUp className="w-3.5 h-3.5 stroke-[#60FFE8]" />
-                  <span>+1.5%</span>
-                </span>
-              }
+              subtext={<TrendIndicator current={stats?.avg_trip_duration_minutes} previous={stats?.avg_trip_duration_previous_period_minutes} period="vs prior 7 days" />}
             />
             <StatCard
-              label="Incidents Reported"
+              label="Incidents This Month"
               value={stats?.incidents_reported_total ?? "—"}
               icon={TriangleAlert}
               iconColor="#F0997B"
-              subtext={
-                <span className="flex items-center gap-2">
-                  <TrendingDown className="w-3.5 h-3.5 stroke-[#60FFE8]" />
-                  <span>+12% vs. last month</span>
-                </span>
-              }
+              subtext={<TrendIndicator current={stats?.incidents_reported_total} previous={stats?.incidents_reported_previous_period} period="vs same period last month" />}
             />
             <StatCard 
               label="Drivers" 
               value={stats?.drivers_total ?? "—"} 
               icon={UserRoundCheck} 
-              subtext={
-                <span className="flex items-center gap-2">
-                  <TrendingUp className="w-3.5 h-3.5 stroke-[#60FFE8]" />
-                  <span>+12% vs. last month</span>
-                </span>
-              }
+              subtext={<TrendIndicator current={stats?.drivers_total} previous={stats?.drivers_total_previous_month} period="vs last month" />}
             />
           </div>
 

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -19,9 +20,13 @@ router = APIRouter()
 
 class DashboardStats(BaseModel):
   total_trips_today: int
+  total_trips_yesterday: int
   avg_trip_duration_minutes: float | None
+  avg_trip_duration_previous_period_minutes: float | None
   incidents_reported_total: int
+  incidents_reported_previous_period: int
   drivers_total: int
+  drivers_total_previous_month: int
 
 
 class TripVolumeDay(BaseModel):
@@ -42,28 +47,80 @@ def get_dashboard_stats(
   db: Session = Depends(get_db),
   current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
-  today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+  now = datetime.now(ZoneInfo("Asia/Manila"))
+  today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+  yesterday_start = today_start - timedelta(days=1)
+  tomorrow_start = today_start + timedelta(days=1)
 
   total_trips_today = (
     db.query(Trip)
-    .filter(Trip.time_departed >= today_start)
+    .filter(Trip.time_departed >= today_start, Trip.time_departed < tomorrow_start)
+    .count()
+  )
+  total_trips_yesterday = (
+    db.query(Trip)
+    .filter(Trip.time_departed >= yesterday_start, Trip.time_departed < today_start)
     .count()
   )
 
+  current_duration_start = now - timedelta(days=7)
+  previous_duration_start = now - timedelta(days=14)
   avg_duration = (
     db.query(func.avg(Trip.trip_duration_minutes))
-    .filter(Trip.is_complete == True)  # noqa: E712
+    .filter(
+      Trip.is_complete.is_(True),
+      Trip.time_arrived >= current_duration_start,
+      Trip.time_arrived < now,
+    )
+    .scalar()
+  )
+  previous_avg_duration = (
+    db.query(func.avg(Trip.trip_duration_minutes))
+    .filter(
+      Trip.is_complete.is_(True),
+      Trip.time_arrived >= previous_duration_start,
+      Trip.time_arrived < current_duration_start,
+    )
     .scalar()
   )
 
-  incidents_total = db.query(Incident).count()
-  drivers_total = db.query(User).join(Account).filter(Account.role == AccountRole.DRIVER).count()
+  current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+  previous_month_start = (current_month_start - timedelta(days=1)).replace(day=1)
+  previous_month_cutoff = min(
+    previous_month_start + (now - current_month_start),
+    current_month_start,
+  )
+  incidents_total = (
+    db.query(Incident)
+    .filter(Incident.reported_at >= current_month_start, Incident.reported_at < now)
+    .count()
+  )
+  previous_incidents_total = (
+    db.query(Incident)
+    .filter(
+      Incident.reported_at >= previous_month_start,
+      Incident.reported_at < previous_month_cutoff,
+    )
+    .count()
+  )
+  drivers_query = db.query(User).join(Account).filter(Account.role == AccountRole.DRIVER)
+  drivers_total = drivers_query.count()
+  # accounts.created_on is stored without a timezone; compare it to the
+  # equivalent UTC wall time for the Manila month boundary.
+  month_start_utc = current_month_start.astimezone(timezone.utc).replace(tzinfo=None)
+  drivers_total_previous_month = drivers_query.filter(Account.created_on < month_start_utc).count()
 
   return DashboardStats(
     total_trips_today=total_trips_today,
+    total_trips_yesterday=total_trips_yesterday,
     avg_trip_duration_minutes=round(avg_duration, 2) if avg_duration is not None else None,
+    avg_trip_duration_previous_period_minutes=(
+      round(previous_avg_duration, 2) if previous_avg_duration is not None else None
+    ),
     incidents_reported_total=incidents_total,
+    incidents_reported_previous_period=previous_incidents_total,
     drivers_total=drivers_total,
+    drivers_total_previous_month=drivers_total_previous_month,
   )
 
 
@@ -75,11 +132,11 @@ def get_trip_volume_last_7_days(
   """Completed trip count per day, last 7 days, oldest first — matches
   the Mon-Sun bar chart in the dashboard mockup."""
   results = []
-  today = datetime.now(timezone.utc).date()
+  today = datetime.now(ZoneInfo("Asia/Manila")).date()
 
   for i in range(6, -1, -1):
     day = today - timedelta(days=i)
-    day_start = datetime.combine(day, datetime.min.time(), tzinfo=timezone.utc)
+    day_start = datetime.combine(day, datetime.min.time(), tzinfo=ZoneInfo("Asia/Manila"))
     day_end = day_start + timedelta(days=1)
 
     count = (
