@@ -31,21 +31,21 @@ TERMINAL_DATA = {
 }
 
 PILOT_DESTINATIONS = [
-  {"name": "Montebello", "latitude": 11.159727, "longitude": 124.561810, "address": "Montebello, Ormoc City, Leyte"},
+  {"name": "Montebello", "latitude": 11.128808, "longitude": 124.585627, "address": "Montebello, Ormoc City, Leyte"},
   {"name": "Sabang Bao", "latitude": 11.072899, "longitude": 124.538564, "address": "Sabang Bao, Ormoc City, Leyte"},
   {"name": "Puertobello", "latitude": 10.978837, "longitude": 124.533172, "address": "Puertobello, Ormoc City, Leyte"},
-  {"name": "Valencia", "latitude": 11.106700, "longitude": 124.577017, "address": "Valencia, Ormoc City, Leyte"},
+  {"name": "Valencia", "latitude": 11.106654, "longitude": 124.577068, "address": "Valencia, Ormoc City, Leyte"},
   {"name": "Albuera", "latitude": 10.918459, "longitude": 124.694315, "address": "Albuera, Leyte"}, 
 ]
 
 # Manual fallback distances (km), used only if OSRM is unreachable —
 # these should be replaced with real measured values if that happens.
 FALLBACK_DISTANCES_KM = {
-  "Montebello": 19.5,
-  "Sabang Bao": 23.5,
-  "Puertobello": 11.2,
-  "Valencia": 14.0,
-  "Albuera": 18.2,
+  "Montebello": 16.29,
+  "Sabang Bao": 19.68,
+  "Puertobello": 11.18,
+  "Valencia": 12.69,
+  "Albuera": 14.26,
 }
 
 
