@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function HomeScreen() {
-  const { firstName } = useAuth();
+  const { fullName } = useAuth();
   const [recentTrips, setRecentTrips] = useState<DriverTrip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(true);
   const [tripError, setTripError] = useState(false);
@@ -94,20 +94,28 @@ export default function HomeScreen() {
       <StatusBar barStyle="light-content" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.topBar}>
-          <View><Text style={styles.welcome}>Welcome Back, {firstName || 'Driver'} 👋</Text><Text style={styles.subtitle}>Ready for your ride today?</Text></View>
+          <View><Text style={styles.subtitle}>Welcome Back 👋</Text><Text style={styles.welcome}>{fullName || 'Driver'}</Text></View>
           <View style={styles.topActions}>
             <NotificationBell />
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Overview</Text>
+        <Text style={styles.sectionTitle}>Buckle up for your next ride</Text>
         <View style={styles.summaryRow}>
           <SummaryCard icon="flag-outline" iconColor="#27E0D2" label="Trips Completed" value={summary?.trips_completed} variant="teal" />
           <SummaryCard icon="document-text-outline" iconColor="#FFAD0A" label="Incidents Reported" value={summary?.incidents_reported} variant="amber" />
         </View>
 
         <View style={styles.divider} />
-        <View style={styles.assignmentHeader}><Text style={styles.assignmentTitle}>Today’s Assignment</Text><View style={styles.datePill}><Ionicons name="calendar-outline" size={12} color="#26D5C4" /><Text style={styles.dateText}>{new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</Text></View></View>
+        <View style={styles.assignmentHeader}>
+          <Text style={styles.assignmentTitle}>Today’s Assignment</Text>
+          <View style={styles.datePill}>
+            <Ionicons name="calendar-outline" size={12} color="#26D5C4" />
+            <Text style={styles.dateText}>
+              {new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+            </Text>
+          </View>
+        </View>
         <View style={styles.assignmentCard}>
           <AssignmentStop title={currentDispatch?.route_label?.split('↔')[0]?.trim() || '--'} />
           <Ionicons name="swap-horizontal" size={28} color="#6CC3D4" />
@@ -162,17 +170,17 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#042F2E' },
   content: { paddingHorizontal: 25, paddingTop: 13, paddingBottom: 30 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  subtitle: { color: '#B6D7D2', fontSize: 10, marginTop: 2 },
+  subtitle: { color: '#B6D7D2', fontSize: 12, marginTop: 2 },
   topActions: { flexDirection: 'row', gap: 20 },
-  welcome: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  welcome: { color: '#FFFFFF', fontSize: 25, fontWeight: '700', letterSpacing: 1 },
   driverDetails: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center', gap: 14, marginTop: 11 },
   detail: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   detailText: { color: '#A9D1CC', fontSize: 10 },
   onlineStatus: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#57D561' },
-  sectionTitle: { color: '#B9E2DC', fontSize: 12, fontWeight: '700', marginTop: 36 },
+  sectionTitle: { color: '#B9E2DC', fontSize: 13, fontWeight: '700', marginTop: 36 },
   summaryRow: { flexDirection: 'row', gap: 16, marginTop: 16 },
-  summaryCard: { flexDirection: 'row', flex: 1, alignItems: 'center', gap: 11, padding: 11, minHeight: 54, borderRadius: 14, borderWidth: 1 },
+  summaryCard: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 11, minHeight: 54, borderRadius: 14, borderWidth: 1 },
   tealCard: { backgroundColor: '#106A67', borderColor: '#28A79E' },
   amberCard: { backgroundColor: '#3A300E', borderColor: '#CE9100' },
   summaryLabel: { color: '#A9D1CC', fontSize: 11, fontWeight: '600', lineHeight: 14 },
@@ -185,8 +193,8 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: 'rgba(169, 209, 204, 0.48)', marginTop: 18, marginBottom: 14 },
   assignmentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   assignmentTitle: { color: '#DDF8F4', fontSize: 12, fontWeight: '700' },
-  datePill: { flexDirection: 'row', gap: 5, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#087A72', borderRadius: 6 },
-  dateText: { color: '#D3FFFA', fontSize: 8 },
+  datePill: { flexDirection: 'row', gap: 5, alignItems: 'center', paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#087A72', borderRadius: 6 },
+  dateText: { color: '#D3FFFA', fontSize: 11, fontWeight: 600 },
   assignmentCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 11 },
   stop: { width: 104, minHeight: 64, backgroundColor: '#034F49', borderRadius: 9, alignItems: 'center', justifyContent: 'center', padding: 6 },
   stopIcon: { marginBottom: 2 },
