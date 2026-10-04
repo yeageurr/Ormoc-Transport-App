@@ -13,8 +13,8 @@ const SESSION_CHECK_INTERVAL_MS = 15_000;
 interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
-  firstName: string | null;
-  signIn: (firstName?: string | null) => void;
+  fullName: string | null;
+  signIn: (fullName?: string | null) => void;
   signOut: () => Promise<void>;
 }
 
@@ -28,11 +28,13 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [firstName, setFirstName] = useState<string | null>(null);
 
   const signOut = useCallback(async () => {
     await logoutDriverRequest();
     setFirstName(null);
+    setFullName(null);
     setIsAuthenticated(false);
   }, []);
 
@@ -49,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) setIsAuthenticated(true);
       try {
         const user = await getCurrentUser();
-        if (mounted) setFirstName(user.first_name);
+        if (mounted) setFullName(`${user.first_name} ${user.last_name}`);
       } catch (error) {
         if (isSessionRevoked(error)) {
           await signOut();
@@ -105,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, signOut]);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, firstName, signIn, signOut }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, fullName, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

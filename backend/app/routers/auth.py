@@ -75,6 +75,7 @@ def get_me(current_account: Account = Depends(get_current_account)):
     "role": current_account.role,
     "username": current_account.username,
     "first_name": current_account.user.first_name if current_account.user else None,
+    "last_name": current_account.user.last_name,
     "must_change_password": current_account.must_change_password,
   }
 

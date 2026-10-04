@@ -61,7 +61,6 @@ export default function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>My Profile</Text>
-          <NotificationBell />
         </View>
 
         {loading ? (
@@ -176,50 +175,33 @@ function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#003F3A' },
-  content: { padding: 25, paddingTop: 13, paddingBottom: 28 },
-  title: { color: '#FFF', fontSize: 21, fontWeight: '700' },
+  screen: { flex: 1, backgroundColor: '#042F2E' },
+  content: { padding: 25, paddingTop: 13, paddingBottom: 20 },
+  title: { color: '#FFF', fontSize: 19, fontWeight: '700' },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   loader: { marginTop: 70 },
-  identity: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 39, marginBottom: 27,
-  },
-  avatar: {
-    width: 39, height: 39, borderRadius: 20, backgroundColor: '#22AC8D', alignItems: 'center', justifyContent: 'center',
-  },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 39, marginBottom: 27 },
+  avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#22AC8D', alignItems: 'center', justifyContent: 'center', },
   avatarText: { color: '#003F3A', fontSize: 12, fontWeight: '800' },
-  name: { color: '#FFF', fontSize: 17, fontWeight: '700' },
-  id: { color: '#B3D6D1', fontSize: 9, marginTop: 2 },
-  sectionTitle: { color: '#D7F5F0', fontSize: 12, marginBottom: 9 },
+  name: { color: '#FFF', fontSize: 20, fontWeight: '700' },
+  id: { color: '#B3D6D1', fontSize: 11, marginTop: 2, fontWeight: 600 },
+  sectionTitle: { color: '#D7F5F0', fontSize: 13, marginBottom: 9 },
   infoCard: { backgroundColor: '#075D54', borderRadius: 13, overflow: 'hidden', marginBottom: 19 },
-  info: {
-    minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13,
-  },
+  info: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
   line: { borderBottomWidth: 1, borderBottomColor: '#19756C' },
   value: { color: '#FFF', fontSize: 13, fontWeight: '600' },
   label: { color: '#A1C8C2', fontSize: 8, marginTop: 2 },
   accountCard: { backgroundColor: '#075D54', borderRadius: 13, overflow: 'hidden' },
-  account: {
-    height: 51, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13,
-  },
+  account: { height: 51, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13 },
   accountText: { color: '#FFF', fontSize: 13, fontWeight: '600', flex: 1 },
-  logout: {
-    height: 42, borderColor: '#F07E27', borderWidth: 1, borderRadius: 9, marginTop: 31,
-    alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7,
-  },
+  logout: { height: 42, borderColor: '#F07E27', borderWidth: 1, borderRadius: 9, marginTop: 31, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
   logoutText: { color: '#FFC095', fontSize: 14, fontWeight: '700' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.5)', justifyContent: 'flex-end' },
-  sheet: {
-    padding: 22, backgroundColor: '#061C35', borderTopLeftRadius: 25, borderTopRightRadius: 25,
-    alignItems: 'center',
-  },
+  sheet: { padding: 22, backgroundColor: '#061C35', borderTopLeftRadius: 25, borderTopRightRadius: 25, alignItems: 'center' },
   handle: { width: 80, height: 5, backgroundColor: '#8092A2', borderRadius: 3, marginBottom: 21 },
   sheetTitle: { color: '#FFF', fontSize: 21, fontWeight: '700', marginTop: 8 },
   sheetText: { color: '#BFD0DF', fontSize: 12, textAlign: 'center', marginTop: 7 },
-  confirm: {
-    backgroundColor: '#D66A4B', height: 46, borderRadius: 8, alignSelf: 'stretch',
-    alignItems: 'center', justifyContent: 'center', marginTop: 22,
-  },
+  confirm: { backgroundColor: '#D66A4B', height: 46, borderRadius: 8, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginTop: 22 },
   confirmText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
   cancel: { height: 44, justifyContent: 'center' },
   cancelText: { color: '#BCE6E1', fontWeight: '700' },
