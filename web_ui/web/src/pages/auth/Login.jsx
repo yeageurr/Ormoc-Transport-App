@@ -5,7 +5,7 @@ import { Eye, EyeClosed, User, Key } from 'lucide-react';
 import setTitle from "../../components/pageTitle";
 
 export default function Login() {
-  setTitle('Ormoc Transport App | Admin Login');
+  setTitle('Admin Login');
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
