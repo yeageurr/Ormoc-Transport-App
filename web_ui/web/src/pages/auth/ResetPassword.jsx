@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { CheckCheck, CircleX, Eye, EyeClosed } from "lucide-react";
 import { resetPassword } from "../../api/authAPI";
+import setTitle from "../../components/pageTitle";
 
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 const PASSWORD_REQUIREMENT = "Use at least 8 characters, including uppercase and lowercase letters and a number.";
 
 export default function ResetPassword() {
+  setTitle('Reset Password');
   const [params] = useSearchParams();
   const [password, setPassword] = useState(""); const [confirmation, setConfirmation] = useState(""); const [showPasswords, setShowPasswords] = useState(false); const [error, setError] = useState(null); const [saving, setSaving] = useState(false); const [complete, setComplete] = useState(false);
   const matches = password.length > 0 && password === confirmation;
