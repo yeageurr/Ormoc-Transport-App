@@ -41,6 +41,13 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, onError }) {
       return;
     }
 
+    if (!/^\d{11}$/.test(formData.contact_number.trim())) {
+      const message = "Contact number must be exactly 11 digits. It is used as the driver's initial password.";
+      setError(message);
+      onError?.(message);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const driver = await createDriver({
@@ -148,13 +155,21 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, onError }) {
             <label className="block text-[#9fcabd] text-xs font-medium mb-1.5">Contact Number</label>
             <input
               autoComplete="off"
-              type="text"
+              type="tel"
+              inputMode="numeric"
               name="contact_number"
               placeholder="e.g. 09123456789"
               value={formData.contact_number}
               onChange={handleChange}
+              minLength={11}
+              maxLength={11}
+              pattern="[0-9]{11}"
+              title="Enter exactly 11 digits. This number is used as the driver's initial password."
+              aria-invalid={formData.contact_number.length > 0 && !/^\d{11}$/.test(formData.contact_number)}
+              required
               className="w-full bg-[#05130f] border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] placeholder:text-[#9fcabd]/50 transition-colors"
             />
+            <p className="mt-1.5 text-[#9fcabd]/70 text-[11px]">Enter exactly 11 digits. This number will be the driver's initial password.</p>
           </div>
 
           {/* License Number & Expiry */}

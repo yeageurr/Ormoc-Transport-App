@@ -16,9 +16,8 @@ from app.enums import AccountRole, AccountStatus
 router = APIRouter()
 
 
-def generate_temp_password(length: int = 10) -> str:
-  alphabet = string.ascii_letters + string.digits
-  return "".join(secrets.choice(alphabet) for _ in range(length))
+def generate_temp_password(num: str) -> str:
+  return num
 
 
 @router.post("/drivers", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -42,7 +41,7 @@ def create_driver(
       detail="A driver with this license number already exists",
     )
 
-  temp_password = payload.password or generate_temp_password()
+  temp_password = payload.password or generate_temp_password(payload.contact_number)
 
   account = Account(
     account_code=generate_account_code(db),
