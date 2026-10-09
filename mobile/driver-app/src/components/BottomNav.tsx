@@ -12,7 +12,7 @@ const navItems: NavItem[] = [
   { label: 'Home', icon: 'home-outline', href: '/tabs' },
   { label: 'Trip Logs', icon: 'reader-outline', href: '/tabs/trip-logs' },
   { label: 'Start Trip', icon: 'navigate', href: '/tabs/record-trip' },
-  { label: 'Reports', icon: 'list-outline', href: '/tabs/report-incident' },
+  // { label: 'Reports', icon: 'list-outline', href: '/tabs/report-incident' },
   { label: 'Me', icon: 'person-outline', href: '/tabs/profile' },
 ];
 

@@ -103,7 +103,9 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Buckle up for your next ride</Text>
         <View style={styles.summaryRow}>
           <SummaryCard icon="flag-outline" iconColor="#27E0D2" label="Trips Completed" value={summary?.trips_completed} variant="teal" />
+          {/* Temporarily disabled on noIncidentReport; keep for re-enabling the incident UI.
           <SummaryCard icon="document-text-outline" iconColor="#FFAD0A" label="Incidents Reported" value={summary?.incidents_reported} variant="amber" />
+          */}
         </View>
 
         <View style={styles.divider} />
