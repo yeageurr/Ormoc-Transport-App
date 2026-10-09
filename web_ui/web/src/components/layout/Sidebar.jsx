@@ -20,8 +20,8 @@ const mainLinks = [
   { to: "/live-map", label: "Live Map", icon: Map },
   { to: "/users", label: "Users", icon: Users },
   { to: "/vehicles", label: "Vehicles", icon: Bus },
-  { to: "/incidents", label: "Incident Logs", icon: TriangleAlert },
-  // { to: "/trips", label: "Trip Logs", icon: ClipboardList },
+  //{ to: "/incidents", label: "Incident Logs", icon: TriangleAlert },
+  { to: "/trips", label: "Trip Logs", icon: ClipboardList },
   { to: "/dispatch", label: "Dispatch Log", icon: NotepadText },
   { to: "/audit-logs", label: "Audit Logs", icon: History },
 ];
