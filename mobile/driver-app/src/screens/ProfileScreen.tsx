@@ -56,15 +56,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#075E56" />
+
+      <View style={styles.header}>
+        <Text style={styles.title}>My Profile</Text>
+        <NotificationBell />
+      </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>My Profile</Text>
-        </View>
-
         {loading ? (
-          <ActivityIndicator style={styles.loader} color="#20D7C5" />
+          <ActivityIndicator style={styles.loader} color="#009E91" />
         ) : (
           <>
             <View style={styles.identity}>
@@ -175,34 +176,34 @@ function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#042F2E' },
-  content: { padding: 25, paddingTop: 13, paddingBottom: 20 },
-  title: { color: '#FFF', fontSize: 19, fontWeight: '700' },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  screen: { flex: 1, backgroundColor: '#DCE6F0' },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, backgroundColor: '#075E56' },
+  content: { paddingHorizontal: 17, paddingTop: 14, paddingBottom: 20 },
+  title: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
   loader: { marginTop: 70 },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 39, marginBottom: 27 },
-  avatar: { width: 39, height: 39, borderRadius: 20, backgroundColor: '#22AC8D', alignItems: 'center', justifyContent: 'center', },
-  avatarText: { color: '#003F3A', fontSize: 12, fontWeight: '800' },
-  name: { color: '#FFF', fontSize: 20, fontWeight: '700' },
-  id: { color: '#B3D6D1', fontSize: 11, marginTop: 2, fontWeight: 600 },
-  sectionTitle: { color: '#D7F5F0', fontSize: 13, marginBottom: 9 },
-  infoCard: { backgroundColor: '#075D54', borderRadius: 13, overflow: 'hidden', marginBottom: 19 },
-  info: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
-  line: { borderBottomWidth: 1, borderBottomColor: '#19756C' },
-  value: { color: '#FFF', fontSize: 13, fontWeight: '600' },
-  label: { color: '#A1C8C2', fontSize: 8, marginTop: 2 },
-  accountCard: { backgroundColor: '#075D54', borderRadius: 13, overflow: 'hidden' },
-  account: { height: 51, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 13 },
-  accountText: { color: '#FFF', fontSize: 13, fontWeight: '600', flex: 1 },
-  logout: { height: 42, borderColor: '#F07E27', borderWidth: 1, borderRadius: 9, marginTop: 31, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
-  logoutText: { color: '#FFC095', fontSize: 14, fontWeight: '700' },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.5)', justifyContent: 'flex-end' },
-  sheet: { padding: 22, backgroundColor: '#061C35', borderTopLeftRadius: 25, borderTopRightRadius: 25, alignItems: 'center' },
-  handle: { width: 80, height: 5, backgroundColor: '#8092A2', borderRadius: 3, marginBottom: 21 },
-  sheetTitle: { color: '#FFF', fontSize: 21, fontWeight: '700', marginTop: 8 },
-  sheetText: { color: '#BFD0DF', fontSize: 12, textAlign: 'center', marginTop: 7 },
-  confirm: { backgroundColor: '#D66A4B', height: 46, borderRadius: 8, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginTop: 22 },
-  confirmText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-  cancel: { height: 44, justifyContent: 'center' },
-  cancelText: { color: '#BCE6E1', fontWeight: '700' },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 17, marginBottom: 14, paddingHorizontal: 9 },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#21A681', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#06463F', fontSize: 12, fontWeight: '800' },
+  name: { color: '#26383E', fontSize: 17, fontWeight: '700' },
+  id: { color: '#65777E', fontSize: 9, marginTop: 2, fontWeight: '600' },
+  sectionTitle: { color: '#36484E', fontSize: 11, fontWeight: '700', marginBottom: 6, marginLeft: 2 },
+  infoCard: { backgroundColor: '#FFFFFF', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, overflow: 'hidden', marginBottom: 13 },
+  info: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 7 },
+  line: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#D5DEE4' },
+  value: { color: '#3C4A50', fontSize: 11, fontWeight: '600' },
+  label: { color: '#7A898F', fontSize: 8, marginTop: 1 },
+  accountCard: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 7, gap: 5 },
+  account: { height: 43, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, borderRadius: 5, backgroundColor: '#075E56' },
+  accountText: { color: '#FFFFFF', fontSize: 11, fontWeight: '600', flex: 1 },
+  logout: { height: 40, borderRadius: 6, marginTop: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, backgroundColor: '#D7E1E9' },
+  logoutText: { color: '#46565D', fontSize: 12, fontWeight: '700' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.4)', justifyContent: 'flex-end' },
+  sheet: { padding: 22, paddingBottom: 30, backgroundColor: '#F5F8F9', borderTopLeftRadius: 22, borderTopRightRadius: 22, alignItems: 'center' },
+  handle: { width: 45, height: 4, backgroundColor: '#B6C5C9', borderRadius: 3, marginBottom: 18 },
+  sheetTitle: { color: '#2F454A', fontSize: 19, fontWeight: '700', marginTop: 8 },
+  sheetText: { color: '#6A7C81', fontSize: 12, textAlign: 'center', marginTop: 7 },
+  confirm: { backgroundColor: '#C95D45', height: 44, borderRadius: 7, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  confirmText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
+  cancel: { height: 43, justifyContent: 'center' },
+  cancelText: { color: '#087C73', fontWeight: '700' },
 });
