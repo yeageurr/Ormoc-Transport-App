@@ -11,7 +11,8 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: 'Home', icon: 'home-outline', href: '/tabs' },
   { label: 'Trip Logs', icon: 'reader-outline', href: '/tabs/trip-logs' },
-  { label: 'Start Trip', icon: 'navigate', href: '/tabs/record-trip' },
+  // Start Trip is a prominent action on the v2 Home screen.
+  // { label: 'Start Trip', icon: 'navigate', href: '/tabs/record-trip' },
   // { label: 'Reports', icon: 'list-outline', href: '/tabs/report-incident' },
   { label: 'Me', icon: 'person-outline', href: '/tabs/profile' },
 ];
@@ -42,16 +43,16 @@ export default function BottomNav() {
 
 const styles = StyleSheet.create({
   nav: {
-    minHeight: 72,
-    paddingTop: 9,
-    paddingBottom: 8,
+    minHeight: 60,
+    paddingTop: 6,
+    paddingBottom: 7,
     flexDirection: 'row',
     justifyContent: 'space-around',
-    backgroundColor: '#087B73',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: '#063F3B',
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
     borderTopWidth: 1,
-    borderColor: '#25AD9F',
+    borderColor: '#167A70',
   },
   item: {
     flex: 1,

@@ -1,15 +1,17 @@
-import { Slot } from 'expo-router';
+import { Slot, usePathname } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import BottomNav from '@/components/BottomNav';
 import { DriverLocationProvider } from '@/hooks/useDriverLocation';
 
 export default function TabsLayout() {
+  const pathname = usePathname();
+
   return (
     <DriverLocationProvider>
       <View style={styles.container}>
         <View style={styles.page}><Slot /></View>
-        <BottomNav />
+        {pathname !== '/tabs/record-trip' && <BottomNav />}
       </View>
     </DriverLocationProvider>
   );
