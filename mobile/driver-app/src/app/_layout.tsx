@@ -7,6 +7,23 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { NotificationCenterProvider } from '@/components/NotificationCenter';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 
+import {
+  useFonts,
+  Poppins_400Regular_Italic,
+  Poppins_300Light_Italic,
+  Poppins_300Light,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold
+} from '@expo-google-fonts/poppins';
+
+import {
+  Roboto_400Regular,
+  Roboto_500Medium,
+  Roboto_600SemiBold,
+  Roboto_700Bold
+} from '@expo-google-fonts/roboto';
+
 SplashScreen.preventAutoHideAsync();
 
 /**
@@ -25,7 +42,7 @@ function RootNavigator() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', animationDuration: 0 }}>
       <Stack.Protected guard={isAuthenticated}>
         <Stack.Screen name="tabs" />
         <Stack.Screen name="edit-profile" />
@@ -40,6 +57,18 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [loaded, error] =useFonts({
+    Poppins_400Regular_Italic,
+    Poppins_300Light_Italic,
+    Poppins_300Light,
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Roboto_400Regular,
+    Roboto_500Medium,
+    Roboto_600SemiBold,
+    Roboto_700Bold
+  })
 
   return (
     <SafeAreaProvider>

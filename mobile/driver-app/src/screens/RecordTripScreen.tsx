@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
@@ -94,15 +94,65 @@ export default function RecordTripScreen() {
   const [isStarting, setIsStarting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const [tripLogs, setTripLogs] = useState<DriverTrip[]>([]);
   const [finishOpen, setFinishOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [locationAddress, setLocationAddress] = useState('Finding nearby address…');
+  const [sheetHeight, setSheetHeight] = useState(278);
+  const [sheetCollapsed, setSheetCollapsed] = useState(false);
   const location = useDriverLocation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const lastGeocodeRef = useRef<{ latitude: number; longitude: number; at: number } | null>(null);
   const geocodeRequestRef = useRef(0);
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const gestureStartY = useRef(0);
+  const collapsedOffset = Math.max(0, sheetHeight - 76);
+  const sheetPanResponder = useMemo(() => PanResponder.create({
+    // Capture vertical drags anywhere on the sheet, including over its buttons and route card.
+    onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onPanResponderGrant: () => {
+      sheetTranslateY.stopAnimation((value) => { gestureStartY.current = value; });
+    },
+    onPanResponderMove: (_, gesture) => {
+      const nextY = Math.max(0, Math.min(collapsedOffset, gestureStartY.current + gesture.dy));
+      sheetTranslateY.setValue(nextY);
+    },
+    onPanResponderRelease: (_, gesture) => {
+      const projectedY = gestureStartY.current + gesture.dy;
+      const shouldCollapse = gesture.vy > 0.45 || (Math.abs(gesture.vy) <= 0.45 && projectedY > collapsedOffset / 2);
+      const targetY = shouldCollapse ? collapsedOffset : 0;
+      if (!shouldCollapse) setSheetCollapsed(false);
+      Animated.spring(sheetTranslateY, {
+        toValue: targetY,
+        useNativeDriver: true,
+        damping: 24,
+        stiffness: 190,
+        mass: 0.8,
+      }).start(({ finished }) => {
+        if (finished) setSheetCollapsed(shouldCollapse);
+      });
+    },
+    onPanResponderTerminate: () => {
+      const shouldCollapse = gestureStartY.current > collapsedOffset / 2;
+      if (!shouldCollapse) setSheetCollapsed(false);
+      Animated.spring(sheetTranslateY, {
+        toValue: shouldCollapse ? collapsedOffset : 0,
+        useNativeDriver: true,
+        damping: 24,
+        stiffness: 190,
+        mass: 0.8,
+      }).start(({ finished }) => {
+        if (finished) setSheetCollapsed(shouldCollapse);
+      });
+    },
+  }), [collapsedOffset, sheetTranslateY]);
+  const contentOpacity = sheetTranslateY.interpolate({
+    inputRange: [0, Math.max(1, collapsedOffset)],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
 
   const loadDispatch = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
@@ -111,6 +161,7 @@ export default function RecordTripScreen() {
       const currentDispatch = await getCurrentDispatch();
       setDispatch(currentDispatch);
       const trips: DriverTrip[] = await getTripLogs();
+      setTripLogs(trips);
       const inProgressTrip = trips.find((trip) => !trip.is_complete);
       setActiveTrip(inProgressTrip ?? null);
     } catch {
@@ -163,6 +214,15 @@ export default function RecordTripScreen() {
     setIsFinishing(true);
     try {
       const finished = await endTrip(String(activeTrip.trip_id));
+      setTripLogs((logs) => [
+        {
+          ...finished,
+          vehicle_plate: dispatch?.vehicle_plate ?? null,
+          route_label: dispatch?.route_label ?? null,
+          route_distance_km: dispatch?.route_distance_km ?? null,
+        },
+        ...logs.filter((trip) => trip.trip_id !== finished.trip_id),
+      ]);
       setActiveTrip(null);
       setFinishOpen(false);
       setMessage(`Trip completed${finished.trip_duration_minutes ? ` in ${Math.round(finished.trip_duration_minutes)} mins` : ''}.`);
@@ -171,15 +231,26 @@ export default function RecordTripScreen() {
     } finally {
       setIsFinishing(false);
     }
-  }, [activeTrip]);
+  }, [activeTrip, dispatch]);
 
   const routeLabel = dispatch?.route_label || 'Route not assigned';
   const isReady = dispatch?.vehicle_activity_status === 'loading';
+  const dispatchTripCount = tripLogs.filter((trip) => trip.dispatch_id === dispatch?.dispatch_id).length;
+  const tripDirection = activeTrip?.status ?? (dispatchTripCount % 2 === 0 ? 'outgoing' : 'returning');
+  const averageDuration = dispatch?.average_travel_duration_minutes;
+  const routeDistance = dispatch?.route_distance_km;
+  const averageDurationText = averageDuration == null ? '— min' : `${Math.round(averageDuration)} min`;
+  const routeDistanceText = routeDistance == null ? '— km' : `${Number(routeDistance).toFixed(1)} km`;
 
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#DCE8F0" />
-      <DriverMap fullScreen routeGeometry={dispatch?.route_geometry} />
+      <DriverMap
+        fullScreen
+        routeGeometry={dispatch?.route_geometry}
+        followDriver={Boolean(activeTrip)}
+        isReturning={tripDirection === 'returning'}
+      />
 
       <SafeAreaView style={styles.locationBanner} edges={['top']} pointerEvents="none">
         <View style={styles.locationHeading}>
@@ -191,8 +262,29 @@ export default function RecordTripScreen() {
         </Text>
       </SafeAreaView>
 
-      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
-        <View style={styles.grabber} />
+      <Animated.View
+        onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
+        style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 12) + 8, transform: [{ translateY: sheetTranslateY }] }]}
+        {...sheetPanResponder.panHandlers}
+      >
+        <View
+          accessibilityRole="button"
+          accessibilityLabel={sheetCollapsed ? 'Trip details collapsed' : 'Trip details expanded'}
+          accessibilityHint="Swipe up to show trip details or swipe down to view more of the map."
+          style={sheetCollapsed ? styles.sheetCollapsedHeader : styles.sheetExpandedHeader}
+        >
+          <View style={styles.grabber} />
+          {sheetCollapsed && (
+            <View style={styles.collapsedHeaderContent}>
+              <Text style={styles.collapsedRouteTitle} numberOfLines={1}>{routeLabel}</Text>
+              <View style={styles.collapsedEta}>
+                <Text style={styles.collapsedEtaLabel}>ETA</Text>
+                <Text style={styles.collapsedEtaValue}>--</Text>
+              </View>
+            </View>
+          )}
+        </View>
+        <Animated.View style={{ opacity: contentOpacity }} pointerEvents={sheetCollapsed ? 'none' : 'auto'}>
         {activeTrip ? (
           <>
             <Text style={styles.sheetTitle}>Trip in progress, take care!</Text>
@@ -201,12 +293,12 @@ export default function RecordTripScreen() {
               <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
               <View style={styles.directionRow}>
                 <Ionicons name="navigate-outline" size={12} color="#315B61" />
-                <Text style={styles.directionText}>{activeTrip.status === 'returning' ? 'Returning' : 'Outgoing'}</Text>
+                <Text style={styles.directionText}>{tripDirection === 'returning' ? 'Returning to terminal' : 'Outgoing from terminal'}</Text>
               </View>
               <View style={styles.metricsRow}>
                 <Metric icon="time-outline" value={formatElapsed(activeTrip.time_departed, now)} label="Elapsed time" />
-                <Metric icon="speedometer-outline" value={location?.speedKph == null ? '— km/h' : `${Math.round(location.speedKph)} km/h`} label="Current speed" />
-                <Metric icon="flag-outline" value="— min" label="Arriving in" />
+                <Metric icon="map-outline" value={routeDistanceText} label="Distance from terminal" />
+                <Metric icon="time-outline" value={averageDurationText} label="Average trip duration" />
               </View>
             </View>
             <View style={styles.actionRow}>
@@ -225,9 +317,9 @@ export default function RecordTripScreen() {
             <View style={styles.routeCard}>
               <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
               <View style={styles.metricsRow}>
-                <Metric icon="time-outline" value="— min" label="Trip time" />
-                <Metric icon="map-outline" value="— km" label="Distance" />
-                <Metric icon="navigate-outline" value="Outgoing" label="Direction" />
+                <Metric icon="time-outline" value={averageDurationText} label="Average trip duration" />
+                <Metric icon="map-outline" value={routeDistanceText} label="Distance from terminal" />
+                <Metric icon="navigate-outline" value={tripDirection === 'returning' ? 'Returning' : 'Outgoing'} label={tripDirection === 'returning' ? 'To terminal' : 'From terminal'} />
               </View>
             </View>
             <View style={styles.actionRow}>
@@ -247,7 +339,9 @@ export default function RecordTripScreen() {
           </>
         )}
         {message ? <Text style={styles.message}>{message}</Text> : null}
-      </View>
+        </Animated.View>
+      </Animated.View>
+      {/* <View style={styles.grabberBottom}></View> */}
 
       <Modal transparent visible={finishOpen} animationType="slide" onRequestClose={() => setFinishOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setFinishOpen(false)}>
@@ -277,26 +371,39 @@ function Metric({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; 
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#E8E4E2' },
+  screen: { flex: 1, backgroundColor: '#E8E4E2', },
   locationBanner: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 14, paddingBottom: 9, backgroundColor: '#DCE8F0' },
   locationHeading: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   locationCaption: { color: '#4D5B60', fontSize: 9 },
   locationValue: { maxWidth: '100%', marginTop: 1, color: '#27373B', fontSize: 12, fontWeight: '700' },
-  sheet: { position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: 12, paddingTop: 7, borderTopLeftRadius: 17, borderTopRightRadius: 17, backgroundColor: '#00665E' },
-  grabber: { alignSelf: 'center', width: 46, height: 4, borderRadius: 3, marginBottom: 8, backgroundColor: '#77B8AE' },
-  sheetTitle: { color: '#F4FFFC', fontSize: 14, fontWeight: '700' },
-  sheetSubtitle: { marginTop: 2, marginBottom: 9, color: '#C0DFD9', fontSize: 9 },
-  routeCard: { borderRadius: 5, paddingHorizontal: 13, paddingTop: 9, paddingBottom: 10, backgroundColor: '#F2F7F5' },
-  routeTitle: { color: '#22383A', fontSize: 15, fontWeight: '700' },
+  sheet: { 
+    height: 278, position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: 10, paddingVertical: 10, experimental_backgroundImage: 'linear-gradient(to bottom, #046057 5%, #FFFFFF 100%)', 
+    borderTopLeftRadius: 10, borderTopRightRadius: 10, flexDirection: 'column', justifyContent: 'space-around'
+   },
+
+  sheetExpandedHeader: { height: 12, alignItems: 'center' },
+  routeTitle: {fontFamily: 'Roboto_500Medium', fontSize: 18},
+  sheetCollapsedHeader: { height: 58, alignItems: 'center', justifyContent: 'center' },
+  grabber: { alignSelf: 'center', width: 75, height: 5, borderRadius: 3, marginBottom: 5, backgroundColor: '#77B8AE' },
+  grabberBottom: { alignSelf: 'center', width: 110, height: 5, borderRadius: 3, backgroundColor: '#101010', marginBottom: 8, opacity: .5 },
+  collapsedHeaderContent: { width: '100%', flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 3 },
+  collapsedRouteTitle: { flex: 1, color: '#FFFFFF', fontFamily: 'Roboto_500Medium', fontSize: 16, fontWeight: '700' },
+  collapsedEta: { alignItems: 'flex-end', justifyContent: 'center' },
+  collapsedEtaLabel: { color: '#C0DFD9', fontFamily: 'Poppins_400Regular', fontSize: 9 },
+  collapsedEtaValue: { color: '#FFFFFF', fontFamily: 'Poppins_500Medium', fontSize: 12, fontWeight: '700' },
+
+  sheetTitle: { color: '#F4FFFC', fontFamily: 'Poppins_500Medium', fontSize: 18, fontWeight: '700' },
+  sheetSubtitle: { marginTop: 2, marginBottom: 9, color: '#ffffff', fontFamily: 'Poppins_400Regular', fontSize: 10 },
+  routeCard: { height: 105, borderRadius: 5, paddingHorizontal: 13, paddingTop: 9, paddingBottom: 10, backgroundColor: '#F2F7F5', alignItems: 'center', justifyContent: 'center' },
   directionRow: { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginTop: 2 },
   directionText: { color: '#315B61', fontSize: 9, fontWeight: '600' },
   metricsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7, marginTop: 9 },
   metric: { flex: 1, alignItems: 'center', minWidth: 0 },
   metricValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#E1E9EC' },
-  metricValue: { color: '#2C454A', fontSize: 9, fontWeight: '700' },
-  metricLabel: { maxWidth: '100%', marginTop: 3, color: '#63777A', fontSize: 8, textAlign: 'center' },
-  actionRow: { flexDirection: 'row', gap: 9, marginTop: 7 },
-  backButton: { width: 37, height: 38, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#B5D1CB', borderRadius: 5, backgroundColor: '#F3F8F6' },
+  metricValue: { color: '#2C454A', fontSize: 10, fontFamily: 'Poppins_500Medium' },
+  metricLabel: { maxWidth: '100%', marginTop: 3, color: '#63777A', fontFamily: 'Poppins_400Regular_Italic', fontSize: 9, textAlign: 'center' },
+  actionRow: { flexDirection: 'row', gap: 9, borderRadius: 5, marginTop: 7, backgroundColor: '#ffffff', padding: 6, boxSizing: 'border-box' },
+  backButton: { width: 37, height: 38, alignItems: 'center', justifyContent: 'center' },
   startButton: { flex: 1, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 5, backgroundColor: '#00A694' },
   disabledButton: { backgroundColor: '#789E98' },
   startText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800' },

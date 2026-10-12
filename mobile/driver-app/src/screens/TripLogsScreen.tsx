@@ -91,7 +91,9 @@ export default function TripLogsScreen() {
   const [error, setError] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [visibleMonth, setVisibleMonth] = useState(() => getManilaDateParts(new Date()));
+  const [visibleMonth, setVisibleMonth] = useState<{ year: number; month: number }>(
+    () => getManilaDateParts(new Date()),
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -186,7 +188,7 @@ export default function TripLogsScreen() {
           ))
         ) : (
           <View style={styles.state}>
-            <Ionicons name="map-outline" size={30} color="#688089" />
+            <Ionicons name="file-tray-outline" size={30} color="#688089" />
             <Text style={styles.stateTitle}>No trips found</Text>
             <Text style={styles.stateText}>{selectedDate ? `No trips recorded on ${formatDateKey(selectedDate)}.` : 'Completed trips will appear here.'}</Text>
           </View>
@@ -282,9 +284,9 @@ const styles = StyleSheet.create({
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, backgroundColor: '#075E56' },
   title: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
   filterRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
-  tripCount: { color: '#536873', fontSize: 10, fontWeight: '600' },
+  tripCount: { color: '#536873', fontSize: 12, fontWeight: '600' },
   filterButton: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderColor: '#CED7DF', borderRadius: 6, paddingHorizontal: 9, backgroundColor: '#FFFFFF' },
-  filterLabel: { color: '#475860', fontSize: 9, fontWeight: '600' },
+  filterLabel: { color: '#475860', fontSize: 12, fontWeight: '600' },
   content: { flexGrow: 1, marginHorizontal: 12, marginBottom: 8, borderRadius: 6, paddingHorizontal: 9, paddingBottom: 20, backgroundColor: '#FFFFFF' },
   group: { marginTop: 9 },
   groupHeader: { minHeight: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 5, paddingHorizontal: 8, backgroundColor: '#D9E3ED' },
@@ -302,8 +304,8 @@ const styles = StyleSheet.create({
   routeLabel: { color: '#4D575D', fontSize: 10, fontWeight: '700', textAlign: 'right' },
   tripMeta: { marginTop: 4, color: '#66747A', fontSize: 8, textAlign: 'right' },
   state: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 55 },
-  stateTitle: { color: '#354A53', fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  stateText: { color: '#687C84', fontSize: 10, textAlign: 'center' },
+  stateTitle: { color: '#354A53', fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  stateText: { color: '#687C84', fontSize: 12, textAlign: 'center' },
   retryButton: { minHeight: 34, justifyContent: 'center', borderRadius: 6, marginTop: 6, paddingHorizontal: 18, backgroundColor: '#009E91' },
   retryText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.35)' },

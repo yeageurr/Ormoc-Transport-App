@@ -33,6 +33,7 @@ class DriverTripResponse(TripResponse):
   """Trip data shown in the driver's own history and home dashboard."""
   vehicle_plate: str | None = None
   route_label: str | None = None
+  route_distance_km: float | None = None
 
 
 class DriverDailySummary(BaseModel):

@@ -81,25 +81,34 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>My Information</Text>
-            <View style={styles.infoCard}>
-              <ProfileInfoRow icon="call-outline" value={profile?.contact_number ?? '--'} label="Phone number" />
-              <ProfileInfoRow icon="mail-outline" value={profile?.email ?? '--'} label="Email" />
-              <ProfileInfoRow icon="git-compare-outline" value={dispatch?.route_label ?? 'Currently not assigned'} label="Route" />
-              <ProfileInfoRow icon="car-sport-outline" value={dispatch?.vehicle_plate ?? 'Currently not assigned'} label="Vehicle" />
-              <ProfileInfoRow icon="card-outline" value={profile?.license_num ?? '--'} label="License number" last />
-            </View>
+            <View style={styles.profileMainContent}>
+              <View style={styles.profileSection}>
+                <Text style={styles.sectionTitle}>My Information</Text>
+                <View style={styles.infoCard}>
+                  <ProfileInfoRow icon="call-outline" value={profile?.contact_number ?? '--'} label="Phone number" />
+                  <View style={styles.infoDivider}></View>
+                  <ProfileInfoRow icon="mail-outline" value={profile?.email ?? '--'} label="Email" />
+                  <View style={styles.infoDivider}></View>
+                  <ProfileInfoRow icon="git-compare-outline" value={dispatch?.route_label ?? 'Currently not assigned'} label="Route" />
+                  <View style={styles.infoDivider}></View>
+                  <ProfileInfoRow icon="car-sport-outline" value={dispatch?.vehicle_plate ?? 'Currently not assigned'} label="Vehicle" />
+                  <View style={styles.infoDivider}></View>
+                  <ProfileInfoRow icon="card-outline" value={profile?.license_num ?? '--'} label="License number" last />
+                </View>
+              </View>
 
-            <Text style={styles.sectionTitle}>Account</Text>
-            <View style={styles.accountCard}>
-              <AccountAction icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password' as never)} />
-              <AccountAction icon="person-outline" label="Edit profile" onPress={() => router.push('/edit-profile' as never)} last />
+              <View style={styles.profileSection}>
+                <Text style={styles.sectionTitle}>Account</Text>
+                <View style={styles.accountCard}>
+                  <AccountAction icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password' as never)} />
+                  <AccountAction icon="person-outline" label="Edit profile" onPress={() => router.push('/edit-profile' as never)} last />
+                  <Pressable onPress={() => setLogoutOpen(true)} style={styles.logout}>
+                  <Ionicons name="log-out-outline" size={20} color="#FFB27B" />
+                  <Text style={styles.logoutText}>Log out</Text>
+                </Pressable>
+                </View>
+              </View>
             </View>
-
-            <Pressable onPress={() => setLogoutOpen(true)} style={styles.logout}>
-              <Ionicons name="log-out-outline" size={21} color="#FFB27B" />
-              <Text style={styles.logoutText}>Log out</Text>
-            </Pressable>
           </>
         )}
       </ScrollView>
@@ -121,7 +130,7 @@ interface ProfileInfoRowProps {
 function ProfileInfoRow({ icon, value, label, last = false }: ProfileInfoRowProps) {
   return (
     <View style={[styles.info, !last && styles.line]}>
-      <Ionicons name={icon} size={20} color="#26BEAD" />
+      <Ionicons name={icon} size={20} color="#101010" />
       <View>
         <Text style={styles.value}>{value}</Text>
         <Text style={styles.label}>{label}</Text>
@@ -140,8 +149,10 @@ interface AccountActionProps {
 function AccountAction({ icon, label, onPress, last = false }: AccountActionProps) {
   return (
     <Pressable onPress={onPress} style={[styles.account, !last && styles.line]}>
-      <Ionicons name={icon} size={20} color="#26BEAD" />
-      <Text style={styles.accountText}>{label}</Text>
+      <View style={styles.buttonLeft}>
+        <Ionicons name={icon} size={18} color="#26BEAD" />
+        <Text style={styles.accountText}>{label}</Text>
+      </View>
       <Ionicons name="chevron-forward" size={20} color="#D6EFEB" />
     </Pressable>
   );
@@ -176,26 +187,34 @@ function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#DCE6F0' },
+  screen: { flex: 1, backgroundColor: '#D3DEE9' },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, backgroundColor: '#075E56' },
   content: { paddingHorizontal: 17, paddingTop: 14, paddingBottom: 20 },
-  title: { color: '#FFFFFF', fontSize: 19, fontWeight: '800' },
+  title: { color: '#FFFFFF', fontSize: 23, fontFamily: 'Poppins_500Medium' },
   loader: { marginTop: 70 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 17, marginBottom: 14, paddingHorizontal: 9 },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#21A681', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#06463F', fontSize: 12, fontWeight: '800' },
-  name: { color: '#26383E', fontSize: 17, fontWeight: '700' },
-  id: { color: '#65777E', fontSize: 9, marginTop: 2, fontWeight: '600' },
-  sectionTitle: { color: '#36484E', fontSize: 11, fontWeight: '700', marginBottom: 6, marginLeft: 2 },
-  infoCard: { backgroundColor: '#FFFFFF', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, overflow: 'hidden', marginBottom: 13 },
+  name: { color: '#26383E', fontSize: 20, fontFamily: 'Poppins_500Medium' },
+  id: { color: '#65777E', fontSize: 11, fontFamily: 'Poppins_600SemiBold' },
+
+  profileMainContent: { backgroundColor: '#fff', boxSizing: 'border-box', paddingHorizontal: 16, paddingVertical: 18, flexDirection: 'column', justifyContent: 'center', gap: 24, borderRadius: 5 },
+
+  profileSection: { flexDirection: 'column', gap: 11, alignItems: 'flex-start', },
+  sectionTitle: { color: '#36484E', fontSize: 13, fontFamily: 'Roboto_500Medium'},
+  infoCard: { width: '100%', backgroundColor: '#D3DEE9', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, overflow: 'hidden', },
   info: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 7 },
   line: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#D5DEE4' },
-  value: { color: '#3C4A50', fontSize: 11, fontWeight: '600' },
-  label: { color: '#7A898F', fontSize: 8, marginTop: 1 },
-  accountCard: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 7, gap: 5 },
-  account: { height: 43, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 11, borderRadius: 5, backgroundColor: '#075E56' },
-  accountText: { color: '#FFFFFF', fontSize: 11, fontWeight: '600', flex: 1 },
-  logout: { height: 40, borderRadius: 6, marginTop: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, backgroundColor: '#D7E1E9' },
+  value: { color: '#101010', fontSize: 14, fontFamily: 'Poppins_500Regular' },
+  label: { color: '#7A898F', fontSize: 10, fontFamily: 'Roboto_500Regular' },
+  infoDivider: {width: '100%', height: 1, backgroundColor: '#8E8E8E', opacity: .5},
+
+  accountCard: { width: '100%', backgroundColor: '#FFFFFF', gap: 7 },
+  account: { flexDirection: 'row', justifyContent: 'space-between', borderRadius: 5 , backgroundColor: '#004138', padding: 12},
+  buttonLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7},
+  accountText: { color: '#FFFFFF', fontSize: 15, fontFamily: 'Poppins_500Medium'},
+
+  logout: { height: 40, borderRadius: 5, marginTop: 9, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, backgroundColor: '#D3DEE9' },
   logoutText: { color: '#46565D', fontSize: 12, fontWeight: '700' },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,.4)', justifyContent: 'flex-end' },
   sheet: { padding: 22, paddingBottom: 30, backgroundColor: '#F5F8F9', borderTopLeftRadius: 22, borderTopRightRadius: 22, alignItems: 'center' },

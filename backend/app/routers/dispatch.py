@@ -109,6 +109,12 @@ def current_driver_dispatch(db: Session = Depends(get_db), current_driver: Accou
     vehicle_activity_status=dispatch.vehicle.activity_status.value if dispatch.vehicle else "unknown",
     route_label=route_label,
     route_geometry=dispatch.route.route_geometry if dispatch.route else None,
+    route_distance_km=(float(dispatch.route.distance) if dispatch.route and dispatch.route.distance is not None else None),
+    average_travel_duration_minutes=(
+      float(dispatch.route.average_travel_duration)
+      if dispatch.route and dispatch.route.average_travel_duration is not None
+      else None
+    ),
   )
 
 

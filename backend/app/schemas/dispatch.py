@@ -36,3 +36,5 @@ class CurrentDriverDispatch(BaseModel):
   vehicle_activity_status: str
   route_label: str
   route_geometry: dict | None = None
+  route_distance_km: float | None = None
+  average_travel_duration_minutes: float | None = None
