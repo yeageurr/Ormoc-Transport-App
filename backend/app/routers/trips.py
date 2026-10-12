@@ -46,9 +46,9 @@ def start_trip(
       detail=f"Vehicle must be 'loading' to start a trip (currently '{vehicle.activity_status.value}')",
     )
 
-  # Determine leg: first trip on this dispatch is outgoing, next is returning
+  # Legs alternate from the terminal to the destination and back.
   existing_trips = db.query(Trip).filter(Trip.dispatch_id == payload.dispatch_id).count()
-  trip_status = TripStatus.OUTGOING if existing_trips == 0 else TripStatus.RETURNING
+  trip_status = TripStatus.OUTGOING if existing_trips % 2 == 0 else TripStatus.RETURNING
 
   trip = Trip(
     dispatch_id=payload.dispatch_id,
@@ -144,6 +144,11 @@ def list_my_trips(
       route_label=(
         f"{trip.dispatch_log.route.origin.terminal_name} → {trip.dispatch_log.route.destination.name}"
         if trip.dispatch_log.route and trip.dispatch_log.route.origin and trip.dispatch_log.route.destination
+        else None
+      ),
+      route_distance_km=(
+        float(trip.dispatch_log.route.distance)
+        if trip.dispatch_log.route and trip.dispatch_log.route.distance is not None
         else None
       ),
     )

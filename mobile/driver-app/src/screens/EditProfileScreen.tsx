@@ -1,43 +1,42 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import {
-  getMyProfile,
-  updateMyProfile,
-  type DriverProfile,
-} from '@/api/profileAPI';
+import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
+import { getMyProfile, updateMyProfile, type DriverProfile } from '@/api/profileAPI';
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<DriverProfile | null>(null);
-  const [name, setName] = useState('');
+  const [dispatch, setDispatch] = useState<CurrentDispatch | null>(null);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const originalName = profile
-    ? `${profile.first_name} ${profile.last_name}`
-    : '';
   const dirty = profile !== null && (
-    name !== originalName || email !== (profile.email ?? '')
+    firstName !== profile.first_name
+    || lastName !== profile.last_name
+    || email !== (profile.email ?? '')
   );
 
   useEffect(() => {
-    void getMyProfile().then((currentProfile) => {
-      setProfile(currentProfile);
-      setName(`${currentProfile.first_name} ${currentProfile.last_name}`);
-      setEmail(currentProfile.email ?? '');
-    });
+    let active = true;
+    void Promise.all([getMyProfile(), getCurrentDispatch().catch(() => null)])
+      .then(([currentProfile, currentDispatch]) => {
+        if (!active) return;
+        setProfile(currentProfile);
+        setFirstName(currentProfile.first_name);
+        setLastName(currentProfile.last_name);
+        setEmail(currentProfile.email ?? '');
+        setDispatch(currentDispatch);
+      })
+      .catch(() => Alert.alert('Unable to load profile', 'Check your connection and try again.'))
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
   const leaveScreen = () => {
@@ -45,133 +44,136 @@ export default function EditProfileScreen() {
       router.back();
       return;
     }
-
-    Alert.alert('Exit Edit Profile?', 'All changes will be deleted.', [
+    Alert.alert('Exit Edit Profile?', 'Your unsaved changes will be discarded.', [
       { text: 'Continue editing', style: 'cancel' },
       { text: 'Exit', style: 'destructive', onPress: () => router.back() },
     ]);
   };
 
   const saveProfile = async () => {
-    if (!profile) {
-      return;
-    }
-
-    const [firstName, ...lastNameParts] = name.trim().split(/\s+/);
-    if (!firstName || lastNameParts.length === 0) {
-      Alert.alert('Enter your full name.');
+    if (!profile) return;
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert('Name required', 'Enter both your first and last name.');
       return;
     }
 
     setSaving(true);
     try {
-      await updateMyProfile({
-        first_name: firstName,
-        last_name: lastNameParts.join(' '),
-        email: email || null,
+      const updated = await updateMyProfile({
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim() || null,
       });
+      setProfile(updated);
       Alert.alert('Profile updated', 'Your profile changes were saved.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
+    } catch (error: any) {
+      Alert.alert('Unable to update profile', error?.response?.data?.detail ?? 'Please check your connection and try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const initials = name
-    .split(' ')
-    .map((namePart) => namePart[0])
-    .join('')
-    .slice(0, 2);
+  const initials = `${firstName.trim().charAt(0)}${lastName.trim().charAt(0)}`.toUpperCase();
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor="#D3DFEB" />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Pressable style={styles.back} onPress={leaveScreen}>
-          <Ionicons name="arrow-back" size={21} color="#E9FFFB" />
+          <Ionicons name="arrow-back" size={21} color="#26383E" />
           <Text style={styles.title}>Edit Profile</Text>
         </Pressable>
 
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-        <Text style={styles.id}>Driver ID: {profile?.driver_id ?? '--'}</Text>
+        {loading ? (
+          <ActivityIndicator style={styles.loader} color="#179F7E" />
+        ) : profile ? (
+          <>
+            <View style={styles.identity}>
+              <View style={styles.avatar}><Text style={styles.avatarText}>{initials || 'DR'}</Text></View>
+              <Text style={styles.driverId}>Driver ID: {profile.driver_id}</Text>
+            </View>
 
-        <ProfileField label="Full name" value={name} onChangeText={setName} />
-        <ProfileField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" />
-        <ProfileField label="Phone number" value={profile?.contact_number ?? '--'} editable={false} />
-        <Text style={styles.help}>
-          Phone number is used as your login; contact your admin to change it.
-        </Text>
-        <ProfileField label="License number" value={profile?.license_num ?? '--'} editable={false} />
+            <View style={styles.nameRow}>
+              <FormField label="First Name" value={firstName} onChangeText={setFirstName} />
+              <FormField label="Last Name" value={lastName} onChangeText={setLastName} />
+            </View>
 
-        <Pressable disabled={saving} onPress={() => void saveProfile()} style={styles.save}>
-          <Text style={styles.saveText}>{saving ? 'Updating…' : 'Update Profile'}</Text>
+            <FormField label="Phone number" value={profile.contact_number} editable={false} icon="lock-closed-outline" />
+            <Text style={styles.helper}>Used as your login · contact your admin to change</Text>
+            <FormField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+            <FormField label="Vehicle" value={dispatch?.vehicle_plate ?? 'Currently not assigned'} editable={false} icon="car-outline" />
+            <FormField label="License number" value={profile.license_num} editable={false} icon="card-outline" />
+          </>
+        ) : (
+          <View style={styles.loadError}>
+            <Text style={styles.errorText}>Your profile could not be loaded.</Text>
+            <Pressable onPress={() => router.back()}><Text style={styles.backLink}>Go back</Text></Pressable>
+          </View>
+        )}
+
+        <Pressable disabled={saving || loading || !profile} onPress={() => void saveProfile()} style={[styles.save, (saving || loading || !profile) && styles.saveDisabled]}>
+          {saving ? <ActivityIndicator color="#FFFFFF" /> : <><Text style={styles.saveText}>Update Profile</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></>}
         </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-interface ProfileFieldProps {
+interface FormFieldProps {
   label: string;
   value: string;
-  onChangeText?: (text: string) => void;
+  onChangeText?: (value: string) => void;
   editable?: boolean;
+  icon?: keyof typeof Ionicons.glyphMap;
   keyboardType?: 'email-address';
+  autoCapitalize?: 'none';
 }
 
-function ProfileField({ label, ...inputProps }: ProfileFieldProps) {
+function FormField({ label, value, onChangeText, editable = true, icon, keyboardType, autoCapitalize }: FormFieldProps) {
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        style={[styles.field, inputProps.editable === false && styles.disabled]}
-        placeholderTextColor="#709B96"
-        {...inputProps}
-      />
+      <View style={[styles.fieldRow, !editable && styles.readOnlyRow]}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          editable={editable}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          placeholder={editable ? `Enter ${label.toLowerCase()}` : undefined}
+          placeholderTextColor="#8A9498"
+          style={[styles.field, !editable && styles.readOnlyField]}
+        />
+        {icon ? <Ionicons name={icon} size={14} color="#7A898D" /> : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#002B28' },
-  content: { flexGrow: 1, padding: 20 },
+  screen: { flex: 1, backgroundColor: '#D3DFEB' },
+  content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 13, paddingBottom: 15 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 9 },
-  title: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 22,
-    backgroundColor: '#21AA8A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginTop: 14,
-  },
-  avatarText: { color: '#003A35', fontWeight: '800' },
-  id: { textAlign: 'center', color: '#94BBB6', fontSize: 9, marginTop: 8, marginBottom: 18 },
-  fieldWrap: { marginBottom: 10 },
-  fieldLabel: { color: '#71C9BF', fontSize: 9, letterSpacing: 2, marginBottom: 4 },
-  field: {
-    height: 36,
-    borderRadius: 8,
-    borderColor: '#257C74',
-    borderWidth: 1,
-    backgroundColor: '#124C48',
-    color: '#FFF',
-    paddingHorizontal: 10,
-    fontSize: 12,
-  },
-  disabled: { opacity: 0.65 },
-  help: { color: '#76A6A0', fontSize: 8, marginTop: -7, marginBottom: 10 },
-  save: {
-    height: 45,
-    borderRadius: 7,
-    backgroundColor: '#1CAB8B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 'auto',
-  },
-  saveText: { color: '#002D2A', fontWeight: '800' },
+  title: { color: '#25343A', fontSize: 17, fontWeight: '700' },
+  loader: { marginTop: 55 },
+  identity: { alignItems: 'center', marginTop: 16, marginBottom: 22 },
+  avatar: { width: 74, height: 74, alignItems: 'center', justifyContent: 'center', borderRadius: 37, backgroundColor: '#1BA17D' },
+  avatarText: { color: '#06493C', fontSize: 17, fontWeight: '800', letterSpacing: 1 },
+  driverId: { marginTop: 8, color: '#34454B', fontSize: 10, fontWeight: '600' },
+  nameRow: { flexDirection: 'row', gap: 7 },
+  fieldWrap: { flex: 1, marginBottom: 13 },
+  fieldLabel: { color: '#39494F', fontSize: 9, marginBottom: 5 },
+  fieldRow: { height: 41, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#B9C5CE', borderRadius: 5, paddingHorizontal: 10, backgroundColor: '#FFFFFF' },
+  readOnlyRow: { borderColor: '#C7D0D7' },
+  field: { flex: 1, height: '100%', color: '#303B40', padding: 0, fontSize: 11, fontWeight: '600' },
+  readOnlyField: { color: '#778287' },
+  helper: { marginTop: -9, marginBottom: 13, color: '#59696F', fontSize: 8, letterSpacing: 0.3 },
+  save: { minHeight: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 'auto', borderRadius: 6, backgroundColor: '#004C43' },
+  saveDisabled: { opacity: 0.55 },
+  saveText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.3 },
+  loadError: { alignItems: 'center', marginTop: 55, gap: 10 },
+  errorText: { color: '#475B60', fontSize: 12 },
+  backLink: { color: '#007B6E', fontSize: 12, fontWeight: '700' },
 });

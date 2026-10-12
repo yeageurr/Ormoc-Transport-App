@@ -12,6 +12,8 @@ export interface CurrentDispatch {
   vehicle_activity_status: 'active' | 'loading' | 'on-route' | string;
   route_label: string;
   route_geometry: RouteGeometry | null;
+  route_distance_km: number | null;
+  average_travel_duration_minutes: number | null;
 }
 
 export async function getCurrentDispatch(): Promise<CurrentDispatch | null> {

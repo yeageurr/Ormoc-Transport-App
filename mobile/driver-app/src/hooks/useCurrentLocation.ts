@@ -6,6 +6,7 @@ import { pingGeofence, updateCurrentLocation } from '@/api/gpsAPI';
 export interface DriverLocation {
   latitude: number;
   longitude: number;
+  speedKph: number | null;
 }
 
 /** Sends foreground location fixes for a dispatched driver to the admin map. */
@@ -28,6 +29,9 @@ export function useCurrentLocation() {
         setLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          speedKph: position.coords.speed === null
+            ? null
+            : Math.max(0, position.coords.speed * 3.6),
         });
         void updateCurrentLocation({
           latitude: position.coords.latitude,

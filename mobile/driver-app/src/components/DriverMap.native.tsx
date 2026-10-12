@@ -1,4 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import Mapbox from '@rnmapbox/maps';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useDriverLocation } from '@/hooks/useDriverLocation';
@@ -17,11 +19,51 @@ if (mapboxToken) {
   void Mapbox.setAccessToken(mapboxToken);
 }
 
-export default function DriverMap({ fullScreen = false, routeGeometry = null }: { fullScreen?: boolean; routeGeometry?: RouteGeometry | null }) {
+export default function DriverMap({
+  fullScreen = false,
+  routeGeometry = null,
+  followDriver = false,
+  isReturning = false,
+}: {
+  fullScreen?: boolean;
+  routeGeometry?: RouteGeometry | null;
+  followDriver?: boolean;
+  isReturning?: boolean;
+}) {
   const location = useDriverLocation();
   const centerCoordinate: [number, number] = location
     ? [location.longitude, location.latitude]
     : ORMOC_CENTER;
+  const coordinates = routeGeometry?.coordinates ?? [];
+  const routeBounds = useMemo(() => {
+    const routeCoordinates = routeGeometry?.coordinates ?? [];
+    if (followDriver || routeCoordinates.length < 2) return null;
+    const limits = routeCoordinates.reduce((bounds, [longitude, latitude]) => ({
+      maxLongitude: Math.max(bounds.maxLongitude, longitude),
+      minLongitude: Math.min(bounds.minLongitude, longitude),
+      maxLatitude: Math.max(bounds.maxLatitude, latitude),
+      minLatitude: Math.min(bounds.minLatitude, latitude),
+    }), {
+      maxLongitude: Number.NEGATIVE_INFINITY,
+      minLongitude: Number.POSITIVE_INFINITY,
+      maxLatitude: Number.NEGATIVE_INFINITY,
+      minLatitude: Number.POSITIVE_INFINITY,
+    });
+    return {
+      ne: [limits.maxLongitude, limits.maxLatitude] as [number, number],
+      sw: [limits.minLongitude, limits.minLatitude] as [number, number],
+      paddingTop: 125,
+      paddingRight: 35,
+      paddingBottom: 235,
+      paddingLeft: 35,
+    };
+  }, [routeGeometry, followDriver]);
+  const startCoordinate = coordinates.length > 1
+    ? isReturning ? coordinates[coordinates.length - 1] : coordinates[0]
+    : null;
+  const destinationCoordinate = coordinates.length > 1
+    ? isReturning ? coordinates[0] : coordinates[coordinates.length - 1]
+    : null;
 
   if (!mapboxToken) {
     return (
@@ -35,7 +77,11 @@ export default function DriverMap({ fullScreen = false, routeGeometry = null }: 
   return (
     <View style={[styles.container, fullScreen && styles.fullScreenContainer]}>
       <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street}>
-        <Mapbox.Camera centerCoordinate={centerCoordinate} zoomLevel={location ? 15 : 12} animationDuration={700} />
+        <Mapbox.Camera
+          key={followDriver ? 'follow-driver' : 'fit-route'}
+          {...(routeBounds ? { bounds: routeBounds, animationMode: 'easeTo' as const } : { centerCoordinate, zoomLevel: followDriver ? 16 : 12 })}
+          animationDuration={500}
+        />
         {routeGeometry && (
           <Mapbox.ShapeSource id="assigned-route" shape={routeGeometry}>
             <Mapbox.LineLayer
@@ -43,6 +89,30 @@ export default function DriverMap({ fullScreen = false, routeGeometry = null }: 
               style={{ lineColor: '#22D3EE', lineWidth: 8, lineOpacity: 0.95, lineJoin: 'round', lineCap: 'round' }}
             />
           </Mapbox.ShapeSource>
+        )}
+        {startCoordinate && (
+          <Mapbox.PointAnnotation
+            id="dispatch-start-pin"
+            coordinate={startCoordinate}
+            title={isReturning ? 'Start: destination' : 'Start: terminal'}
+            anchor={{ x: 0.5, y: 1 }}
+          >
+            <View style={styles.pin} collapsable={false}>
+              <Ionicons name="location-sharp" size={34} color="#15966F" />
+            </View>
+          </Mapbox.PointAnnotation>
+        )}
+        {destinationCoordinate && (
+          <Mapbox.PointAnnotation
+            id="dispatch-destination-pin"
+            coordinate={destinationCoordinate}
+            title={isReturning ? 'Destination: terminal' : 'Destination: route end'}
+            anchor={{ x: 0.5, y: 1 }}
+          >
+            <View style={styles.pin} collapsable={false}>
+              <Ionicons name="location-sharp" size={34} color="#D9544D" />
+            </View>
+          </Mapbox.PointAnnotation>
         )}
         {location && (
           <Mapbox.ShapeSource
@@ -71,6 +141,7 @@ const styles = StyleSheet.create({
   container: { height: 250, marginTop: 12, overflow: 'hidden', borderRadius: 12, borderWidth: 1, borderColor: '#168F79' },
   fullScreenContainer: { flex: 1, height: undefined, marginTop: 0, borderRadius: 0, borderWidth: 0 },
   map: { flex: 1 },
+  pin: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
   label: { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(4, 47, 46, 0.88)' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#41EA43' },
   labelText: { color: '#E7FFFB', fontSize: 11, fontWeight: '700' },

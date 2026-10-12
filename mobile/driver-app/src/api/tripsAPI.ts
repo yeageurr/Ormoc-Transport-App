@@ -15,6 +15,7 @@ export interface Trip {
 export interface DriverTrip extends Trip {
   vehicle_plate: string | null;
   route_label: string | null;
+  route_distance_km: number | null;
 }
 
 export interface DriverDailySummary {
