@@ -147,3 +147,4 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,.5)' },
   sheet: { backgroundColor: '#061C35', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 22, alignItems: 'center' }, handle: { width: 82, height: 5, borderRadius: 3, backgroundColor: '#8293A3', marginBottom: 22 }, sheetTitle: { color: '#FFF', fontSize: 20, fontWeight: '700', marginTop: 8 }, sheetText: { color: '#BED1DC', fontSize: 12, marginTop: 6 }, confirmButton: { height: 46, alignSelf: 'stretch', backgroundColor: '#25B596', borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 22 }, confirmText: { color: '#003C38', fontWeight: '800', fontSize: 15 }, cancelButton: { height: 43, justifyContent: 'center' }, cancelText: { color: '#C4E8E3', fontWeight: '700' },
 });
+2
