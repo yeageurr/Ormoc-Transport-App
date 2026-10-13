@@ -1,7 +1,7 @@
 import secrets
 import string
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
@@ -12,6 +12,7 @@ from app.core.security import hash_password
 from app.core.permissions import require_role
 from app.services.account_service import generate_account_code, generate_driver_id
 from app.enums import AccountRole, AccountStatus
+from app.services.account_activity_email import notify_admin_user_created, notify_driver_profile_updated
 
 router = APIRouter()
 
@@ -75,6 +76,7 @@ def create_driver(
     db, current_admin.account_id, AuditAction.CREATE, "users", driver.user_id,
     f"Created driver account for {payload.first_name} {payload.last_name} ({payload.contact_number})",
   )
+  notify_admin_user_created(current_admin)
 
   # In a real deployment this would be relayed to the admin creating the
   # account (e.g. displayed once in the UI), not returned in the API response.
@@ -133,18 +135,18 @@ async def reactivate_driver(
   db: Session = Depends(get_db),
   current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
-  """Counterpart to suspend — flips a suspended driver back to active.
-  Matches the Active/Suspended toggle in the Users table mockup."""
+  """Reactivate a suspended or disabled driver account."""
   driver = db.query(User).filter(User.user_id == user_id).first()
   if driver is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
 
-  if driver.account.status != AccountStatus.SUSPENDED:
+  if driver.account.status not in (AccountStatus.SUSPENDED, AccountStatus.DISABLED):
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail=f"Driver is currently '{driver.account.status.value}', not suspended — nothing to reactivate",
+      detail=f"Driver is currently '{driver.account.status.value}', not suspended or disabled — nothing to reactivate",
     )
 
+  previous_status = driver.account.status.value
   driver.account.status = AccountStatus.ACTIVE
   db.commit()
 
@@ -152,7 +154,7 @@ async def reactivate_driver(
   from app.enums import AuditAction
   log_action(
     db, current_admin.account_id, AuditAction.UPDATE, "accounts", driver.account_id,
-    f"Reactivated driver account for {driver.first_name} {driver.last_name}",
+    f"Reactivated driver account for {driver.first_name} {driver.last_name} (was {previous_status})",
   )
 
   from app.routers.notifications import send_targeted_notification
@@ -169,6 +171,7 @@ async def reactivate_driver(
 def admin_update_driver(
   user_id: int,
   payload: DriverAdminUpdate,
+  request: Request,
   db: Session = Depends(get_db),
   current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
@@ -180,6 +183,8 @@ def admin_update_driver(
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
 
   update_data = payload.model_dump(exclude_unset=True)
+  old_emails = (driver.email, driver.account.email)
+  profile_changed = any(getattr(driver, field) != value for field, value in update_data.items())
 
   if "contact_number" in update_data and update_data["contact_number"] != driver.contact_number:
     existing = db.query(Account).filter(Account.username == update_data["contact_number"]).first()
@@ -194,6 +199,8 @@ def admin_update_driver(
 
   for field, value in update_data.items():
     setattr(driver, field, value)
+  if "email" in update_data:
+    driver.account.email = update_data["email"]
 
   db.commit()
   db.refresh(driver)
@@ -204,6 +211,8 @@ def admin_update_driver(
     db, current_admin.account_id, AuditAction.UPDATE, "users", driver.user_id,
     f"Updated driver profile for {driver.first_name} {driver.last_name}",
   )
+  if profile_changed:
+    notify_driver_profile_updated((*old_emails, driver.email, driver.account.email), request)
 
   return driver
 

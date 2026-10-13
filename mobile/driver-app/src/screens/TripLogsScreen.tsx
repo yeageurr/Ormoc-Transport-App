@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
@@ -88,6 +88,7 @@ function formatDuration(minutes: number | null) {
 export default function TripLogsScreen() {
   const [trips, setTrips] = useState<DriverTrip[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -95,8 +96,8 @@ export default function TripLogsScreen() {
     () => getManilaDateParts(new Date()),
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     setError(false);
     try {
       setTrips(await getTripLogs());
@@ -108,6 +109,12 @@ export default function TripLogsScreen() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  const refreshTrips = useCallback(async () => {
+    setRefreshing(true);
+    await load(false);
+    setRefreshing(false);
+  }, [load]);
 
   const { today, yesterday } = getRelativeDateKeys();
   const groups = useMemo(() => {
@@ -166,7 +173,18 @@ export default function TripLogsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refreshTrips()}
+            tintColor="#009E91"
+            colors={['#009E91']}
+          />
+        )}
+      >
         {loading ? (
           <View style={styles.state}><ActivityIndicator color="#009E91" /><Text style={styles.stateText}>Loading your trip history…</Text></View>
         ) : error ? (

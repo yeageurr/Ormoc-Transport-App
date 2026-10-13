@@ -6,15 +6,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { changePassword } from '@/api/profileAPI';
 
+const passwordRequirement = 'New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.';
+const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
 export default function ChangePasswordScreen() {
   const router = useRouter();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [currentTouched, setCurrentTouched] = useState(false);
+  const [nextTouched, setNextTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  const [validationAttempted, setValidationAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
   const dirty = Boolean(current || next || confirm);
   const passwordsMatch = Boolean(next && confirm && next === confirm);
   const passwordsDiffer = Boolean(next && confirm && next !== confirm);
+  const currentError = (currentTouched || validationAttempted) && !current ? 'Enter your current password.' : undefined;
+  const nextError = (nextTouched || validationAttempted)
+    ? !next ? 'Enter a new password.' : !passwordPattern.test(next) ? passwordRequirement : undefined
+    : undefined;
+  const confirmError = (confirmTouched || validationAttempted)
+    ? !confirm ? 'Confirm your new password.' : next !== confirm ? 'Passwords do not match.' : undefined
+    : undefined;
 
   const leave = () => {
     if (!dirty) {
@@ -28,14 +42,8 @@ export default function ChangePasswordScreen() {
   };
 
   const save = async () => {
-    if (!current || !next || !confirm) {
-      Alert.alert('Complete all fields', 'Enter your current password and both new password fields.');
-      return;
-    }
-    if (next !== confirm) {
-      Alert.alert('Passwords do not match.');
-      return;
-    }
+    setValidationAttempted(true);
+    if (!current || !next || !confirm || next !== confirm || !passwordPattern.test(next)) return;
 
     setSaving(true);
     try {
@@ -44,7 +52,20 @@ export default function ChangePasswordScreen() {
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (error: any) {
-      Alert.alert('Unable to update password', error?.response?.data?.detail ?? 'Please check your current password and try again.');
+      const responseData = error?.response?.data;
+      const validationErrors = responseData?.error?.details;
+      const validationMessage = Array.isArray(validationErrors)
+        ? validationErrors.map((item: { field?: string; message?: string }) =>
+            [item.field, item.message].filter(Boolean).join(': '),
+          ).join('\n')
+        : null;
+      Alert.alert(
+        'Unable to update password',
+        validationMessage
+          || responseData?.detail
+          || responseData?.error?.message
+          || 'Please check your current password and try again.',
+      );
     } finally {
       setSaving(false);
     }
@@ -59,10 +80,11 @@ export default function ChangePasswordScreen() {
           <Text style={styles.title}>Change Password</Text>
         </Pressable>
         <Text style={styles.subtitle}>For your security, choose a password you haven’t used before.</Text>
+        <Text style={styles.requirement}>{passwordRequirement}</Text>
 
-        <PasswordField label="Current password" value={current} onChangeText={setCurrent} />
-        <PasswordField label="New password" value={next} onChangeText={setNext} />
-        <PasswordField label="Confirm new password" value={confirm} onChangeText={setConfirm} />
+        <PasswordField label="Current password" value={current} onChangeText={(value) => { setCurrent(value); setCurrentTouched(true); }} error={currentError} />
+        <PasswordField label="New password" value={next} onChangeText={(value) => { setNext(value); setNextTouched(true); }} error={nextError} />
+        <PasswordField label="Confirm new password" value={confirm} onChangeText={(value) => { setConfirm(value); setConfirmTouched(true); }} error={confirmError} />
 
         {passwordsMatch ? (
           <View style={styles.matchBanner}>
@@ -85,12 +107,12 @@ export default function ChangePasswordScreen() {
   );
 }
 
-function PasswordField({ label, value, onChangeText }: { label: string; value: string; onChangeText: (value: string) => void }) {
+function PasswordField({ label, value, onChangeText, error }: { label: string; value: string; onChangeText: (value: string) => void; error?: string }) {
   const [visible, setVisible] = useState(false);
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.fieldRow}>
+      <View style={[styles.fieldRow, Boolean(error) && styles.fieldRowError]}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -103,6 +125,7 @@ function PasswordField({ label, value, onChangeText }: { label: string; value: s
           <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={17} color="#59686D" />
         </Pressable>
       </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
     </View>
   );
 }
@@ -112,11 +135,14 @@ const styles = StyleSheet.create({
   content: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 13, paddingBottom: 15 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   title: { color: '#25343A', fontSize: 17, fontWeight: '700' },
-  subtitle: { maxWidth: 285, marginTop: 6, marginBottom: 17, color: '#394A50', fontSize: 10, lineHeight: 14 },
+  subtitle: { maxWidth: 285, marginTop: 6, marginBottom: 26, color: '#394A50', fontSize: 11, lineHeight: 14 },
+  requirement: { marginTop: -10, marginBottom: 20, color: '#52636A', fontSize: 11, lineHeight: 14, fontWeight: '500' },
   fieldWrap: { marginBottom: 14 },
-  fieldLabel: { marginBottom: 5, color: '#33454B', fontSize: 9, letterSpacing: 2 },
+  fieldLabel: { marginBottom: 5, color: '#33454B', fontSize: 11, letterSpacing: 2, fontWeight: '500' },
   fieldRow: { height: 41, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#B9C5CE', borderRadius: 5, paddingHorizontal: 10, backgroundColor: '#FFFFFF' },
-  field: { flex: 1, height: '100%', color: '#303B40', padding: 0, fontSize: 11 },
+  fieldRowError: { borderColor: '#D98282' },
+  field: { flex: 1, height: '100%', color: '#101010', padding: 0, fontSize: 12, fontFamily: 'Poppins_400Regular', letterSpacing: 1 },
+  fieldError: { marginTop: 3, color: '#B65C5C', fontSize: 10, lineHeight: 14 },
   matchBanner: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 1, borderRadius: 5, paddingHorizontal: 10, backgroundColor: '#B9F69B' },
   matchText: { color: '#164D2D', fontSize: 9, fontWeight: '600' },
   mismatchBanner: { backgroundColor: '#F8D2C8' },

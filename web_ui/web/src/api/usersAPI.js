@@ -34,7 +34,7 @@ export const suspendDriver = async (userId) => {
   return response.data;
 };
 
-// Admin: reactivate a previously suspended driver
+// Admin: reactivate a previously suspended or disabled driver
 export const reactivateDriver = async (userId) => {
   const response = await axiosClient.patch(`/accounts/drivers/${userId}/reactivate`);
   return response.data;

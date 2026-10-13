@@ -3,17 +3,29 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.account import Account
-from app.schemas.auth import ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, ResetPasswordRequest
+from app.models.user import User
+from app.models.password_reset_otp import PasswordResetOtp
+from app.schemas.auth import (
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  LoginRequest,
+  PasswordResetCodeRequest,
+  PasswordResetCodeVerify,
+  PasswordResetComplete,
+  ResetPasswordRequest,
+)
 from app.core.security import verify_password, hash_password, create_access_token
 from app.core.permissions import get_current_account
-from app.enums import AccountStatus, AuditAction
+from app.enums import AccountRole, AccountStatus, AuditAction
 from app.services.audit_service import log_action
-from app.services.email_service import EmailDeliveryError, send_password_reset_email
+from app.services.email_service import EmailDeliveryError, send_password_reset_code, send_password_reset_email
+from app.services.account_activity_email import notify_password_changed
 
 router = APIRouter()
 
@@ -86,6 +98,169 @@ def logout(response: Response):
   return {"detail": "Logged out successfully"}
 
 
+@router.post("/password-reset/request-code")
+def request_password_reset_code(payload: PasswordResetCodeRequest, db: Session = Depends(get_db)):
+  email = str(payload.email).strip().lower()
+  accounts = (
+    db.query(Account)
+    .join(User, User.account_id == Account.account_id)
+    .filter(
+      Account.role == AccountRole.DRIVER,
+      or_(func.lower(Account.email) == email, func.lower(User.email) == email),
+    )
+    .all()
+  )
+  if not accounts:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No driver account is registered with this email address")
+  if len(accounts) > 1:
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email is linked to multiple driver accounts. Contact the terminal administrator.")
+
+  account = accounts[0]
+  verification = db.query(PasswordResetOtp).filter(PasswordResetOtp.account_id == account.account_id).first()
+  now = datetime.now(timezone.utc)
+  if verification is not None:
+    last_sent = verification.last_sent_at
+    if last_sent.tzinfo is None:
+      last_sent = last_sent.replace(tzinfo=timezone.utc)
+    if now - last_sent < timedelta(seconds=60):
+      raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait before requesting another code")
+
+  code = f"{secrets.randbelow(900000) + 100000:06d}"
+  salt = secrets.token_hex(16)
+  if verification is None:
+    verification = PasswordResetOtp(account_id=account.account_id, target_email=email)
+    db.add(verification)
+  verification.target_email = email
+  verification.code_salt = salt
+  verification.code_hash = hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
+  verification.expires_at = now + timedelta(minutes=10)
+  verification.attempts = 0
+  verification.last_sent_at = now
+  verification.reset_token_hash = None
+  verification.reset_token_expires_at = None
+  try:
+    send_password_reset_code(verification.target_email, code)
+  except EmailDeliveryError as exc:
+    db.rollback()
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Password reset email is temporarily unavailable") from exc
+  db.commit()
+  return {"detail": "A 6-digit password reset code was sent to your email address"}
+
+
+@router.post("/password-reset/resend-code")
+def resend_password_reset_code(payload: PasswordResetCodeRequest, db: Session = Depends(get_db)):
+  email = str(payload.email).strip().lower()
+  verification = (
+    db.query(PasswordResetOtp)
+    .join(Account, Account.account_id == PasswordResetOtp.account_id)
+    .filter(
+      Account.role == AccountRole.DRIVER,
+      func.lower(PasswordResetOtp.target_email) == email,
+    )
+    .first()
+  )
+  if verification is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active password reset request for this email")
+
+  now = datetime.now(timezone.utc)
+  last_sent = verification.last_sent_at
+  if last_sent.tzinfo is None:
+    last_sent = last_sent.replace(tzinfo=timezone.utc)
+  if now - last_sent < timedelta(seconds=60):
+    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait before requesting another code")
+
+  code = f"{secrets.randbelow(900000) + 100000:06d}"
+  salt = secrets.token_hex(16)
+  verification.code_salt = salt
+  verification.code_hash = hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
+  verification.expires_at = now + timedelta(minutes=10)
+  verification.attempts = 0
+  verification.last_sent_at = now
+  verification.reset_token_hash = None
+  verification.reset_token_expires_at = None
+  try:
+    send_password_reset_code(verification.target_email, code)
+  except EmailDeliveryError as exc:
+    db.rollback()
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Password reset email is temporarily unavailable") from exc
+  db.commit()
+  return {"detail": "A new password reset code was sent"}
+
+
+@router.post("/password-reset/verify-code")
+def verify_password_reset_code(payload: PasswordResetCodeVerify, db: Session = Depends(get_db)):
+  email = str(payload.email).strip().lower()
+  verification = (
+    db.query(PasswordResetOtp)
+    .join(Account, Account.account_id == PasswordResetOtp.account_id)
+    .filter(
+      Account.role == AccountRole.DRIVER,
+      func.lower(PasswordResetOtp.target_email) == email,
+    )
+    .first()
+  )
+  if verification is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active password reset request for this email")
+
+  now = datetime.now(timezone.utc)
+  expires_at = verification.expires_at
+  if expires_at.tzinfo is None:
+    expires_at = expires_at.replace(tzinfo=timezone.utc)
+  if expires_at <= now:
+    db.delete(verification)
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That code has expired. Request a new code.")
+  if verification.attempts >= 5:
+    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many incorrect codes. Request a new code.")
+
+  submitted_hash = hashlib.sha256(f"{verification.code_salt}:{payload.code}".encode()).hexdigest()
+  if not secrets.compare_digest(submitted_hash, verification.code_hash):
+    verification.attempts += 1
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That code is incorrect")
+
+  reset_token = secrets.token_urlsafe(32)
+  verification.reset_token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
+  verification.reset_token_expires_at = now + timedelta(minutes=10)
+  db.commit()
+  return {"reset_token": reset_token}
+
+
+@router.post("/password-reset/complete")
+def complete_password_reset(payload: PasswordResetComplete, request: Request, response: Response, db: Session = Depends(get_db)):
+  if payload.new_password != payload.confirm_password:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password and confirmation do not match")
+
+  token_hash = hashlib.sha256(payload.reset_token.encode()).hexdigest()
+  verification = db.query(PasswordResetOtp).filter(PasswordResetOtp.reset_token_hash == token_hash).first()
+  expires_at = verification.reset_token_expires_at if verification else None
+  if expires_at is not None and expires_at.tzinfo is None:
+    expires_at = expires_at.replace(tzinfo=timezone.utc)
+  if verification is None or expires_at is None or expires_at <= datetime.now(timezone.utc):
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password reset verification expired. Request a new code.")
+
+  account = db.query(Account).filter(
+    Account.account_id == verification.account_id,
+    Account.role == AccountRole.DRIVER,
+  ).first()
+  if account is None:
+    db.delete(verification)
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver account not found")
+
+  recipient = verification.target_email
+  account.password_hash = hash_password(payload.new_password)
+  account.must_change_password = False
+  account.password_reset_token_hash = None
+  account.password_reset_expires_at = None
+  db.delete(verification)
+  db.commit()
+  log_action(db, account.account_id, AuditAction.UPDATE, "accounts", account.account_id, "Reset driver password with email OTP")
+  notify_password_changed(account, request, recipient)
+  response.delete_cookie(key="access_token", path="/")
+  return {"detail": "Password reset successfully. Please sign in with your new password."}
+
+
 @router.post("/forgot-password")
 def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
   """Send a reset link without revealing whether the email is registered."""
@@ -116,7 +291,7 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
 
 
 @router.post("/reset-password")
-def reset_password(payload: ResetPasswordRequest, response: Response, db: Session = Depends(get_db)):
+def reset_password(payload: ResetPasswordRequest, request: Request, response: Response, db: Session = Depends(get_db)):
   if payload.new_password != payload.confirm_password:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
@@ -146,6 +321,7 @@ def reset_password(payload: ResetPasswordRequest, response: Response, db: Sessio
     account.account_id,
     "Reset account password by email verification",
   )
+  notify_password_changed(account, request)
   response.delete_cookie(key="access_token", path="/")
   return {"detail": "Password reset successfully. Please sign in with your new password."}
 
@@ -153,6 +329,7 @@ def reset_password(payload: ResetPasswordRequest, response: Response, db: Sessio
 @router.post("/change-password")
 def change_password(
   payload: ChangePasswordRequest,
+  request: Request,
   response: Response,
   db: Session = Depends(get_db),
   current_account: Account = Depends(get_current_account),
@@ -181,6 +358,7 @@ def change_password(
     current_account.account_id,
     "Changed account password",
   )
+  notify_password_changed(current_account, request)
 
   # End the current browser session. The UI then explicitly directs the user
   # to sign in again, which issues a fresh authentication cookie/JWT.

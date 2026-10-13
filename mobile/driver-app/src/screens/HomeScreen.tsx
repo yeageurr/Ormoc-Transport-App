@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
@@ -15,15 +15,16 @@ type GpsStatus = 'checking' | 'connected' | 'unavailable' | 'denied';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { fullName } = useAuth();
+  const { fullName, refreshUser } = useAuth();
   const [trips, setTrips] = useState<DriverTrip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(true);
   const [tripError, setTripError] = useState(false);
   const [currentDispatch, setCurrentDispatch] = useState<CurrentDispatch | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('checking');
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadTrips = useCallback(async () => {
-    setIsLoadingTrips(true);
+  const loadTrips = useCallback(async (showLoader = true) => {
+    if (showLoader) setIsLoadingTrips(true);
     setTripError(false);
     try {
       setTrips(await getTripLogs());
@@ -59,6 +60,17 @@ export default function HomeScreen() {
       setGpsStatus('unavailable');
     }
   }, []);
+
+  const refreshHome = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadTrips(false),
+      loadCurrentDispatch(),
+      checkGpsStatus(),
+      refreshUser().catch(() => undefined),
+    ]);
+    setRefreshing(false);
+  }, [checkGpsStatus, loadCurrentDispatch, loadTrips, refreshUser]);
 
   const handleGpsPress = useCallback(() => {
     if (gpsStatus === 'denied') {
@@ -97,7 +109,18 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refreshHome()}
+            tintColor="#137B70"
+            colors={['#137B70']}
+          />
+        )}
+      >
         <View style={styles.header}>
           <View style={styles.topBar}>
             <View style={styles.greetingCopy}>

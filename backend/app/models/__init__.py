@@ -12,6 +12,8 @@ from app.models.incident_log import Incident
 from app.models.notification import Notification, BroadcastNotification
 from app.models.geofence_event import GeofenceEvent
 from app.models.audit_log import AuditLog
+from app.models.email_verification import EmailVerification
+from app.models.password_reset_otp import PasswordResetOtp
 
 __all__ = [
   "Account",
@@ -29,4 +31,6 @@ __all__ = [
   "BroadcastNotification",
   "GeofenceEvent",
   "AuditLog",
+  "EmailVerification",
+  "PasswordResetOtp",
 ]

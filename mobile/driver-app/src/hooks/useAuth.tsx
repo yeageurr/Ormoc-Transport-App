@@ -15,6 +15,7 @@ interface AuthContextValue {
   isLoading: boolean;
   fullName: string | null;
   signIn: (fullName?: string | null) => void;
+  refreshUser: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -29,14 +30,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [fullName, setFullName] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState<string | null>(null);
 
   const signOut = useCallback(async () => {
     await logoutDriverRequest();
-    setFirstName(null);
     setFullName(null);
     setIsAuthenticated(false);
   }, []);
+
+  const refreshUser = useCallback(async () => {
+    try {
+      const user = await getCurrentUser();
+      const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+      setFullName(name || null);
+    } catch (error) {
+      if (isSessionRevoked(error)) {
+        await signOut();
+      }
+      throw error;
+    }
+  }, [signOut]);
 
   useEffect(() => {
     let mounted = true;
@@ -51,7 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) setIsAuthenticated(true);
       try {
         const user = await getCurrentUser();
-        if (mounted) setFullName(`${user.first_name} ${user.last_name}`);
+        if (mounted) {
+          const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+          setFullName(name || null);
+        }
       } catch (error) {
         if (isSessionRevoked(error)) {
           await signOut();
@@ -70,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signOut]);
 
   const signIn = (name?: string | null) => {
-    setFirstName(name ?? null);
+    setFullName(name ?? null);
     setIsAuthenticated(true);
   };
 
@@ -81,12 +96,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const checkAccountStatus = async () => {
       try {
-        const user = await getCurrentUser();
-        setFirstName(user.first_name);
-      } catch (error) {
-        if (isSessionRevoked(error)) {
-          await signOut();
-        }
+        await refreshUser();
+      } catch {
+        // Keep the session through temporary connectivity failures.
       }
     };
 
@@ -104,10 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearInterval(interval);
       appStateSubscription.remove();
     };
-  }, [isAuthenticated, signOut]);
+  }, [isAuthenticated, refreshUser]);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, fullName, signIn, signOut }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, fullName, signIn, refreshUser, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -15,8 +16,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { loginDriver } from '../api/authAPI';
 import { useAuth } from '@/hooks/useAuth'; 
+import Animated, { FadeInDown } from 'react-native-reanimated';
+
+const entrance = (delay: number) => FadeInDown.duration(460).delay(delay);
 
 export default function LoginScreen() {
+  const router = useRouter();
   const { signIn } = useAuth();
 
   const [username, setUsername] = useState<string>('');
@@ -70,78 +75,90 @@ export default function LoginScreen() {
       />
 
       <View style={styles.headerBlock}>
-        <Text style={styles.title}>Login</Text>
-        <View style={styles.titleUnderline} />
-        <Text style={styles.subtitle}>ART Fusion Driver</Text>
+        <Animated.View entering={entrance(540)}>
+          <Text style={styles.title}>Login</Text>
+        </Animated.View>
+        <Animated.View entering={entrance(450)} style={styles.titleUnderline} />
+        <Animated.View entering={entrance(360)}>
+          <Text style={styles.subtitle}>ART Fusion Driver</Text>
+        </Animated.View>
       </View>
 
       <View style={styles.card}>
-        <View style={styles.inputWrapper}>
-          <Ionicons name="person-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Username"
-            placeholderTextColor="#7FA8A4"
-            autoCapitalize="none"
-            autoCorrect={false}
-            value={username}
-            onChangeText={setUsername}
-            returnKeyType="next"
-          />
-        </View>
-
-        <View style={styles.inputWrapper}>
-          <Ionicons name="key-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor="#7FA8A4"
-            secureTextEntry={!showPassword}
-            autoCapitalize='none'
-            autoCorrect={false}
-            value={password}
-            onChangeText={setPassword}
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-          />
-          <Pressable
-            onPress={() => setShowPassword((v) => !v)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={styles.eyeButton}
-          >
-            <Ionicons
-              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={20}
-              color="#8FD9D3"
+        <Animated.View entering={entrance(270)}>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="person-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Username"
+              placeholderTextColor="#7FA8A4"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={username}
+              onChangeText={setUsername}
+              returnKeyType="next"
             />
-          </Pressable>
-        </View>
+          </View>
+        </Animated.View>
+
+        <Animated.View entering={entrance(180)}>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="key-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#7FA8A4"
+              secureTextEntry={!showPassword}
+              autoCapitalize='none'
+              autoCorrect={false}
+              value={password}
+              onChangeText={setPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+            />
+            <Pressable
+              onPress={() => setShowPassword((v) => !v)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={styles.eyeButton}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#8FD9D3"
+              />
+            </Pressable>
+          </View>
+        </Animated.View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <Pressable
-          onPress={() => {}}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={styles.forgotWrapper}
-        >
-          <Text style={styles.forgotText}>Forgot Password?</Text>
-        </Pressable>
+        <Animated.View entering={entrance(90)}>
+          <Pressable
+            onPress={() => router.push('/forgot-password')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={styles.forgotWrapper}
+          >
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </Pressable>
+        </Animated.View>
 
-        <Pressable
-          onPress={handleLogin}
-          disabled={loading}
-          style={({ pressed }) => [
-            styles.loginButton,
-            pressed && styles.loginButtonPressed,
-            loading && styles.loginButtonDisabled,
-          ]}
-        >
-          {loading ? (
-            <ActivityIndicator color="#042F2E" />
-          ) : (
-            <Text style={styles.loginButtonText}>Login</Text>
-          )}
-        </Pressable>
+        <Animated.View entering={entrance(0)}>
+          <Pressable
+            onPress={handleLogin}
+            disabled={loading}
+            style={({ pressed }) => [
+              styles.loginButton,
+              pressed && styles.loginButtonPressed,
+              loading && styles.loginButtonDisabled,
+            ]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#042F2E" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
+          </Pressable>
+        </Animated.View>
       </View>
     </KeyboardAvoidingView>
   );

@@ -1,5 +1,7 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, EmailStr
+import re
+
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.enums import AccountStatus, AccountRole
 
@@ -46,11 +48,35 @@ class UserResponse(UserBase):
 
 
 class UserUpdate(BaseModel):
-  """Driver editing their own profile — phone number intentionally
-  excluded since it's the login username and locked from self-edit."""
+  """Driver self-edit. Changing the login phone or email requires current-password verification."""
   first_name: str | None = None
   last_name: str | None = None
   email: EmailStr | None = None
+  contact_number: str | None = None
+  current_password: str | None = None
+
+  @field_validator("contact_number")
+  @classmethod
+  def validate_contact_number(cls, value: str | None) -> str | None:
+    if value is not None and not re.fullmatch(r"\d{11}", value):
+      raise ValueError("Contact number must be exactly 11 digits")
+    return value
+
+
+class UserUpdateResponse(UserResponse):
+  email_verification_pending: bool = False
+  pending_email: EmailStr | None = None
+
+
+class EmailOtpVerify(BaseModel):
+  code: str
+
+  @field_validator("code")
+  @classmethod
+  def validate_code(cls, value: str) -> str:
+    if not re.fullmatch(r"\d{6}", value):
+      raise ValueError("Code must be exactly 6 digits")
+    return value
 
 
 class DriverAdminUpdate(BaseModel):

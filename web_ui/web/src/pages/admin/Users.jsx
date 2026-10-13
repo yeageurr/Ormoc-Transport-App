@@ -4,7 +4,6 @@ import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/ui/PageHeader";
 import AddUserModal from "../../components/modals/AddUserModal";
 import UserActionConfirmModal from "../../components/modals/UserActionConfirmModal";
-import EditUserModal from "../../components/modals/EditUserModal";
 import Toast from "../../components/ui/Toast";
 import {
   getDrivers,
@@ -12,7 +11,7 @@ import {
   reactivateDriver,
   deleteDriver,
 } from "../../api/usersAPI";
-import { Edit3, Power, RotateCcw, Trash2 } from 'lucide-react';
+import { Power, RotateCcw, Trash2 } from 'lucide-react';
 import { AdminSearchField, adminCreateButtonClassName, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 import setTitle from "../../components/pageTitle";
 
@@ -30,7 +29,6 @@ export default function Users() {
   const [actioningId, setActioningId] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
   const [toast, setToast] = useState(null);
-  const [editingDriver, setEditingDriver] = useState(null);
 
   const UserAccountStatus = [
     { value: "all", label: "All Status" },
@@ -111,7 +109,6 @@ export default function Users() {
   };
 
   return (
-
       <>
         <Toast toast={toast} onDismiss={() => setToast(null)} />
         <PageHeader title={"Users"}/>
@@ -132,7 +129,6 @@ export default function Users() {
               >
                 {label}
               </option>
-
             ))}
           </select>
           <button 
@@ -180,16 +176,13 @@ export default function Users() {
                     <td className="px-5 py-3">{statusBadge(driver.account?.status)}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <button title="Edit User" aria-label="Edit User" disabled={driver.account?.status === "disabled"} className="rounded-lg p-1.5 text-[#5DCAA5] hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30" onClick={() => setEditingDriver(driver)}><Edit3 size={15} /></button>
-                        {driver.account?.status !== "disabled" && (
-                          <button
-                            title={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
-                            aria-label={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
-                            className="rounded-lg p-1.5 text-[#F0B55B] hover:bg-white/10 disabled:opacity-40"
-                            disabled={actioningId === driver.user_id}
-                            onClick={() => setPendingAction({ type: driver.account?.status === "active" ? "suspend" : "reactivate", driver })}
-                          >{driver.account?.status === "active" ? <Power size={15} /> : <RotateCcw size={15} />}</button>
-                        )}
+                        <button
+                          title={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
+                          aria-label={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
+                          className="rounded-lg p-1.5 text-[#F0B55B] hover:bg-white/10 disabled:opacity-40"
+                          disabled={actioningId === driver.user_id}
+                          onClick={() => setPendingAction({ type: driver.account?.status === "active" ? "suspend" : "reactivate", driver })}
+                        >{driver.account?.status === "active" ? <Power size={15} /> : <RotateCcw size={15} />}</button>
                         <button
                           title="Disable User"
                           aria-label="Disable User"
@@ -233,7 +226,6 @@ export default function Users() {
           onClose={() => !actioningId && setPendingAction(null)}
           onConfirm={handleConfirmedAction}
         />
-        {editingDriver && <EditUserModal driver={editingDriver} onClose={() => setEditingDriver(null)} onSuccess={async (driver) => { await loadDrivers(); setEditingDriver(null); showToast("success", `${driver.first_name} ${driver.last_name} was updated successfully.`); }} onError={(message) => showToast("error", message)} />}
       </>
   );
 }

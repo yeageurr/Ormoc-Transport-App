@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -25,10 +26,11 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [dispatch, setDispatch] = useState<CurrentDispatch | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
 
-  const loadProfile = useCallback(async () => {
-    setLoading(true);
+  const loadProfile = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
 
     const [profileResult, dispatchResult] = await Promise.all([
       getMyProfile().catch(() => null),
@@ -42,6 +44,12 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     void loadProfile();
+  }, [loadProfile]);
+
+  const refreshProfile = useCallback(async () => {
+    setRefreshing(true);
+    await loadProfile(false);
+    setRefreshing(false);
   }, [loadProfile]);
 
   const fullName = profile
@@ -63,7 +71,17 @@ export default function ProfileScreen() {
         <NotificationBell />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refreshProfile()}
+            tintColor="#26BEAD"
+            colors={['#26BEAD']}
+          />
+        )}
+      >
         {loading ? (
           <ActivityIndicator style={styles.loader} color="#009E91" />
         ) : (
@@ -189,7 +207,7 @@ function LogoutModal({ visible, onClose, onConfirm }: LogoutModalProps) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#D3DEE9' },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, borderBottomLeftRadius: 15, borderBottomRightRadius: 15, backgroundColor: '#075E56' },
-  content: { paddingHorizontal: 17, paddingTop: 14, paddingBottom: 20 },
+  content: { flexGrow: 1, paddingHorizontal: 17, paddingTop: 14, paddingBottom: 20 },
   title: { color: '#FFFFFF', fontSize: 23, fontFamily: 'Poppins_500Medium' },
   loader: { marginTop: 70 },
   identity: { flexDirection: 'row', alignItems: 'center', gap: 11, marginTop: 17, marginBottom: 14, paddingHorizontal: 9 },
