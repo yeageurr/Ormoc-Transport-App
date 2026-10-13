@@ -25,7 +25,7 @@ class User(Base):
   first_name: Mapped[str] = mapped_column(String(50), nullable=False)
   last_name: Mapped[str] = mapped_column(String(50), nullable=False)
   contact_number: Mapped[str] = mapped_column(String(11), unique=True, nullable=False)
-  email: Mapped[str | None] = mapped_column(String(25), unique=True)
+  email: Mapped[str | None] = mapped_column(String(255), unique=True)
   license_num: Mapped[str] = mapped_column(String(13), unique=True, nullable=False)
   license_expiry: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

@@ -2,7 +2,7 @@ import { AlertTriangle, X } from "lucide-react";
 
 const actionCopy = {
   suspend: { title: "Suspend user?", detail: "They will not be able to sign in until their account is reactivated.", confirm: "Suspend" },
-  reactivate: { title: "Reactivate user?", detail: "They will be able to sign in again immediately.", confirm: "Reactivate" },
+  reactivate: { title: "Reactivate user?", detail: "This will restore the account to active so they can sign in again.", confirm: "Reactivate" },
   delete: { title: "Disable user?", detail: "This preserves their trip history but permanently blocks sign-in.", confirm: "Disable" },
 };
 

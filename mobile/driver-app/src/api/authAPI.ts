@@ -52,6 +52,31 @@ export async function loginDriver(
   return response.data;
 }
 
+export async function requestPasswordResetCode(email: string): Promise<void> {
+  await authClient.post('/auth/password-reset/request-code', { email });
+}
+
+export async function resendPasswordResetCode(email: string): Promise<void> {
+  await authClient.post('/auth/password-reset/resend-code', { email });
+}
+
+export async function verifyPasswordResetCode(email: string, code: string): Promise<string> {
+  const { data } = await authClient.post<{ reset_token: string }>('/auth/password-reset/verify-code', { email, code });
+  return data.reset_token;
+}
+
+export async function completePasswordReset(
+  resetToken: string,
+  newPassword: string,
+  confirmPassword: string,
+): Promise<void> {
+  await authClient.post('/auth/password-reset/complete', {
+    reset_token: resetToken,
+    new_password: newPassword,
+    confirm_password: confirmPassword,
+  });
+}
+
 /** Reads the stored JWT, if any (e.g. for an app-launch auth check). */
 export async function getStoredToken(): Promise<string | null> {
   return SecureStore.getItemAsync(TOKEN_KEY);

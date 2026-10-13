@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { useRouter } from 'expo-router';
 import {
   View,
   Text,
@@ -20,6 +21,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 const entrance = (delay: number) => FadeInDown.duration(460).delay(delay);
 
 export default function LoginScreen() {
+  const router = useRouter();
   const { signIn } = useAuth();
 
   const [username, setUsername] = useState<string>('');
@@ -73,11 +75,11 @@ export default function LoginScreen() {
       />
 
       <View style={styles.headerBlock}>
-        <Animated.View entering={entrance(0)}>
+        <Animated.View entering={entrance(540)}>
           <Text style={styles.title}>Login</Text>
         </Animated.View>
-        <Animated.View entering={entrance(90)} style={styles.titleUnderline} />
-        <Animated.View entering={entrance(180)}>
+        <Animated.View entering={entrance(450)} style={styles.titleUnderline} />
+        <Animated.View entering={entrance(360)}>
           <Text style={styles.subtitle}>ART Fusion Driver</Text>
         </Animated.View>
       </View>
@@ -99,7 +101,7 @@ export default function LoginScreen() {
           </View>
         </Animated.View>
 
-        <Animated.View entering={entrance(360)}>
+        <Animated.View entering={entrance(180)}>
           <View style={styles.inputWrapper}>
             <Ionicons name="key-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
             <TextInput
@@ -130,9 +132,9 @@ export default function LoginScreen() {
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <Animated.View entering={entrance(450)}>
+        <Animated.View entering={entrance(90)}>
           <Pressable
-            onPress={() => {}}
+            onPress={() => router.push('/forgot-password')}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={styles.forgotWrapper}
           >
@@ -140,7 +142,7 @@ export default function LoginScreen() {
           </Pressable>
         </Animated.View>
 
-        <Animated.View entering={entrance(540)}>
+        <Animated.View entering={entrance(0)}>
           <Pressable
             onPress={handleLogin}
             disabled={loading}

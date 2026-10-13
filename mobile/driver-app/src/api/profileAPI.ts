@@ -22,10 +22,22 @@ export async function getMyProfile(): Promise<DriverProfile> {
 }
 
 export async function updateMyProfile(
-  payload: Pick<DriverProfile, 'first_name' | 'last_name' | 'email'>,
-): Promise<DriverProfile> {
-  const { data } = await authClient.patch<DriverProfile>('/users/me', payload);
+  payload: Pick<DriverProfile, 'first_name' | 'last_name' | 'email'> & {
+    contact_number?: string;
+    current_password?: string;
+  },
+): Promise<DriverProfile & { email_verification_pending?: boolean; pending_email?: string | null }> {
+  const { data } = await authClient.patch<DriverProfile & { email_verification_pending?: boolean; pending_email?: string | null }>('/users/me', payload);
   return data;
+}
+
+export async function verifyMyEmailOtp(code: string): Promise<DriverProfile> {
+  const { data } = await authClient.post<DriverProfile>('/users/me/verify-email', { code });
+  return data;
+}
+
+export async function resendMyEmailOtp(): Promise<void> {
+  await authClient.post('/users/me/verify-email/resend');
 }
 
 export async function changePassword(
