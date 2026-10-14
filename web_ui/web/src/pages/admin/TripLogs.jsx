@@ -6,15 +6,14 @@ import { getAllTrips } from "../../api/tripsAPI";
 import { AdminSearchField, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 import setTitle from "../../components/pageTitle";
 
-function statusBadge(status) {
+function statusBadge(status, isComplete) {
   const styles = {
     outgoing: "bg-[#0F6E56] text-[#9FE1CB]",
     returning: "bg-[#0d4a6b] text-[#8ec8ea]",
-    completed: "bg-white/10 text-[#9fcabd]",
   };
   return (
-    <span className={`text-xs font-medium px-2.5 py-1 rounded-full capitalize ${styles[status] || styles.completed}`}>
-      {status}
+    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${styles[status] || "bg-white/10 text-[#9fcabd]"}`}>
+      {`${status === "returning" ? "Returning" : "Outgoing"} - ${isComplete ? "Completed" : "In progress"}`}
     </span>
   );
 }
@@ -79,7 +78,6 @@ export default function TripLogs() {
           <option value="all">All trip statuses</option>
           <option value="outgoing">Outgoing</option>
           <option value="returning">Returning</option>
-          <option value="completed">Completed</option>
         </select>
       </div>
 
@@ -118,7 +116,7 @@ export default function TripLogs() {
                   <td className="px-5 py-3 text-[#9fcabd]">
                     {trip.driver ? `${trip.driver.first_name} ${trip.driver.last_name}` : "—"}
                   </td>
-                  <td className="px-5 py-3">{statusBadge(trip.status)}</td>
+                  <td className="px-5 py-3">{statusBadge(trip.status, trip.is_complete)}</td>
                   <td className="px-5 py-3 text-[#9fcabd]">
                     {trip.trip_duration_minutes != null ? `${trip.trip_duration_minutes} min` : "—"}
                   </td>

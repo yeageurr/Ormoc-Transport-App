@@ -25,9 +25,8 @@ def start_trip(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Driver taps 'Start Trip'. Requires the vehicle's activity_status to
-  already be 'loading' — geofence dwell detection sets that, this button
-  press is the explicit driver confirmation that actually moves it on-route."""
+  """Start one selected leg. Outgoing legs require terminal geofence readiness;
+  returning legs may begin wherever the driver is."""
 
   dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == payload.dispatch_id).first()
   if dispatch is None:
@@ -40,19 +39,22 @@ def start_trip(
     )
 
   vehicle = dispatch.vehicle
-  if vehicle.activity_status != VehicleActivityStatus.LOADING:
+  active_trip = db.query(Trip).join(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id).filter(
+    DispatchLog.vehicle_id == dispatch.vehicle_id,
+    Trip.is_complete.is_(False),
+  ).first()
+  if active_trip:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A trip is already in progress")
+
+  if payload.status == TripStatus.OUTGOING and vehicle.activity_status != VehicleActivityStatus.LOADING:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail=f"Vehicle must be 'loading' to start a trip (currently '{vehicle.activity_status.value}')",
+      detail=f"Outgoing trips must start at the terminal after the vehicle is ready (currently '{vehicle.activity_status.value}')",
     )
-
-  # Legs alternate from the terminal to the destination and back.
-  existing_trips = db.query(Trip).filter(Trip.dispatch_id == payload.dispatch_id).count()
-  trip_status = TripStatus.OUTGOING if existing_trips % 2 == 0 else TripStatus.RETURNING
 
   trip = Trip(
     dispatch_id=payload.dispatch_id,
-    status=trip_status,
+    status=payload.status,
     time_departed=datetime.now(timezone.utc),
     is_complete=False,
   )
@@ -73,7 +75,8 @@ def end_trip(
 ):
   """Driver taps 'End Trip'. Computes average_speed_km from gps_logs
   (once, here — this is a cached calculation, not recomputed on every read),
-  sets is_complete, and returns the vehicle to 'loading' for the next leg."""
+  sets is_complete, and returns the vehicle to active. Outgoing readiness must
+  be re-established by the terminal geofence; returning may start anywhere."""
 
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
   if trip is None:
@@ -107,7 +110,7 @@ def end_trip(
   trip.is_complete = True
 
   vehicle = trip.dispatch_log.vehicle
-  vehicle.activity_status = VehicleActivityStatus.LOADING
+  vehicle.activity_status = VehicleActivityStatus.ACTIVE
 
   db.commit()
   db.refresh(trip)

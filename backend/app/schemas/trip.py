@@ -5,9 +5,9 @@ from app.enums import TripStatus
 
 
 class TripStart(BaseModel):
-  """Driver taps 'Start Trip' — dispatch_id must already exist,
-  vehicle activity_status must be 'loading' before this is allowed."""
+  """Driver starts one route leg in the selected direction."""
   dispatch_id: int
+  status: TripStatus
 
 
 class TripEnd(BaseModel):

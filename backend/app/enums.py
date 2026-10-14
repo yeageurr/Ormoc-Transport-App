@@ -27,7 +27,6 @@ class VehicleActivityStatus(str, enum.Enum):
 class TripStatus(str, enum.Enum):
   OUTGOING = "outgoing"
   RETURNING = "returning"
-  COMPLETED = "completed"
 
 
 class GeofenceEventType(str, enum.Enum):
