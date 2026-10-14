@@ -282,7 +282,7 @@ function TripLogRow({ trip }: { trip: DriverTrip }) {
             <Ionicons name={isReturning ? 'arrow-down' : 'arrow-up'} size={15} color="#FFFFFF" />
           </View>
           <View>
-            <Text style={styles.directionLabel}>{isReturning ? 'Returning' : 'Outgoing'}</Text>
+            <Text style={styles.directionLabel}>{isReturning ? 'Returning' : 'Outgoing'}{trip.is_complete ? ' - Completed' : ' - In progress'}</Text>
             <Text style={styles.departureTime}>{formatTime(trip.time_departed)}</Text>
           </View>
         </View>

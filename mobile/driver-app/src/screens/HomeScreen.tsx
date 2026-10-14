@@ -253,7 +253,7 @@ function HomeTripCard({ trip }: { trip: DriverTrip }) {
         <Ionicons name={isReturning ? 'return-down-back' : 'navigate'} size={16} color={isReturning ? '#1B9B62' : '#3478DC'} />
       </View>
       <View style={styles.tripCopy}>
-        <Text style={styles.tripDirection}>{isReturning ? 'Returning' : 'Outgoing'}</Text>
+        <Text style={styles.tripDirection}>{isReturning ? 'Returning' : 'Outgoing'}{trip.is_complete ? ' - Completed' : ' - In progress'}</Text>
         <Text numberOfLines={1} style={styles.tripTime}>{time} · {trip.route_label || 'Assigned route'}</Text>
       </View>
       <View style={styles.tripMetrics}>

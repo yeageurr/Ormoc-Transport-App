@@ -94,12 +94,14 @@ export default function RecordTripScreen() {
   const [isStarting, setIsStarting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [activeTrip, setActiveTrip] = useState<Trip | null>(null);
+  const [selectedDirection, setSelectedDirection] = useState<Trip['status']>('outgoing');
   const [tripLogs, setTripLogs] = useState<DriverTrip[]>([]);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [locationAddress, setLocationAddress] = useState('Finding nearby address…');
-  const [sheetHeight, setSheetHeight] = useState(278);
+  const [sheetHeight, setSheetHeight] = useState(302);
   const [sheetCollapsed, setSheetCollapsed] = useState(false);
   const location = useDriverLocation();
   const router = useRouter();
@@ -173,6 +175,9 @@ export default function RecordTripScreen() {
 
   useEffect(() => { void loadDispatch(); }, [loadDispatch]);
   useEffect(() => {
+    if (!dispatch || activeTrip) setDirectionPickerOpen(false);
+  }, [dispatch, activeTrip]);
+  useEffect(() => {
     const interval = setInterval(() => { void loadDispatch(false); }, 10000);
     return () => clearInterval(interval);
   }, [loadDispatch]);
@@ -200,14 +205,14 @@ export default function RecordTripScreen() {
     setIsStarting(true);
     setMessage(null);
     try {
-      setActiveTrip(await startTrip(dispatch.dispatch_id));
+      setActiveTrip(await startTrip(dispatch.dispatch_id, selectedDirection));
       setNow(Date.now());
     } catch (error: any) {
       setMessage(error?.response?.data?.detail || 'Unable to start this trip. Check your connection and try again.');
     } finally {
       setIsStarting(false);
     }
-  }, [dispatch, isStarting]);
+  }, [dispatch, isStarting, selectedDirection]);
 
   const handleFinish = useCallback(async () => {
     if (!activeTrip) return;
@@ -235,8 +240,8 @@ export default function RecordTripScreen() {
 
   const routeLabel = dispatch?.route_label || 'Route not assigned';
   const isReady = dispatch?.vehicle_activity_status === 'loading';
-  const dispatchTripCount = tripLogs.filter((trip) => trip.dispatch_id === dispatch?.dispatch_id).length;
-  const tripDirection = activeTrip?.status ?? (dispatchTripCount % 2 === 0 ? 'outgoing' : 'returning');
+  const tripDirection = activeTrip?.status ?? selectedDirection;
+  const canStart = Boolean(dispatch) && (selectedDirection === 'returning' || isReady);
   const averageDuration = dispatch?.average_travel_duration_minutes;
   const routeDistance = dispatch?.route_distance_km;
   const averageDurationText = averageDuration == null ? '— min' : `${Math.round(averageDuration)} min`;
@@ -313,13 +318,20 @@ export default function RecordTripScreen() {
         ) : (
           <>
             <Text style={styles.sheetTitle}>Heads up!</Text>
-            <Text style={styles.sheetSubtitle}>{isReady ? 'Get ready for your next ride.' : 'Wait at the terminal until your vehicle is ready.'}</Text>
+            <Text style={styles.sheetSubtitle}>{selectedDirection === 'returning' ? 'Returning trips can start from your current location.' : isReady ? 'Your vehicle is ready at the terminal.' : 'Wait at the terminal until your vehicle is ready.'}</Text>
             <View style={styles.routeCard}>
               <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
+              {dispatch && (
+                <Pressable onPress={() => setDirectionPickerOpen(true)} style={styles.directionBadge} accessibilityRole="button" accessibilityLabel={`Trip direction: ${selectedDirection}. Change direction`}>
+                  <Ionicons name={selectedDirection === 'returning' ? 'return-down-back' : 'navigate'} size={13} color="#315B61" />
+                  <Text style={styles.directionBadgeText}>{selectedDirection === 'returning' ? 'Returning' : 'Outgoing'}</Text>
+                  <Ionicons name="chevron-down" size={13} color="#315B61" />
+                </Pressable>
+              )}
               <View style={styles.metricsRow}>
                 <Metric icon="time-outline" value={averageDurationText} label="Average trip duration" />
                 <Metric icon="map-outline" value={routeDistanceText} label="Distance from terminal" />
-                <Metric icon="navigate-outline" value={tripDirection === 'returning' ? 'Returning' : 'Outgoing'} label={tripDirection === 'returning' ? 'To terminal' : 'From terminal'} />
+                <Metric icon="navigate-outline" value={tripDirection === 'returning' ? 'To terminal' : 'From terminal'} label="Direction" />
               </View>
             </View>
             <View style={styles.actionRow}>
@@ -332,8 +344,8 @@ export default function RecordTripScreen() {
                 style={styles.backButton}>
                 <Ionicons name="arrow-back" size={21} color="#193B3D" />
               </Pressable>
-              <Pressable onPress={() => void handleStart()} disabled={isLoading || isStarting || !dispatch || !isReady} style={[styles.startButton, (!dispatch || !isReady || isStarting) && styles.disabledButton]}>
-                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{isReady ? 'Start Trip' : dispatch ? 'Waiting for vehicle' : 'No dispatch today'}</Text>}
+              <Pressable onPress={() => void handleStart()} disabled={isLoading || isStarting || !canStart} style={[styles.startButton, (!canStart || isStarting) && styles.disabledButton]}>
+                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{!dispatch ? 'No dispatch today' : selectedDirection === 'outgoing' && !isReady ? 'Waiting for terminal' : 'Start Trip'}</Text>}
               </Pressable>
             </View>
           </>
@@ -357,6 +369,23 @@ export default function RecordTripScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <Modal transparent visible={directionPickerOpen && Boolean(dispatch) && !activeTrip} animationType="fade" onRequestClose={() => setDirectionPickerOpen(false)}>
+        <Pressable style={styles.directionBackdrop} onPress={() => setDirectionPickerOpen(false)}>
+          <Pressable style={styles.directionPicker} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.directionPickerTitle}>Choose trip direction</Text>
+            <Pressable style={styles.directionOption} onPress={() => { setSelectedDirection('outgoing'); setDirectionPickerOpen(false); }}>
+              <Ionicons name="navigate" size={19} color="#147A68" />
+              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Outgoing</Text><Text style={styles.directionOptionHint}>Terminal to your assigned route. Start at the terminal.</Text></View>
+              {selectedDirection === 'outgoing' && <Ionicons name="checkmark-circle" size={20} color="#147A68" />}
+            </Pressable>
+            <Pressable style={styles.directionOption} onPress={() => { setSelectedDirection('returning'); setDirectionPickerOpen(false); }}>
+              <Ionicons name="return-down-back" size={19} color="#147A68" />
+              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Returning</Text><Text style={styles.directionOptionHint}>Your assigned route to the terminal. Start anywhere.</Text></View>
+              {selectedDirection === 'returning' && <Ionicons name="checkmark-circle" size={20} color="#147A68" />}
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -377,7 +406,7 @@ const styles = StyleSheet.create({
   locationCaption: { color: '#4D5B60', fontSize: 9 },
   locationValue: { maxWidth: '100%', marginTop: 1, color: '#27373B', fontSize: 12, fontWeight: '700' },
   sheet: { 
-    height: 278, position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: 10, paddingVertical: 10, experimental_backgroundImage: 'linear-gradient(to bottom, #046057 5%, #FFFFFF 100%)', 
+    height: 302, position: 'absolute', right: 0, bottom: 0, left: 0, paddingHorizontal: 10, paddingVertical: 10, experimental_backgroundImage: 'linear-gradient(to bottom, #046057 5%, #FFFFFF 100%)',
     borderTopLeftRadius: 10, borderTopRightRadius: 10, flexDirection: 'column', justifyContent: 'space-around'
    },
 
@@ -394,9 +423,11 @@ const styles = StyleSheet.create({
 
   sheetTitle: { color: '#F4FFFC', fontFamily: 'Poppins_500Medium', fontSize: 18, fontWeight: '700' },
   sheetSubtitle: { marginTop: 2, marginBottom: 9, color: '#ffffff', fontFamily: 'Poppins_400Regular', fontSize: 10 },
-  routeCard: { height: 105, borderRadius: 5, paddingHorizontal: 13, paddingTop: 9, paddingBottom: 10, backgroundColor: '#F2F7F5', alignItems: 'center', justifyContent: 'center' },
+  routeCard: { height: 125, borderRadius: 5, paddingHorizontal: 13, paddingTop: 8, paddingBottom: 8, backgroundColor: '#F2F7F5', alignItems: 'center', justifyContent: 'center' },
   directionRow: { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginTop: 2 },
   directionText: { color: '#315B61', fontSize: 9, fontWeight: '600' },
+  directionBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, marginTop: 4, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#DCE9E6' },
+  directionBadgeText: { color: '#315B61', fontSize: 11, fontWeight: '700' },
   metricsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7, marginTop: 9 },
   metric: { flex: 1, alignItems: 'center', minWidth: 0 },
   metricValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: '#E1E9EC' },
@@ -421,5 +452,12 @@ const styles = StyleSheet.create({
   confirmText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   cancelButton: { height: 43, justifyContent: 'center' },
   cancelText: { color: '#087C73', fontWeight: '700' },
+  directionBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.48)' },
+  directionPicker: { width: '100%', borderRadius: 16, padding: 18, backgroundColor: '#F2F7F5' },
+  directionPickerTitle: { marginBottom: 10, color: '#153E3B', fontSize: 17, fontWeight: '800' },
+  directionOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#C8D8D4' },
+  directionOptionCopy: { flex: 1 },
+  directionOptionTitle: { color: '#183D3A', fontSize: 14, fontWeight: '700' },
+  directionOptionHint: { marginTop: 2, color: '#657A75', fontSize: 11 },
 });
 2
