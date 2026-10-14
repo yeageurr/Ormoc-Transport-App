@@ -13,3 +13,4 @@ ormoctransportapp
 .envrc
 ai_ml/data/trips_export.csv
 ai_ml/models/*.joblib
+appicons.zip
