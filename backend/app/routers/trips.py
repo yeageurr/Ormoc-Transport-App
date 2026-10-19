@@ -44,12 +44,23 @@ def start_trip(
     Trip.is_complete.is_(False),
   ).first()
   if active_trip:
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A trip is already in progress")
+    vehicle_label = vehicle.plate_number if vehicle else f"vehicle #{dispatch.vehicle_id}"
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail=(
+        f"Cannot start this trip: {vehicle_label} already has unfinished trip "
+        f"#{active_trip.trip_id}. End that trip before starting another."
+      ),
+    )
 
   if payload.status == TripStatus.OUTGOING and vehicle.activity_status != VehicleActivityStatus.LOADING:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail=f"Outgoing trips must start at the terminal after the vehicle is ready (currently '{vehicle.activity_status.value}')",
+      detail=(
+        "Cannot start the outgoing trip yet: the assigned vehicle is currently "
+        f"'{vehicle.activity_status.value}'. Keep location services enabled and remain "
+        "inside the terminal geofence until the vehicle status changes to 'loading', then try again."
+      ),
     )
 
   trip = Trip(
