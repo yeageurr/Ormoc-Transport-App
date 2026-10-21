@@ -14,6 +14,9 @@ from app.models.geofence_event import GeofenceEvent
 from app.models.audit_log import AuditLog
 from app.models.email_verification import EmailVerification
 from app.models.password_reset_otp import PasswordResetOtp
+from app.models.queue_reservation import QueueReservation
+from app.models.dispatch_ticket import DispatchTicket
+from app.models.dispatcher_assignment import DispatcherAssignment
 
 __all__ = [
   "Account",
@@ -33,4 +36,7 @@ __all__ = [
   "AuditLog",
   "EmailVerification",
   "PasswordResetOtp",
+  "QueueReservation",
+  "DispatchTicket",
+  "DispatcherAssignment",
 ]

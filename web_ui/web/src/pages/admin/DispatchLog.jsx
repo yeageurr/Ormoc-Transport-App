@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye } from "lucide-react";
 
 import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import CreateDispatchModal from "../../components/modals/CreateDispatchModal";
 import DispatchReviewModal from "../../components/modals/DispatchReviewModal";
 import EditDispatchModal from "../../components/modals/EditDispatchModal";
-import DispatchDeleteConfirmModal from "../../components/modals/DispatchDeleteConfirmModal";
 import SelectDispatchRouteModal from "../../components/modals/SelectDispatchRouteModal";
 import PageHeader from "../../components/ui/PageHeader";
 import Toast from "../../components/ui/Toast";
 
-import { createDispatchBatch, deleteDispatchGroup, getDispatches } from "../../api/dispatchAPI";
+import { createDispatchBatch, getDispatches } from "../../api/dispatchAPI";
 import { getRoutes } from "../../api/routesAPI";
 import { getDrivers } from "../../api/usersAPI";
 import { getVehicles } from "../../api/vehiclesAPI";
@@ -73,7 +72,6 @@ export default function DispatchLog() {
   // Loading / error / feedback state
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -81,10 +79,9 @@ export default function DispatchLog() {
   const [search, setSearch] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
 
-  // Editing existing dispatch groups
+  // Viewing an immutable group of dispatch records
   const [editingGroup, setEditingGroup] = useState(null);
   const [addingToGroup, setAddingToGroup] = useState(null);
-  const [deletingGroup, setDeletingGroup] = useState(null);
 
   const effectiveDate = tomorrow();
 
@@ -211,7 +208,7 @@ export default function DispatchLog() {
     }
   };
 
-  // ---------- Editing an existing (future) dispatch group ----------
+  // ---------- Append a new immutable record to a future dispatch group ----------
 
   const addToSavedDispatch = async (assignment) => {
     try {
@@ -225,23 +222,9 @@ export default function DispatchLog() {
       setEditingGroup((current) => ({ ...current, assignments: [...current.assignments, ...created] }));
       setAddingToGroup(null);
       await loadAll();
-      setToast({ type: "success", message: "Driver added to dispatch." });
+      setToast({ type: "success", message: "New driver dispatch record added." });
     } catch (saveError) {
       setToast({ type: "error", message: saveError.message || "Failed to add driver." });
-    }
-  };
-
-  const deleteGroup = async () => {
-    setIsDeleting(true);
-    try {
-      await deleteDispatchGroup(deletingGroup.routeId, deletingGroup.date);
-      setDeletingGroup(null);
-      await loadAll();
-      setToast({ type: "success", message: "Dispatch deleted successfully." });
-    } catch (deleteError) {
-      setToast({ type: "error", message: deleteError.message || "Failed to delete dispatch." });
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -303,13 +286,12 @@ export default function DispatchLog() {
                   <th className="px-5 py-3 font-medium">Effective date</th>
                   <th className="px-5 py-3 font-medium">Route</th>
                   <th className="px-5 py-3 font-medium">Assigned drivers</th>
-                  <th className="px-5 py-3 font-medium">Actions</th>
+                  <th className="px-5 py-3 font-medium">Record</th>
                 </tr>
               </thead>
               <tbody>
                 {groups.map((group) => {
-                  // Only future-dated dispatches can be edited/deleted; today's and past ones are locked in.
-                  const editable = group.date > phDate(new Date());
+                  const canAppend = group.date > phDate(new Date());
 
                   return (
                     <tr key={group.key} className="group border-t border-white/5">
@@ -320,21 +302,11 @@ export default function DispatchLog() {
                         <div className="flex gap-3 opacity-0 transition-opacity group-hover:opacity-100">
                           <button
                             onClick={() => setEditingGroup(group)}
-                            disabled={!editable}
-                            title={editable ? "Edit dispatch" : "Current and past dispatches are finalized"}
-                            aria-label="Edit dispatch"
-                            className="text-[#5DCAA5] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"
+                            title="View immutable dispatch records"
+                            aria-label="View dispatch records"
+                            className="text-[#5DCAA5]"
                           >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={() => setDeletingGroup(group)}
-                            disabled={!editable}
-                            title={editable ? "Delete dispatch" : "Current and past dispatches are finalized"}
-                            aria-label="Delete dispatch"
-                            className="text-[#D98B72] disabled:cursor-not-allowed disabled:text-[#9fcabd]/50"
-                          >
-                            <Trash2 size={16} />
+                            <Eye size={16} />
                           </button>
                         </div>
                       </td>
@@ -382,7 +354,7 @@ export default function DispatchLog() {
         />
       )}
 
-      {/* Editing an existing future dispatch group */}
+      {/* Read-only dispatch records; appending creates a new record. */}
       {editingGroup && !addingToGroup && (
         <EditDispatchModal
           group={editingGroup}
@@ -393,6 +365,7 @@ export default function DispatchLog() {
           vehicleDetails={vehicleDetails}
           onClose={() => setEditingGroup(null)}
           onAddDriver={() => setAddingToGroup(editingGroup)}
+          allowAdd={editingGroup.date > phDate(new Date())}
         />
       )}
 
@@ -404,17 +377,6 @@ export default function DispatchLog() {
           assignedVehicleIds={addingToGroup.assignments.map((assignment) => assignment.vehicle_id)}
           onClose={() => setAddingToGroup(null)}
           onStage={addToSavedDispatch}
-        />
-      )}
-
-      {deletingGroup && (
-        <DispatchDeleteConfirmModal
-          group={deletingGroup}
-          routeName={`Ormoc - ${routeMap[deletingGroup.routeId] || "—"}`}
-          effectiveDate={displayDate(deletingGroup.date)}
-          isDeleting={isDeleting}
-          onClose={() => setDeletingGroup(null)}
-          onConfirm={deleteGroup}
         />
       )}
 

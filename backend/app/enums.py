@@ -10,6 +10,15 @@ class AccountStatus(str, enum.Enum):
 class AccountRole(str, enum.Enum):
   ADMIN = "admin"
   DRIVER = "driver"
+  DISPATCHER = "dispatcher"
+  TICKETING_OFFICER = "ticketing_officer"
+
+
+class QueueReservationStatus(str, enum.Enum):
+  ON_QUEUE = "on_queue"
+  LOADING = "loading"
+  DEPARTED = "departed"
+  CANCELLED = "cancelled"
 
 
 class VehicleCondition(str, enum.Enum):

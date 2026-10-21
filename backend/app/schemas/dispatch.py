@@ -13,10 +13,6 @@ class DispatchBatchCreate(BaseModel):
   dispatches: list[DispatchCreate] = Field(min_length=1)
 
 
-class DispatchUpdate(DispatchCreate):
-  pass
-
-
 class DispatchResponse(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 

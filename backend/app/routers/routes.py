@@ -15,12 +15,12 @@ router = APIRouter()
 
 @router.get("", response_model=list[RouteResponse])
 def list_routes(db: Session = Depends(get_db), current_account: Account = Depends(get_current_account), ):
-  return db.query(Route).all()
+  return db.query(Route).filter(Route.is_active.is_(True)).all()
 
 
 @router.get("/{route_id}", response_model=RouteResponse)
 def get_route(route_id: int, db: Session = Depends(get_db), current_account: Account = Depends(get_current_account), ):
-  route = db.query(Route).filter(Route.route_id == route_id).first()
+  route = db.query(Route).filter(Route.route_id == route_id, Route.is_active.is_(True)).first()
 
   if route is None:
     raise HTTPException(

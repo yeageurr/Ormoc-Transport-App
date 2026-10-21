@@ -56,5 +56,6 @@ class RouteResponse(BaseModel):
   destination_id: int
   distance: float
   average_travel_duration: float | None = None
+  is_active: bool = True
   destination: DestinationResponse | None = None
   route_geometry: RouteGeometry | None = None

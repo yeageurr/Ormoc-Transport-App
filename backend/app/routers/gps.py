@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -26,6 +27,15 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
 
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
+  active_trip = (
+    db.query(Trip)
+    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
+    .filter(
+      Trip.is_complete.is_(False),
+      or_(Trip.driver_id == driver.user_id, DispatchLog.driver_id == driver.user_id),
+    )
+    .first()
+  )
   dispatch = (
     db.query(DispatchLog)
     .filter(
@@ -37,7 +47,11 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
     .first()
   )
 
-  vehicle = dispatch.vehicle if dispatch else driver.vehicle
+  vehicle = (
+    (active_trip.vehicle if active_trip.dispatch_id is None else active_trip.dispatch_log.vehicle)
+    if active_trip
+    else (dispatch.vehicle if dispatch else driver.vehicle)
+  )
 
   if vehicle is None:
     raise HTTPException(
@@ -54,7 +68,7 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
     db.add(location)
 
   location.vehicle_id = vehicle.vehicle_id
-  location.dispatch_id = dispatch.dispatch_id if dispatch else None
+  location.dispatch_id = active_trip.dispatch_id if active_trip else (dispatch.dispatch_id if dispatch else None)
   location.latitude = payload.latitude
   location.longitude = payload.longitude
   location.speed_kmh = payload.speed_kmh
@@ -91,7 +105,8 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
       detail="Trip not found"
     )
 
-  if trip.dispatch_log.driver.account_id != current_driver.account_id:
+  trip_driver_id = trip.driver_id if trip.dispatch_id is None else trip.dispatch_log.driver_id
+  if trip_driver_id != get_driver_profile(db, current_driver).user_id:
     raise HTTPException(
       status_code = status.HTTP_403_FORBIDDEN,
       detail = "This trip does not belong to you",
@@ -126,7 +141,7 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
       # vehicle_id added so the Live Map can update the right marker
       # directly — the frontend has no trip_id -> vehicle_id mapping of
       # its own (LiveVehicleSummary doesn't expose trip_id).
-      "vehicle_id": trip.dispatch_log.vehicle_id,
+      "vehicle_id": trip.vehicle_id if trip.dispatch_id is None else trip.dispatch_log.vehicle_id,
       "trip_id": gps_log.trip_id,
       "latitude": float(gps_log.latitude),
       "longitude": float(gps_log.longitude),

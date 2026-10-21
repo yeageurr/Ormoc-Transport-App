@@ -2,21 +2,69 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
+from app.core.permissions import get_current_account, get_driver_profile, require_role
 from app.database import get_db
+from app.enums import AccountRole, TripStatus, VehicleActivityStatus, VehicleCondition
 from app.models.account import Account
 from app.models.dispatch_log import DispatchLog
-from app.models.trip import Trip
-from app.models.vehicle import Vehicle
 from app.models.gps_log import GpsLog
 from app.models.incident_log import Incident
-from app.schemas.trip import DriverDailySummary, TripStart, TripResponse, DriverTripResponse, AdminTripResponse, TripDriverSummary
-from app.core.permissions import get_driver_profile, require_role, get_current_account
-from app.enums import AccountRole, TripStatus, VehicleActivityStatus
+from app.models.terminal import Terminal
+from app.models.trip import Trip
+from app.models.user import User
+from app.models.vehicle import Vehicle
+from app.schemas.trip import (
+  AdminTripResponse,
+  DriverDailySummary,
+  DriverTripResponse,
+  TripDriverSummary,
+  TripResponse,
+  TripStart,
+)
 
 router = APIRouter()
+PH = ZoneInfo("Asia/Manila")
+
+
+def _driver_for_trip(trip: Trip) -> User | None:
+  if trip.dispatch_log is not None:
+    return trip.dispatch_log.driver
+  return trip.driver
+
+
+def _vehicle_for_trip(trip: Trip) -> Vehicle | None:
+  if trip.dispatch_log is not None:
+    return trip.dispatch_log.vehicle
+  return trip.vehicle
+
+
+def _route_label(trip: Trip, terminal_name: str) -> str | None:
+  dispatch = trip.dispatch_log
+  if dispatch and dispatch.route:
+    origin = dispatch.route.origin.terminal_name if dispatch.route.origin else terminal_name
+    destination = dispatch.route.destination.name if dispatch.route.destination else "Assigned route"
+    return f"{origin} → {destination}"
+  if trip.status == TripStatus.RETURNING:
+    return terminal_name
+  return None
+
+
+def _current_dispatch_for_driver(db: Session, driver_id: int, now: datetime) -> DispatchLog | None:
+  day_start = now.astimezone(PH).replace(hour=0, minute=0, second=0, microsecond=0)
+  day_end = day_start + timedelta(days=1)
+  return (
+    db.query(DispatchLog)
+    .filter(
+      DispatchLog.driver_id == driver_id,
+      DispatchLog.effective_on >= day_start,
+      DispatchLog.effective_on < day_end,
+    )
+    .order_by(DispatchLog.effective_on.desc())
+    .first()
+  )
 
 
 @router.post("/start", response_model=TripResponse, status_code=status.HTTP_201_CREATED)
@@ -25,56 +73,73 @@ def start_trip(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Start one selected leg. Outgoing legs require terminal geofence readiness;
-  returning legs may begin wherever the driver is."""
+  """Start one leg. Outgoing uses its immutable dispatch; returning stores
+  driver and vehicle directly and does not require a dispatch assignment."""
+  driver = get_driver_profile(db, current_driver)
+  dispatch: DispatchLog | None = None
 
-  dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == payload.dispatch_id).first()
-  if dispatch is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispatch entry not found")
+  if payload.status == TripStatus.OUTGOING:
+    dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == payload.dispatch_id).first()
+    if dispatch is None:
+      raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispatch entry not found")
+    if dispatch.driver_id != driver.user_id:
+      raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This dispatch is not assigned to you")
+    vehicle = dispatch.vehicle
+    if vehicle is None:
+      raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The dispatch has no assigned vehicle")
+  else:
+    # A return leg may use today's scheduled vehicle when one exists, but the
+    # resulting trip record remains non-dispatched. Without an assignment,
+    # fall back to the driver's owned vehicle until borrowed-vehicle selection
+    # is implemented.
+    dispatch = _current_dispatch_for_driver(db, driver.user_id, datetime.now(PH))
+    vehicle = dispatch.vehicle if dispatch and dispatch.vehicle else driver.vehicle
+    if vehicle is None:
+      raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="No vehicle is available for this returning trip. Assign or select a vehicle first.",
+      )
 
-  if dispatch.driver.account_id != current_driver.account_id:
-    raise HTTPException(
-      status_code=status.HTTP_403_FORBIDDEN,
-      detail="This dispatch is not assigned to you",
+  if vehicle.condition == VehicleCondition.UNDER_MAINTENANCE:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This vehicle is under maintenance")
+
+  active_trip = (
+    db.query(Trip)
+    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
+    .filter(
+      Trip.is_complete.is_(False),
+      or_(Trip.vehicle_id == vehicle.vehicle_id, DispatchLog.vehicle_id == vehicle.vehicle_id),
     )
-
-  vehicle = dispatch.vehicle
-  active_trip = db.query(Trip).join(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id).filter(
-    DispatchLog.vehicle_id == dispatch.vehicle_id,
-    Trip.is_complete.is_(False),
-  ).first()
+    .first()
+  )
   if active_trip:
-    vehicle_label = vehicle.plate_number if vehicle else f"vehicle #{dispatch.vehicle_id}"
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail=(
-        f"Cannot start this trip: {vehicle_label} already has unfinished trip "
-        f"#{active_trip.trip_id}. End that trip before starting another."
-      ),
+      detail=f"Vehicle {vehicle.plate_number} already has unfinished trip #{active_trip.trip_id}.",
     )
 
   if payload.status == TripStatus.OUTGOING and vehicle.activity_status != VehicleActivityStatus.LOADING:
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
       detail=(
-        "Cannot start the outgoing trip yet: the assigned vehicle is currently "
-        f"'{vehicle.activity_status.value}'. Keep location services enabled and remain "
-        "inside the terminal geofence until the vehicle status changes to 'loading', then try again."
+        "Cannot start the outgoing trip yet: the assigned vehicle is not ready at the terminal. "
+        "Remain inside the terminal geofence until its status changes to 'loading'."
       ),
     )
 
+  is_dispatched = payload.status == TripStatus.OUTGOING
   trip = Trip(
-    dispatch_id=payload.dispatch_id,
+    dispatch_id=dispatch.dispatch_id if is_dispatched and dispatch else None,
+    driver_id=None if is_dispatched else driver.user_id,
+    vehicle_id=None if is_dispatched else vehicle.vehicle_id,
     status=payload.status,
     time_departed=datetime.now(timezone.utc),
     is_complete=False,
   )
   db.add(trip)
-
   vehicle.activity_status = VehicleActivityStatus.ON_ROUTE
   db.commit()
   db.refresh(trip)
-
   return trip
 
 
@@ -84,48 +149,32 @@ def end_trip(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Driver taps 'End Trip'. Computes average_speed_km from gps_logs
-  (once, here — this is a cached calculation, not recomputed on every read),
-  sets is_complete, and returns the vehicle to active. Outgoing readiness must
-  be re-established by the terminal geofence; returning may start anywhere."""
-
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
   if trip is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
 
-  if trip.dispatch_log.driver.account_id != current_driver.account_id:
-    raise HTTPException(
-      status_code=status.HTTP_403_FORBIDDEN,
-      detail="This trip does not belong to you",
-    )
-
+  driver = get_driver_profile(db, current_driver)
+  trip_driver = _driver_for_trip(trip)
+  if trip_driver is None or trip_driver.user_id != driver.user_id:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This trip does not belong to you")
   if trip.is_complete:
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trip is already complete")
 
   trip.time_arrived = datetime.now(timezone.utc)
-
-  # Defensive: some DB backends (notably SQLite, used for local testing)
-  # return timestamps without timezone info even when stored as TIMESTAMPTZ.
-  # Postgres handles this correctly natively, but this guards against it either way.
   departed = trip.time_departed
   if departed.tzinfo is None:
     departed = departed.replace(tzinfo=timezone.utc)
-
-  trip.trip_duration_minutes = round(
-    (trip.time_arrived - departed).total_seconds() / 60, 2
-  )
+  trip.trip_duration_minutes = round((trip.time_arrived - departed).total_seconds() / 60, 2)
 
   avg_speed = db.query(func.avg(GpsLog.speed_kmh)).filter(GpsLog.trip_id == trip_id).scalar()
   trip.average_speed_km = round(avg_speed, 2) if avg_speed is not None else None
-
   trip.is_complete = True
 
-  vehicle = trip.dispatch_log.vehicle
-  vehicle.activity_status = VehicleActivityStatus.ACTIVE
-
+  vehicle = _vehicle_for_trip(trip)
+  if vehicle is not None:
+    vehicle.activity_status = VehicleActivityStatus.ACTIVE
   db.commit()
   db.refresh(trip)
-
   return trip
 
 
@@ -134,35 +183,35 @@ def list_my_trips(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Driver's own Trip Logs screen."""
   driver = get_driver_profile(db, current_driver)
   trips = (
     db.query(Trip)
-    .join(DispatchLog)
-    .filter(DispatchLog.driver_id == driver.user_id)
+    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
+    .filter(or_(Trip.driver_id == driver.user_id, DispatchLog.driver_id == driver.user_id))
     .order_by(Trip.time_departed.desc())
     .all()
   )
+  terminal = db.query(Terminal).first()
+  terminal_name = terminal.terminal_name if terminal else "Ormoc City Terminal"
 
   return [
     DriverTripResponse(
       trip_id=trip.trip_id,
       dispatch_id=trip.dispatch_id,
+      driver_id=trip.driver_id,
+      vehicle_id=trip.vehicle_id,
+      dispatch_ticket_id=str(trip.dispatch_ticket_id) if trip.dispatch_ticket_id else None,
       status=trip.status,
       time_departed=trip.time_departed,
       time_arrived=trip.time_arrived,
       trip_duration_minutes=trip.trip_duration_minutes,
       average_speed_km=trip.average_speed_km,
       is_complete=trip.is_complete,
-      vehicle_plate=trip.dispatch_log.vehicle.plate_number if trip.dispatch_log.vehicle else None,
-      route_label=(
-        f"{trip.dispatch_log.route.origin.terminal_name} → {trip.dispatch_log.route.destination.name}"
-        if trip.dispatch_log.route and trip.dispatch_log.route.origin and trip.dispatch_log.route.destination
-        else None
-      ),
+      vehicle_plate=_vehicle_for_trip(trip).plate_number if _vehicle_for_trip(trip) else None,
+      route_label=_route_label(trip, terminal_name),
       route_distance_km=(
         float(trip.dispatch_log.route.distance)
-        if trip.dispatch_log.route and trip.dispatch_log.route.distance is not None
+        if trip.dispatch_log and trip.dispatch_log.route and trip.dispatch_log.route.distance is not None
         else None
       ),
     )
@@ -175,17 +224,16 @@ def get_my_daily_summary(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Today's completed trips and submitted incidents in Philippine time."""
-  now = datetime.now(ZoneInfo("Asia/Manila"))
+  now = datetime.now(PH)
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
   day_end = day_start + timedelta(days=1)
   driver_id = get_driver_profile(db, current_driver).user_id
 
   trips_completed = (
     db.query(func.count(Trip.trip_id))
-    .join(DispatchLog)
+    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
     .filter(
-      DispatchLog.driver_id == driver_id,
+      or_(Trip.driver_id == driver_id, DispatchLog.driver_id == driver_id),
       Trip.is_complete.is_(True),
       Trip.time_arrived >= day_start,
       Trip.time_arrived < day_end,
@@ -201,11 +249,7 @@ def get_my_daily_summary(
     )
     .scalar()
   )
-
-  return DriverDailySummary(
-    trips_completed=trips_completed or 0,
-    incidents_reported=incidents_reported or 0,
-  )
+  return DriverDailySummary(trips_completed=trips_completed or 0, incidents_reported=incidents_reported or 0)
 
 
 @router.get("/{trip_id}", response_model=TripResponse)
@@ -225,16 +269,12 @@ def list_all_trips(
   db: Session = Depends(get_db),
   current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
-  """Admin-wide Trip Logs table — embeds driver name and route directly,
-  since the admin view needs to show 'who' and 'where' at a glance."""
   trips = db.query(Trip).order_by(Trip.time_departed.desc()).all()
-
+  terminal = db.query(Terminal).first()
+  terminal_name = terminal.terminal_name if terminal else "Ormoc City Terminal"
   results = []
   for trip in trips:
-    dispatch = trip.dispatch_log
-    driver = dispatch.driver if dispatch else None
-    route = dispatch.route if dispatch else None
-
+    driver = _driver_for_trip(trip)
     results.append(AdminTripResponse(
       trip_id=trip.trip_id,
       dispatch_id=trip.dispatch_id,
@@ -247,7 +287,6 @@ def list_all_trips(
       driver=TripDriverSummary(
         user_id=driver.user_id, first_name=driver.first_name, last_name=driver.last_name
       ) if driver else None,
-      route_label=route.destination.name if route and route.destination else None,
+      route_label=_route_label(trip, terminal_name),
     ))
-
   return results

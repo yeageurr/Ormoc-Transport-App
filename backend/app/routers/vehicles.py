@@ -14,6 +14,7 @@ from app.models.dispatch_log import DispatchLog
 from app.models.gps_log import GpsLog
 from app.models.trip import Trip
 from app.models.driver_location import DriverLocation
+from app.models.terminal import Terminal
 from app.schemas.vehicle import VehicleCreate, VehicleUpdate, VehicleResponse
 from app.schemas.user import UserResponse
 from app.core.permissions import require_role
@@ -74,6 +75,8 @@ def get_live_vehicle_overview(
   results = []
   now = datetime.now(ZoneInfo("Asia/Manila"))
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+  terminal = db.query(Terminal).first()
+  terminal_name = terminal.terminal_name if terminal else "Ormoc City Terminal"
   for vehicle in vehicles:
     driver_name = None
     route_id = None
@@ -100,6 +103,22 @@ def get_live_vehicle_overview(
       driver_name = f"{dispatch.driver.first_name} {dispatch.driver.last_name}"
       route_id = dispatch.route_id
       route_label = dispatch.route.destination.name if dispatch.route and dispatch.route.destination else None
+
+    active_trip = (
+      db.query(Trip)
+      .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
+      .filter(
+        Trip.is_complete.is_(False),
+        or_(Trip.vehicle_id == vehicle.vehicle_id, DispatchLog.vehicle_id == vehicle.vehicle_id),
+      )
+      .order_by(Trip.time_departed.desc())
+      .first()
+    )
+    if active_trip and active_trip.dispatch_id is None:
+      if active_trip.driver:
+        driver_name = f"{active_trip.driver.first_name} {active_trip.driver.last_name}"
+      route_id = None
+      route_label = terminal_name if active_trip.status.value == "returning" else None
 
     if current_location:
       if driver_name is None:

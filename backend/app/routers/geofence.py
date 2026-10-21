@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -36,6 +37,18 @@ def geofence_ping(
   now = datetime.now(ZoneInfo("Asia/Manila"))
   day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
   driver = get_driver_profile(db, current_driver)
+  active_trip = (
+    db.query(Trip)
+    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
+    .filter(
+      Trip.is_complete.is_(False),
+      or_(Trip.driver_id == driver.user_id, DispatchLog.driver_id == driver.user_id),
+    )
+    .first()
+  )
+  if active_trip:
+    return {"currently_inside": False, "status_changed": False, "event": "trip_in_progress"}
+
   dispatch = (
     db.query(DispatchLog)
     .filter(
@@ -46,7 +59,8 @@ def geofence_ping(
     .order_by(DispatchLog.effective_on.desc())
     .first()
   )
-  if dispatch is None or dispatch.vehicle is None:
+  vehicle = dispatch.vehicle if dispatch and dispatch.vehicle else driver.vehicle
+  if vehicle is None:
     raise HTTPException(
       status_code = status.HTTP_404_NOT_FOUND, 
       detail = "No vehicle is assigned to this driver today"
@@ -60,12 +74,5 @@ def geofence_ping(
       detail = "No terminal configured"
     )
 
-  active_trip = db.query(Trip).filter(
-    Trip.dispatch_id == dispatch.dispatch_id,
-    Trip.is_complete.is_(False),
-  ).first()
-  if active_trip:
-    return {"currently_inside": False, "status_changed": False, "event": "trip_in_progress"}
-
-  result = process_vehicle_position(db, dispatch.vehicle, payload.latitude, payload.longitude, terminal)
+  result = process_vehicle_position(db, vehicle, payload.latitude, payload.longitude, terminal)
   return result

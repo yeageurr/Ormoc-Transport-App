@@ -3,7 +3,10 @@ import { authClient } from './authAPI';
 
 export interface Trip {
   trip_id: number;
-  dispatch_id: number;
+  dispatch_id: number | null;
+  driver_id: number | null;
+  vehicle_id: number | null;
+  dispatch_ticket_id: string | null;
   status: 'outgoing' | 'returning';
   time_departed: string;
   time_arrived: string | null;
@@ -89,8 +92,11 @@ export async function recordTrip(payload: RecordTripPayload): Promise<Trip> {
 }
 
 /** Starts the driver's selected leg; only outgoing requires terminal readiness. */
-export async function startTrip(dispatchId: number, direction: Trip['status']): Promise<Trip> {
-  const { data } = await authClient.post<Trip>('/trips/start', { dispatch_id: dispatchId, status: direction });
+export async function startTrip(dispatchId: number | null, direction: Trip['status']): Promise<Trip> {
+  const { data } = await authClient.post<Trip>('/trips/start', {
+    ...(dispatchId == null ? {} : { dispatch_id: dispatchId }),
+    status: direction,
+  });
   return data;
 }
 

@@ -10,6 +10,8 @@ if TYPE_CHECKING:
   from app.models.vehicle import Vehicle
   from app.models.dispatch_log import DispatchLog
   from app.models.incident_log import Incident
+  from app.models.trip import Trip
+  from app.models.queue_reservation import QueueReservation
 
 
 class User(Base):
@@ -34,3 +36,5 @@ class User(Base):
   vehicle: Mapped["Vehicle"] = relationship(back_populates="owner", uselist=False)
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="driver")
   incidents: Mapped[list["Incident"]] = relationship(back_populates="reported_by_user")
+  direct_trips: Mapped[list["Trip"]] = relationship(back_populates="driver", foreign_keys="Trip.driver_id")
+  queue_reservations: Mapped[list["QueueReservation"]] = relationship(back_populates="driver")

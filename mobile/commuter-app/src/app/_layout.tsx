@@ -10,6 +10,7 @@ import {
   Poppins_400Regular,
   Poppins_500Medium,
   Poppins_600SemiBold,
+  Poppins_700Bold
 } from '@expo-google-fonts/poppins';
 
 
@@ -24,11 +25,14 @@ export default function RootLayout() {
     Poppins_400Regular,
     Poppins_500Medium,
     Poppins_600SemiBold,
+    Poppins_700Bold
   })
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="introduction" options={{ animation: 'none' }} />
+      </Stack>
     </ThemeProvider>
   );
 }

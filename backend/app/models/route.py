@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Numeric, ForeignKey
+from sqlalchemy import JSON, Numeric, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
@@ -9,6 +9,7 @@ if TYPE_CHECKING:
   from app.models.destinations import Destination
   from app.models.dispatch_log import DispatchLog
   from app.models.notification import BroadcastNotification
+  from app.models.queue_reservation import QueueReservation
 
 
 class Route(Base):
@@ -20,9 +21,11 @@ class Route(Base):
   distance: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
   average_travel_duration: Mapped[float | None] = mapped_column(Numeric(6, 2))
   route_geometry: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+  is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
 
 
   origin: Mapped["Terminal"] = relationship(back_populates="routes")
   destination: Mapped["Destination"] = relationship(back_populates="routes")
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="route")
   broadcast_notifications: Mapped[list["BroadcastNotification"]] = relationship(back_populates="route")
+  queue_reservations: Mapped[list["QueueReservation"]] = relationship(back_populates="route")

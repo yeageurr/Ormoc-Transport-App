@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { type Href, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +14,8 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+
+import GradientText from '@/components/GradientText';
 
 const COLORS = {
   background: '#A9E4FF',
@@ -30,6 +32,8 @@ export default function EntranceScreen() {
   const logoEntrance = useSharedValue(0);
   const labelsEntrance = useSharedValue(0);
   const guideOpacity = useSharedValue(0.45);
+  const exitOpacity = useSharedValue(1);
+  const navigationStarted = useRef(false);
 
   useEffect(() => {
     void SplashScreen.hideAsync();
@@ -58,19 +62,22 @@ export default function EntranceScreen() {
     transform: [{ translateY: interpolate(labelsEntrance.value, [0, 1], [45, 0]) }],
   }));
   const guideAnimatedStyle = useAnimatedStyle(() => ({ opacity: guideOpacity.value }));
+  const exitAnimatedStyle = useAnimatedStyle(() => ({ opacity: exitOpacity.value }));
 
   const continueToIntroduction = () => {
-    router.push('/introduction' as Href);
+    if (navigationStarted.current) return;
+    navigationStarted.current = true;
+    exitOpacity.value = withTiming(0, { duration: 300, easing: Easing.in(Easing.cubic) });
+    setTimeout(() => {
+      router.push({ pathname: '/introduction', params: { introDelay: '350' } } as Href);
+    }, 300);
   };
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Welcome, fellow Ormocanon. Tap anywhere to continue."
-      onPress={continueToIntroduction}
-      style={styles.screen}>
+    <View style={styles.screen}>
       <StatusBar hidden />
 
+      <Animated.View style={[styles.screenContent, exitAnimatedStyle]}>
       <View style={[styles.welcomeGroup, { top: height * 0.182 }]}>
         <Animated.View style={[styles.logoCircle, logoAnimatedStyle]}>
           <Image
@@ -83,21 +90,21 @@ export default function EntranceScreen() {
 
         <Animated.View style={[styles.welcomeLabels, labelsAnimatedStyle]}>
           <Text style={styles.greeting}>Welcome, fellow</Text>
-          <Text style={styles.title}>
-            Ormocanon<Text style={styles.titleAccent}>!</Text>
-          </Text>
+          <GradientText style={{ fontSize: 29, fontFamily: 'Poppins_600SemiBold' }}>
+            Ormocanons!
+          </GradientText>
         </Animated.View>
       </View>
 
-      <Animated.Text
-        style={[
-          styles.continueText,
-          { bottom: Math.max(insets.bottom, 10) + 34 },
-          guideAnimatedStyle,
-        ]}>
-        Tap to continue
-      </Animated.Text>
-    </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Tap to continue"
+        onPress={continueToIntroduction}
+        style={[styles.continueTapArea, { bottom: Math.max(insets.bottom, 10) + 34 }]}>
+        <Animated.Text style={[styles.continueText, guideAnimatedStyle]}>Tap to continue</Animated.Text>
+      </Pressable>
+      </Animated.View>
+    </View>
   );
 }
 
@@ -105,6 +112,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  screenContent: {
+    flex: 1,
   },
   welcomeGroup: {
     position: 'absolute',
@@ -149,14 +159,17 @@ const styles = StyleSheet.create({
     color: COLORS.accent,
   },
   continueText: {
-    position: 'absolute',
-    alignSelf: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
     color: '#208ED6',
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
     lineHeight: 16,
     textAlign: 'center',
+  },
+  continueTapArea: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingVertical: 6,
   },
 });

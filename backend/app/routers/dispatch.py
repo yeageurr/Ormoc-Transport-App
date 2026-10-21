@@ -8,7 +8,7 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.route import Route
 from app.models.dispatch_log import DispatchLog
-from app.schemas.dispatch import CurrentDriverDispatch, DispatchBatchCreate, DispatchCreate, DispatchResponse, DispatchUpdate
+from app.schemas.dispatch import CurrentDriverDispatch, DispatchBatchCreate, DispatchCreate, DispatchResponse
 from app.core.permissions import get_driver_profile, require_role
 from app.enums import AccountRole, AccountStatus, AuditAction, VehicleCondition
 from app.services.audit_service import log_action
@@ -24,7 +24,7 @@ def day_bounds(value: datetime):
   return start, start + timedelta(days=1)
 
 
-def validate_dispatch(db: Session, item: DispatchCreate, ignore_id: int | None = None):
+def validate_dispatch(db: Session, item: DispatchCreate):
   today, _ = day_bounds(datetime.now(PH))
   start, end = day_bounds(item.effective_on)
 
@@ -63,7 +63,7 @@ def validate_dispatch(db: Session, item: DispatchCreate, ignore_id: int | None =
       detail = "Vehicle is under maintenance and cannot be dispatched"
     )
   
-  if not db.query(Route).filter(Route.route_id == item.route_id).first(): 
+  if not db.query(Route).filter(Route.route_id == item.route_id, Route.is_active.is_(True)).first():
     raise HTTPException(
       status_code = status.HTTP_404_NOT_FOUND, 
       detail = "Route not found"
@@ -71,9 +71,6 @@ def validate_dispatch(db: Session, item: DispatchCreate, ignore_id: int | None =
 
   
   query = db.query(DispatchLog).filter(DispatchLog.effective_on >= start, DispatchLog.effective_on < end)
-
-  if ignore_id is not None: 
-    query = query.filter(DispatchLog.dispatch_id != ignore_id)
 
   if query.filter(DispatchLog.driver_id == item.driver_id).first(): 
     raise HTTPException(
@@ -179,51 +176,6 @@ def list_dispatches(db: Session = Depends(get_db), current_admin: Account = Depe
   return db.query(DispatchLog).order_by(DispatchLog.effective_on.desc()).all()
 
 
-@router.delete("/group")
-def delete_dispatch_group(route_id: int, effective_on: datetime, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
-  start, end = day_bounds(effective_on)
-  today, _ = day_bounds(datetime.now(PH))
-
-  if start <= today: 
-    raise HTTPException(
-      status_code = status.HTTP_400_BAD_REQUEST, 
-      detail = "Current and past dispatches cannot be deleted"
-    )
-
-  
-  dispatches = db.query(DispatchLog).filter(DispatchLog.route_id == route_id, DispatchLog.effective_on >= start, DispatchLog.effective_on < end).all()
-
-  if not dispatches: 
-    raise HTTPException(
-      status_code = status.HTTP_404_NOT_FOUND, 
-      detail = "Dispatch group not found"
-    )
-  
-  if any(dispatch.trips for dispatch in dispatches): 
-    raise HTTPException(
-      status_code = status.HTTP_409_CONFLICT, 
-      detail = "Dispatches with trip history cannot be deleted"
-    )
-
-  
-  deleted = [(dispatch.dispatch_id, dispatch.driver_id, dispatch.vehicle_id) for dispatch in dispatches]
-
-  for dispatch in dispatches: db.delete(dispatch)
-  db.commit()
-
-  for dispatch_id, driver_id, vehicle_id in deleted:
-    log_action(
-      db, 
-      current_admin.account_id, 
-      AuditAction.DELETE, 
-      "dispatch_logs", 
-      dispatch_id,
-      f"Deleted dispatch for driver #{driver_id}, vehicle #{vehicle_id}, route #{route_id} effective {start.date()}"
-    )
-
-  return {"detail": f"Deleted {len(deleted)} dispatch assignment(s)"}
-
-
 @router.get("/{dispatch_id}", response_model=DispatchResponse)
 def get_dispatch(dispatch_id: int, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
   dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == dispatch_id).first()
@@ -237,46 +189,3 @@ def get_dispatch(dispatch_id: int, db: Session = Depends(get_db), current_admin:
   return dispatch
 
 
-@router.patch("/{dispatch_id}", response_model=DispatchResponse)
-def update_dispatch(dispatch_id: int, item: DispatchUpdate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
-  dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == dispatch_id).first()
-
-  if not dispatch: 
-    raise HTTPException(
-      status_code = status.HTTP_404_NOT_FOUND, 
-      detail = "Dispatch entry not found"
-    )
-
-  
-  today, _ = day_bounds(datetime.now(PH))
-  old_day, _ = day_bounds(dispatch.effective_on)
-
-  if old_day <= today: 
-    raise HTTPException(
-      status_code = status.HTTP_400_BAD_REQUEST, 
-      detail = "Current and past dispatches cannot be edited"
-    )
-
-  
-  validate_dispatch(db, item, dispatch_id)
-  previous = {field: getattr(dispatch, field) for field in item.model_dump()}
-
-  for field, value in item.model_dump().items(): 
-    setattr(dispatch, field, value)
-
-
-  db.commit()
-  db.refresh(dispatch)
-
-  changed = [f"{field}: {previous[field]} → {getattr(dispatch, field)}" for field in previous if previous[field] != getattr(dispatch, field)]
-
-  log_action(
-    db, 
-    current_admin.account_id, 
-    AuditAction.UPDATE, 
-    "dispatch_logs", 
-    dispatch.dispatch_id,
-    f"Updated dispatch ({'; '.join(changed) or 'no field changes'})"
-  )
-
-  return dispatch

@@ -175,8 +175,8 @@ export default function RecordTripScreen() {
 
   useEffect(() => { void loadDispatch(); }, [loadDispatch]);
   useEffect(() => {
-    if (!dispatch || activeTrip) setDirectionPickerOpen(false);
-  }, [dispatch, activeTrip]);
+    if (activeTrip) setDirectionPickerOpen(false);
+  }, [activeTrip]);
   useEffect(() => {
     const interval = setInterval(() => { void loadDispatch(false); }, 10000);
     return () => clearInterval(interval);
@@ -201,14 +201,18 @@ export default function RecordTripScreen() {
   }, [location]);
 
   const handleStart = useCallback(async () => {
-    if (!dispatch || isStarting) return;
+    if (isStarting || (selectedDirection === 'outgoing' && !dispatch)) return;
     setIsStarting(true);
     setMessage(null);
     try {
-      setActiveTrip(await startTrip(dispatch.dispatch_id, selectedDirection));
+      setActiveTrip(await startTrip(selectedDirection === 'outgoing' ? dispatch?.dispatch_id ?? null : null, selectedDirection));
       setNow(Date.now());
     } catch (error: any) {
-      setMessage(error?.response?.data?.detail || 'Unable to start this trip. Check your connection and try again.');
+      setMessage(
+        error?.response?.data?.error?.message
+          || error?.response?.data?.detail
+          || 'Unable to start this trip. Check your connection and try again.'
+      );
     } finally {
       setIsStarting(false);
     }
@@ -219,12 +223,13 @@ export default function RecordTripScreen() {
     setIsFinishing(true);
     try {
       const finished = await endTrip(String(activeTrip.trip_id));
+      const existingTrip = tripLogs.find((trip) => trip.trip_id === finished.trip_id);
       setTripLogs((logs) => [
         {
           ...finished,
-          vehicle_plate: dispatch?.vehicle_plate ?? null,
-          route_label: dispatch?.route_label ?? null,
-          route_distance_km: dispatch?.route_distance_km ?? null,
+          vehicle_plate: existingTrip?.vehicle_plate ?? dispatch?.vehicle_plate ?? null,
+          route_label: existingTrip?.route_label ?? (finished.status === 'returning' ? 'Ormoc City Terminal' : dispatch?.route_label ?? null),
+          route_distance_km: existingTrip?.route_distance_km ?? (finished.status === 'returning' ? null : dispatch?.route_distance_km ?? null),
         },
         ...logs.filter((trip) => trip.trip_id !== finished.trip_id),
       ]);
@@ -236,14 +241,16 @@ export default function RecordTripScreen() {
     } finally {
       setIsFinishing(false);
     }
-  }, [activeTrip, dispatch]);
+  }, [activeTrip, dispatch, tripLogs]);
 
-  const routeLabel = dispatch?.route_label || 'Route not assigned';
-  const isReady = dispatch?.vehicle_activity_status === 'loading';
   const tripDirection = activeTrip?.status ?? selectedDirection;
-  const canStart = Boolean(dispatch) && (selectedDirection === 'returning' || isReady);
-  const averageDuration = dispatch?.average_travel_duration_minutes;
-  const routeDistance = dispatch?.route_distance_km;
+  const routeLabel = tripDirection === 'returning'
+    ? 'Ormoc City Terminal'
+    : dispatch?.route_label || 'Route not assigned';
+  const isReady = dispatch?.vehicle_activity_status === 'loading';
+  const canStart = selectedDirection === 'returning' || (Boolean(dispatch) && isReady);
+  const averageDuration = tripDirection === 'returning' ? null : dispatch?.average_travel_duration_minutes;
+  const routeDistance = tripDirection === 'returning' ? null : dispatch?.route_distance_km;
   const averageDurationText = averageDuration == null ? '— min' : `${Math.round(averageDuration)} min`;
   const routeDistanceText = routeDistance == null ? '— km' : `${Number(routeDistance).toFixed(1)} km`;
 
@@ -321,7 +328,7 @@ export default function RecordTripScreen() {
             <Text style={styles.sheetSubtitle}>{selectedDirection === 'returning' ? 'Returning trips can start from your current location.' : isReady ? 'Your vehicle is ready at the terminal.' : 'Wait at the terminal until your vehicle is ready.'}</Text>
             <View style={styles.routeCard}>
               <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
-              {dispatch && (
+              {!activeTrip && (
                 <Pressable onPress={() => setDirectionPickerOpen(true)} style={styles.directionBadge} accessibilityRole="button" accessibilityLabel={`Trip direction: ${selectedDirection}. Change direction`}>
                   <Ionicons name={selectedDirection === 'returning' ? 'return-down-back' : 'navigate'} size={13} color="#315B61" />
                   <Text style={styles.directionBadgeText}>{selectedDirection === 'returning' ? 'Returning' : 'Outgoing'}</Text>
@@ -345,7 +352,7 @@ export default function RecordTripScreen() {
                 <Ionicons name="arrow-back" size={21} color="#193B3D" />
               </Pressable>
               <Pressable onPress={() => void handleStart()} disabled={isLoading || isStarting || !canStart} style={[styles.startButton, (!canStart || isStarting) && styles.disabledButton]}>
-                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{!dispatch ? 'No dispatch today' : selectedDirection === 'outgoing' && !isReady ? 'Waiting for terminal' : 'Start Trip'}</Text>}
+                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{selectedDirection === 'outgoing' && !dispatch ? 'Dispatch required' : selectedDirection === 'outgoing' && !isReady ? 'Waiting for terminal' : 'Start Trip'}</Text>}
               </Pressable>
             </View>
           </>
@@ -369,7 +376,7 @@ export default function RecordTripScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-      <Modal transparent visible={directionPickerOpen && Boolean(dispatch) && !activeTrip} animationType="fade" onRequestClose={() => setDirectionPickerOpen(false)}>
+      <Modal transparent visible={directionPickerOpen && !activeTrip} animationType="fade" onRequestClose={() => setDirectionPickerOpen(false)}>
         <Pressable style={styles.directionBackdrop} onPress={() => setDirectionPickerOpen(false)}>
           <Pressable style={styles.directionPicker} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.directionPickerTitle}>Choose trip direction</Text>
@@ -380,7 +387,7 @@ export default function RecordTripScreen() {
             </Pressable>
             <Pressable style={styles.directionOption} onPress={() => { setSelectedDirection('returning'); setDirectionPickerOpen(false); }}>
               <Ionicons name="return-down-back" size={19} color="#147A68" />
-              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Returning</Text><Text style={styles.directionOptionHint}>Your assigned route to the terminal. Start anywhere.</Text></View>
+              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Returning</Text><Text style={styles.directionOptionHint}>Travel to the terminal from your current location. No dispatch assignment is required.</Text></View>
               {selectedDirection === 'returning' && <Ionicons name="checkmark-circle" size={20} color="#147A68" />}
             </Pressable>
           </Pressable>

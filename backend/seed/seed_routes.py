@@ -1,5 +1,5 @@
 """
-Run once, during initial deployment, to seed the terminal and the 5 fixed
+Run once, during initial deployment, to seed the terminal and the 4 fixed
 pilot routes. Not re-runnable to "update" a route later — routes are
 immutable reference data once seeded, per the finalized design.
 
@@ -19,7 +19,7 @@ from app.services.osrm_service import get_route_distance_km
 
 load_dotenv()
 
-# Terminal coordinates and the 5 pilot destinations — real coordinates
+# Terminal coordinates and the 4 pilot destinations — real coordinates
 # should replace these placeholders before running against production.
 TERMINAL_DATA = {
   "terminal_name": "Ormoc City Bus Terminal",
@@ -31,7 +31,6 @@ TERMINAL_DATA = {
 }
 
 PILOT_DESTINATIONS = [
-  {"name": "Montebello", "latitude": 11.128808, "longitude": 124.585627, "address": "Montebello, Ormoc City, Leyte"},
   {"name": "Sabang Bao", "latitude": 11.072899, "longitude": 124.538564, "address": "Sabang Bao, Ormoc City, Leyte"},
   {"name": "Puertobello", "latitude": 10.978837, "longitude": 124.533172, "address": "Puertobello, Ormoc City, Leyte"},
   {"name": "Valencia", "latitude": 11.106654, "longitude": 124.577068, "address": "Valencia, Ormoc City, Leyte"},
@@ -41,7 +40,6 @@ PILOT_DESTINATIONS = [
 # Manual fallback distances (km), used only if OSRM is unreachable —
 # these should be replaced with real measured values if that happens.
 FALLBACK_DISTANCES_KM = {
-  "Montebello": 16.29,
   "Sabang Bao": 19.68,
   "Puertobello": 11.18,
   "Valencia": 12.69,
