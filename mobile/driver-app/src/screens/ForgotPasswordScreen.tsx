@@ -4,16 +4,18 @@ import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   completePasswordReset,
@@ -143,102 +145,112 @@ export default function ForgotPasswordScreen() {
   };
 
   const titles: Record<ResetStep, string> = {
-    email: 'Forgot Password?',
+    email: 'Forgot your password?',
     code: 'Verify your email',
     password: 'Create a new password',
   };
-  const descriptions: Record<ResetStep, string> = {
-    email: 'Enter the email address linked to your driver account.',
-    code: `Enter the 6-digit code sent to ${email}.`,
-    password: 'Choose a new password for your driver account.',
-  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" />
-      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Image
+            source={require('@/assets/images/ormoc-driver-mark.png')}
+            style={styles.logo}
+            resizeMode="contain"
+            accessibilityLabel="Ormoc City bus logo"
+          />
 
-        <View style={styles.header}>
           <Text style={styles.title}>{titles[step]}</Text>
-          <View style={styles.underline} />
-          <Text style={styles.description}>{descriptions[step]}</Text>
-        </View>
 
-        <View style={styles.card}>
-          {step === 'email' ? (
-            <>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Email address"
-                  placeholderTextColor="#7FA8A4"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!loading}
-                  returnKeyType="send"
-                  onSubmitEditing={() => void sendCode()}
-                />
-              </View>
-
-              <View style={styles.actionPane}>
-                <ActionButton title="Send code" loading={loading} onPress={() => void sendCode()} />
-                <Pressable style={styles.cancelButton} onPress={goBack} >
-                  <Ionicons name={'arrow-back-sharp'} size={16} color={'#ffffff'} ></Ionicons>
-                  <Text style={styles.backText}>Cancel</Text>
-                </Pressable>
-              </View>
-              
-            </>
-          ) : null}
-
-          {step === 'code' ? (
-            <>
-              <View style={styles.codeRow}>
-                {code.map((digit, index) => (
+          <View style={styles.card}>
+            {step === 'email' ? (
+              <>
+                <Text style={styles.fieldLabel}>Email</Text>
+                <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
+                  <Ionicons name="mail-outline" size={18} color={COLORS.ink} style={styles.inputIcon} />
                   <TextInput
-                    key={index}
-                    ref={(input) => { codeInputs.current[index] = input; }}
-                    value={digit}
-                    onChangeText={(value) => updateCodeDigit(index, value)}
-                    onKeyPress={({ nativeEvent }) => {
-                      if (nativeEvent.key === 'Backspace' && !code[index] && index > 0) codeInputs.current[index - 1]?.focus();
+                    style={styles.input}
+                    value={email}
+                    onChangeText={(value) => {
+                      setEmail(value);
+                      setError('');
                     }}
-                    style={styles.codeInput}
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    selectTextOnFocus
+                    placeholder="Enter your email address"
+                    placeholderTextColor={COLORS.placeholder}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
                     editable={!loading}
-                    accessibilityLabel={`Code digit ${index + 1}`}
+                    returnKeyType="send"
+                    onSubmitEditing={() => void sendCode()}
+                    accessibilityLabel="Email address"
                   />
-                ))}
-              </View>
-              <ActionButton title="Verify code" loading={loading} onPress={() => void verifyCode()} />
-              <Pressable disabled={loading} onPress={() => void resendCode()} style={styles.secondaryButton}>
-                <Text style={styles.secondaryText}>Resend code</Text>
-              </Pressable>
-            </>
-          ) : null}
+                </View>
+                <ActionButton title="Send OTP" loading={loading} onPress={() => void sendCode()} />
+                <Pressable style={styles.cancelButton} onPress={goBack} disabled={loading}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </>
+            ) : null}
 
-          {step === 'password' ? (
-            <>
-              <PasswordField label="New password" value={newPassword} onChangeText={setNewPassword} visible={passwordVisible} toggle={() => setPasswordVisible((value) => !value)} editable={!loading} />
-              <PasswordField label="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} visible={confirmVisible} toggle={() => setConfirmVisible((value) => !value)} editable={!loading} />
-              <Text style={styles.passwordHint}>At least 8 characters, including uppercase, lowercase, and a number.</Text>
-              {confirmPassword ? (
-                <Text style={[styles.matchText, newPassword === confirmPassword ? styles.matchSuccess : styles.matchError]}>
-                  {newPassword === confirmPassword ? 'Passwords match' : 'Passwords do not match'}
-                </Text>
-              ) : null}
-              <ActionButton title="Update password" loading={loading} onPress={() => void saveNewPassword()} />
-            </>
-          ) : null}
+            {step === 'code' ? (
+              <>
+                <Text style={styles.stepDescription}>Enter the 6-digit OTP sent to {email}</Text>
+                <View style={styles.codeRow}>
+                  {code.map((digit, index) => (
+                    <TextInput
+                      key={index}
+                      ref={(input) => { codeInputs.current[index] = input; }}
+                      value={digit}
+                      onChangeText={(value) => updateCodeDigit(index, value)}
+                      onKeyPress={({ nativeEvent }) => {
+                        if (nativeEvent.key === 'Backspace' && !code[index] && index > 0) codeInputs.current[index - 1]?.focus();
+                      }}
+                      style={[styles.codeInput, error ? styles.codeInputError : null]}
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      selectTextOnFocus
+                      editable={!loading}
+                      accessibilityLabel={`OTP digit ${index + 1}`}
+                    />
+                  ))}
+                </View>
+                <ActionButton title="Verify OTP" loading={loading} onPress={() => void verifyCode()} />
+                <Pressable disabled={loading} onPress={() => void resendCode()} style={styles.secondaryButton}>
+                  <Text style={styles.secondaryText}>Resend OTP</Text>
+                </Pressable>
+                <BackButton onPress={goBack} />
+              </>
+            ) : null}
 
-          {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
-        </View>
+            {step === 'password' ? (
+              <>
+                <Text style={styles.stepDescription}>Choose a new password for your driver account.</Text>
+                <PasswordField label="New password" value={newPassword} onChangeText={(value) => { setNewPassword(value); setError(''); }} visible={passwordVisible} toggle={() => setPasswordVisible((value) => !value)} editable={!loading} />
+                <PasswordField label="Confirm new password" value={confirmPassword} onChangeText={(value) => { setConfirmPassword(value); setError(''); }} visible={confirmVisible} toggle={() => setConfirmVisible((value) => !value)} editable={!loading} />
+                <Text style={styles.passwordHint}>At least 8 characters, including uppercase, lowercase, and a number.</Text>
+                {confirmPassword ? (
+                  <Text style={[styles.matchText, newPassword === confirmPassword ? styles.matchSuccess : styles.matchError]}>
+                    {newPassword === confirmPassword ? 'Passwords match' : 'Passwords do not match'}
+                  </Text>
+                ) : null}
+                <ActionButton title="Update password" loading={loading} onPress={() => void saveNewPassword()} />
+                <BackButton onPress={goBack} />
+              </>
+            ) : null}
+
+            {error ? <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text> : null}
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -246,8 +258,22 @@ export default function ForgotPasswordScreen() {
 
 function ActionButton({ title, loading, onPress }: { title: string; loading: boolean; onPress: () => void }) {
   return (
-    <Pressable disabled={loading} onPress={onPress} style={[styles.actionButton, loading && styles.disabledButton]}>
-      {loading ? <ActivityIndicator color="#042F2E" /> : <Text style={styles.actionText}>{title}</Text>}
+    <Pressable
+      accessibilityRole="button"
+      disabled={loading}
+      onPress={onPress}
+      style={({ pressed }) => [styles.actionButton, pressed && !loading ? styles.actionButtonPressed : null, loading ? styles.disabledButton : null]}
+    >
+      {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.actionText}>{title}</Text>}
+    </Pressable>
+  );
+}
+
+function BackButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress} style={styles.backButton}>
+      <Ionicons name="arrow-back" size={18} color={COLORS.ink} />
+      <Text style={styles.backText}>Go back</Text>
     </Pressable>
   );
 }
@@ -268,52 +294,72 @@ function PasswordField({
   editable: boolean;
 }) {
   return (
-    <View style={styles.inputWrapper}>
-      <Ionicons name="key-outline" size={19} color="#8FD9D3" style={styles.inputIcon} />
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={label}
-        placeholderTextColor="#7FA8A4"
-        secureTextEntry={!visible}
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={editable}
-      />
-      <Pressable onPress={toggle} hitSlop={8}>
-        <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={20} color="#8FD9D3" />
-      </Pressable>
+    <View style={styles.passwordGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.inputWrapper}>
+        <Ionicons name="key-outline" size={18} color={COLORS.ink} style={styles.inputIcon} />
+        <TextInput
+          style={styles.input}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={label}
+          placeholderTextColor={COLORS.placeholder}
+          secureTextEntry={!visible}
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={editable}
+        />
+        <Pressable onPress={toggle} hitSlop={8} accessibilityLabel={visible ? 'Hide password' : 'Show password'}>
+          <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={19} color={COLORS.ink} />
+        </Pressable>
+      </View>
     </View>
   );
 }
 
+const COLORS = {
+  background: '#D3DFEA',
+  white: '#FFFFFF',
+  ink: '#111111',
+  placeholder: '#73777A',
+  border: '#A9ADB0',
+  primary: '#00A99D',
+  primaryPressed: '#00988E',
+  error: '#D94040',
+  errorBorder: '#E77A7A',
+  errorBackground: '#FFF0F0',
+};
+
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#042F2E' },
-  screen: { flex: 1, justifyContent: 'center', paddingHorizontal: 26 },
-  backButton: { position: 'absolute', top: 18, left: 24, zIndex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6 },
-  backText: { color: '#ffffff', fontSize: 16, fontWeight: '500' },
-  header: { alignItems: 'center', marginBottom: 26 },
-  title: { color: '#FFFFFF', fontSize: 27, fontWeight: '800', textAlign: 'center' },
-  underline: { width: 54, height: 3, marginTop: 9, borderRadius: 2, backgroundColor: '#2DD4BF' },
-  description: { marginTop: 13, color: '#B7D6D2', fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  card: { padding: 20, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.06)' },
-  inputWrapper: { height: 52, flexDirection: 'row', alignItems: 'center', marginBottom: 15, paddingHorizontal: 14, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)' },
-  inputIcon: { marginRight: 10 },
-  input: { flex: 1, color: '#FFFFFF', fontSize: 15, padding: 0 },
-  codeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 6, marginBottom: 19 },
-  codeInput: { width: 40, height: 48, borderWidth: 1, borderColor: 'rgba(143,217,211,0.45)', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)', color: '#FFFFFF', textAlign: 'center', fontSize: 20, fontWeight: '700' },
-  
-  actionPane: {flexDirection: 'column', gap: 6},
-  actionButton: { minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 5, backgroundColor: '#2DD4BF' },
-  cancelButton: { minHeight: 35, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  safeArea: { flex: 1, backgroundColor: COLORS.background },
+  keyboardView: { flex: 1 },
+  content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15, paddingBottom: 28 },
+  logo: { width: 104, height: 104, marginBottom: 25 },
+  title: { color: COLORS.ink, fontFamily: 'Poppins_600SemiBold', fontSize: 17, lineHeight: 25, textAlign: 'center', marginBottom: 50 },
+  card: { width: '100%', backgroundColor: COLORS.white, borderRadius: 9, paddingHorizontal: 15, paddingTop: 24, paddingBottom: 24 },
+  fieldLabel: { color: COLORS.ink, fontFamily: 'Poppins_500Medium', fontSize: 12, lineHeight: 16, marginBottom: 8 },
+  inputWrapper: { height: 50, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 7, paddingHorizontal: 12, marginBottom: 10 },
+  inputError: { borderColor: COLORS.errorBorder },
+  inputIcon: { marginRight: 13 },
+  input: { flex: 1, height: '100%', padding: 0, color: COLORS.ink, fontFamily: 'Poppins_400Regular', fontSize: 12 },
+  actionButton: { height: 43, marginTop: 20, alignItems: 'center', justifyContent: 'center', borderRadius: 5, backgroundColor: COLORS.primary },
+  actionButtonPressed: { backgroundColor: COLORS.primaryPressed },
+  actionText: { color: COLORS.white, fontFamily: 'Poppins_500Medium', fontSize: 17 },
   disabledButton: { opacity: 0.65 },
-  actionText: { color: '#042F2E', fontSize: 16, fontWeight: '800' },
-  secondaryButton: { alignSelf: 'center', padding: 12, marginTop: 3 },
-  secondaryText: { color: '#8FD9D3', fontSize: 13, fontWeight: '600' },
-  passwordHint: { color: '#A8C6C2', fontSize: 11, lineHeight: 17, marginTop: -5, marginBottom: 10 },
-  matchText: { fontSize: 12, marginBottom: 10 },
-  matchSuccess: { color: '#86EFAC' },
-  matchError: { color: '#FCA5A5' },
-  errorText: { color: '#FCA5A5', fontSize: 12, lineHeight: 17, marginTop: 12 },
+  cancelButton: { height: 42, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 5, backgroundColor: COLORS.white },
+  cancelText: { color: COLORS.ink, fontFamily: 'Poppins_400Regular', fontSize: 15 },
+  stepDescription: { color: COLORS.ink, fontFamily: 'Poppins_400Regular', fontSize: 12, lineHeight: 19, textAlign: 'center', marginBottom: 25 },
+  codeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 7, marginBottom: 5 },
+  codeInput: { flex: 1, maxWidth: 48, height: 64, borderWidth: 1, borderColor: '#118F87', borderRadius: 10, backgroundColor: '#D9FBF8', color: COLORS.ink, textAlign: 'center', fontFamily: 'Poppins_600SemiBold', fontSize: 22 },
+  codeInputError: { borderColor: COLORS.errorBorder },
+  secondaryButton: { alignSelf: 'center', padding: 11, marginTop: 3 },
+  secondaryText: { color: COLORS.ink, fontFamily: 'Poppins_500Medium', fontSize: 13 },
+  backButton: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 7, padding: 8, marginTop: 8 },
+  backText: { color: COLORS.ink, fontFamily: 'Poppins_500Medium', fontSize: 14 },
+  passwordGroup: { marginBottom: 12 },
+  passwordHint: { color: COLORS.placeholder, fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 16, marginTop: 1, marginBottom: 8 },
+  matchText: { fontFamily: 'Poppins_400Regular', fontSize: 12, marginBottom: 8 },
+  matchSuccess: { color: '#15803D' },
+  matchError: { color: COLORS.error },
+  errorText: { color: COLORS.error, fontFamily: 'Poppins_400Regular', fontSize: 11, lineHeight: 16, marginTop: 12, textAlign: 'center' },
 });

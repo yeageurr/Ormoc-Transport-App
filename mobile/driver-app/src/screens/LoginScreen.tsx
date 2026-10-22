@@ -247,10 +247,9 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 14,
     flexDirection: 'column',
-    gap: 10
   },
   fieldLabel: {
-    marginBottom: 4,
+    marginBottom: 8,
     color: COLORS.ink,
     fontFamily: 'Poppins_500Medium',
     fontSize: 12,
@@ -265,6 +264,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     paddingHorizontal: 12,
     backgroundColor: COLORS.white,
+    marginBottom: 10
   },
   inputError: {
     borderColor: COLORS.errorBorder,
