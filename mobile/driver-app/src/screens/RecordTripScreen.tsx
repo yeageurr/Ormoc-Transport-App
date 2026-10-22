@@ -17,6 +17,22 @@ function formatElapsed(startedAt: string, now: number) {
   return `${minutes} min${seconds ? ` ${seconds} sec` : ''}`;
 }
 
+function formatTripDuration(minutes: number | null) {
+  if (minutes == null) return '—';
+  const totalMinutes = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  if (hours === 0) return `${remainingMinutes} min`;
+  return remainingMinutes ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
+}
+
+function formatTripTime(value: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 function formatAddress(address: Location.LocationGeocodedAddress) {
   const city = formatCity(address.city?.trim());
   const barangay = address.district?.trim();
@@ -97,6 +113,9 @@ export default function RecordTripScreen() {
   const [selectedDirection, setSelectedDirection] = useState<Trip['status']>('outgoing');
   const [tripLogs, setTripLogs] = useState<DriverTrip[]>([]);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [completedTripSummary, setCompletedTripSummary] = useState<DriverTrip | null>(null);
+  const [scanTicketOpen, setScanTicketOpen] = useState(false);
+  const [scanActionMessage, setScanActionMessage] = useState<string | null>(null);
   const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -224,17 +243,16 @@ export default function RecordTripScreen() {
     try {
       const finished = await endTrip(String(activeTrip.trip_id));
       const existingTrip = tripLogs.find((trip) => trip.trip_id === finished.trip_id);
-      setTripLogs((logs) => [
-        {
-          ...finished,
-          vehicle_plate: existingTrip?.vehicle_plate ?? dispatch?.vehicle_plate ?? null,
-          route_label: existingTrip?.route_label ?? (finished.status === 'returning' ? 'Ormoc City Terminal' : dispatch?.route_label ?? null),
-          route_distance_km: existingTrip?.route_distance_km ?? (finished.status === 'returning' ? null : dispatch?.route_distance_km ?? null),
-        },
-        ...logs.filter((trip) => trip.trip_id !== finished.trip_id),
-      ]);
+      const completedTrip: DriverTrip = {
+        ...finished,
+        vehicle_plate: existingTrip?.vehicle_plate ?? dispatch?.vehicle_plate ?? null,
+        route_label: existingTrip?.route_label ?? (finished.status === 'returning' ? 'Ormoc City Terminal' : dispatch?.route_label ?? null),
+        route_distance_km: existingTrip?.route_distance_km ?? (finished.status === 'returning' ? null : dispatch?.route_distance_km ?? null),
+      };
+      setTripLogs((logs) => [completedTrip, ...logs.filter((trip) => trip.trip_id !== finished.trip_id)]);
       setActiveTrip(null);
       setFinishOpen(false);
+      setCompletedTripSummary(completedTrip);
       setMessage(`Trip completed${finished.trip_duration_minutes ? ` in ${Math.round(finished.trip_duration_minutes)} mins` : ''}.`);
     } catch (error: any) {
       setMessage(error?.response?.data?.detail || 'Unable to finish this trip.');
@@ -351,7 +369,10 @@ export default function RecordTripScreen() {
                 style={styles.backButton}>
                 <Ionicons name="arrow-back" size={21} color="#193B3D" />
               </Pressable>
-              <Pressable onPress={() => void handleStart()} disabled={isLoading || isStarting || !canStart} style={[styles.startButton, (!canStart || isStarting) && styles.disabledButton]}>
+              <Pressable
+                onPress={() => selectedDirection === 'outgoing' ? setScanTicketOpen(true) : void handleStart()}
+                disabled={isLoading || isStarting || !canStart}
+                style={[styles.startButton, (!canStart || isStarting) && styles.disabledButton]}>
                 {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{selectedDirection === 'outgoing' && !dispatch ? 'Dispatch required' : selectedDirection === 'outgoing' && !isReady ? 'Waiting for terminal' : 'Start Trip'}</Text>}
               </Pressable>
             </View>
@@ -373,6 +394,77 @@ export default function RecordTripScreen() {
               {isFinishing ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.confirmText}>End Trip</Text>}
             </Pressable>
             <Pressable onPress={() => setFinishOpen(false)} style={styles.cancelButton}><Text style={styles.cancelText}>Keep trip active</Text></Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+      <Modal transparent visible={completedTripSummary !== null} animationType="fade" onRequestClose={() => setCompletedTripSummary(null)}>
+        <View style={styles.summaryBackdrop}>
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryCheckCircle}>
+              <Ionicons name="checkmark" size={26} color="#FFFFFF" />
+            </View>
+            <Text style={styles.summaryTitle}>Trip completed!</Text>
+            <Text style={styles.summarySubtitle}>Here’s a summary of your trip.</Text>
+            <View style={styles.summaryRoute}>
+              <Text style={styles.summaryRouteLabel}>ROUTE</Text>
+              <Text style={styles.summaryRouteValue} numberOfLines={2}>{completedTripSummary?.route_label || 'Route unavailable'}</Text>
+              <View style={styles.summaryDirection}>
+                <Ionicons
+                  name={completedTripSummary?.status === 'returning' ? 'return-down-back' : 'navigate'}
+                  size={14}
+                  color="#087C73"
+                />
+                <Text style={styles.summaryDirectionText}>
+                  {completedTripSummary?.status === 'returning' ? 'Returning' : 'Outgoing'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.summaryMetrics}>
+              <SummaryMetric label="Duration" value={formatTripDuration(completedTripSummary?.trip_duration_minutes ?? null)} icon="time-outline" />
+              <SummaryMetric
+                label="Average speed"
+                value={completedTripSummary?.average_speed_km == null ? '— km/h' : `${Math.round(completedTripSummary.average_speed_km)} km/h`}
+                icon="speedometer-outline"
+              />
+              <SummaryMetric
+                label="Distance"
+                value={completedTripSummary?.route_distance_km == null ? '— km' : `${Number(completedTripSummary.route_distance_km).toFixed(1)} km`}
+                icon="map-outline"
+              />
+            </View>
+            <View style={styles.summaryDetails}>
+              <SummaryDetail label="Vehicle" value={completedTripSummary?.vehicle_plate || '—'} />
+              <SummaryDetail label="Started" value={formatTripTime(completedTripSummary?.time_departed ?? null)} />
+              <SummaryDetail label="Finished" value={formatTripTime(completedTripSummary?.time_arrived ?? null)} />
+            </View>
+            <Pressable onPress={() => setCompletedTripSummary(null)} style={styles.summaryDoneButton}>
+              <Text style={styles.summaryDoneText}>Done</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal transparent visible={scanTicketOpen} animationType="fade" onRequestClose={() => setScanTicketOpen(false)}>
+        <Pressable style={styles.scanBackdrop} onPress={() => setScanTicketOpen(false)}>
+          <Pressable style={styles.scanPrompt} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.scanTitle}>Scan Your Dispatch Ticket</Text>
+            <View style={styles.scanIllustration}>
+              <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
+              <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
+              <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
+              <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
+              <View style={styles.scanLine} />
+              <View style={styles.scanTarget} />
+            </View>
+            <Text style={styles.scanHint}>Scan Dispatcher’s QR Code to Get Your Dispatch Ticket</Text>
+            <Pressable
+              onPress={() => setScanActionMessage('Camera scanning will be connected in the next QR screen.')}
+              style={styles.scanButton}>
+              <Text style={styles.scanButtonText}>Scan Ticket QR Code</Text>
+            </Pressable>
+            {scanActionMessage ? <Text style={styles.scanActionMessage}>{scanActionMessage}</Text> : null}
+            <Pressable onPress={() => { setScanTicketOpen(false); setScanActionMessage(null); }} style={styles.scanCancelButton}>
+              <Text style={styles.scanCancelText}>Cancel</Text>
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -402,6 +494,25 @@ function Metric({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; 
     <View style={styles.metric}>
       <View style={styles.metricValueRow}><Ionicons name={icon} size={13} color="#284A50" /><Text style={styles.metricValue}>{value}</Text></View>
       <Text style={styles.metricLabel} numberOfLines={1}>{label}</Text>
+    </View>
+  );
+}
+
+function SummaryMetric({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
+  return (
+    <View style={styles.summaryMetric}>
+      <Ionicons name={icon} size={17} color="#087C73" />
+      <Text style={styles.summaryMetricValue}>{value}</Text>
+      <Text style={styles.summaryMetricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function SummaryDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.summaryDetail}>
+      <Text style={styles.summaryDetailLabel}>{label}</Text>
+      <Text style={styles.summaryDetailValue}>{value}</Text>
     </View>
   );
 }
@@ -466,5 +577,42 @@ const styles = StyleSheet.create({
   directionOptionCopy: { flex: 1 },
   directionOptionTitle: { color: '#183D3A', fontSize: 14, fontWeight: '700' },
   directionOptionHint: { marginTop: 2, color: '#657A75', fontSize: 11 },
+  scanBackdrop: { flex: 1, justifyContent: 'center', paddingHorizontal: 16, backgroundColor: 'rgba(0,0,0,0.48)' },
+  scanPrompt: { alignItems: 'center', borderRadius: 8, paddingHorizontal: 15, paddingTop: 24, paddingBottom: 25, backgroundColor: '#FFFFFF' },
+  scanTitle: { color: '#101010', fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  scanIllustration: { width: 162, height: 162, alignItems: 'center', justifyContent: 'center', marginTop: 19, marginBottom: 16, backgroundColor: '#C6FAF5' },
+  scanCorner: { position: 'absolute', width: 46, height: 46, borderColor: '#00A99A' },
+  scanCornerTopLeft: { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 2 },
+  scanCornerTopRight: { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 2 },
+  scanCornerBottomLeft: { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 2 },
+  scanCornerBottomRight: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 2 },
+  scanLine: { position: 'absolute', left: 11, right: 11, height: 3, backgroundColor: '#00A99A' },
+  scanTarget: { width: 34, height: 34, borderWidth: 5, borderColor: '#00A99A' },
+  scanHint: { marginBottom: 20, color: '#101010', fontSize: 12, textAlign: 'center' },
+  scanButton: { width: '100%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 5, backgroundColor: '#00A99A' },
+  scanButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  scanActionMessage: { marginTop: 8, color: '#657A75', fontSize: 11, textAlign: 'center' },
+  scanCancelButton: { width: '100%', height: 42, alignItems: 'center', justifyContent: 'center', marginTop: 10, borderWidth: 1, borderColor: '#C5C5C5', borderRadius: 5 },
+  scanCancelText: { color: '#111111', fontSize: 15 },
+  summaryBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.52)' },
+  summaryCard: { width: '100%', alignItems: 'center', borderRadius: 18, paddingHorizontal: 18, paddingTop: 22, paddingBottom: 18, backgroundColor: '#FFFFFF' },
+  summaryCheckCircle: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#00A99A' },
+  summaryTitle: { marginTop: 10, color: '#153E3B', fontSize: 20, fontWeight: '800' },
+  summarySubtitle: { marginTop: 3, color: '#607772', fontSize: 12 },
+  summaryRoute: { width: '100%', borderRadius: 10, marginTop: 17, paddingHorizontal: 13, paddingVertical: 11, backgroundColor: '#E8F2F1' },
+  summaryRouteLabel: { color: '#66807C', fontSize: 9, fontWeight: '700', letterSpacing: 0.8 },
+  summaryRouteValue: { marginTop: 4, color: '#183D3A', fontSize: 14, fontWeight: '700' },
+  summaryDirection: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
+  summaryDirectionText: { color: '#087C73', fontSize: 11, fontWeight: '700' },
+  summaryMetrics: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', gap: 8, marginTop: 14 },
+  summaryMetric: { flex: 1, alignItems: 'center', gap: 4, borderRadius: 9, paddingVertical: 10, backgroundColor: '#F2F7F5' },
+  summaryMetricValue: { color: '#183D3A', fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  summaryMetricLabel: { color: '#657A75', fontSize: 9, textAlign: 'center' },
+  summaryDetails: { width: '100%', marginTop: 13, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#D7E2DF' },
+  summaryDetail: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E1E9E6' },
+  summaryDetailLabel: { color: '#657A75', fontSize: 11 },
+  summaryDetailValue: { color: '#183D3A', fontSize: 11, fontWeight: '600' },
+  summaryDoneButton: { width: '100%', height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 8, marginTop: 15, backgroundColor: '#00A694' },
+  summaryDoneText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
 });
 2
