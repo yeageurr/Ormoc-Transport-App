@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -116,6 +117,8 @@ export default function RecordTripScreen() {
   const [completedTripSummary, setCompletedTripSummary] = useState<DriverTrip | null>(null);
   const [scanTicketOpen, setScanTicketOpen] = useState(false);
   const [scanActionMessage, setScanActionMessage] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -123,10 +126,12 @@ export default function RecordTripScreen() {
   const [sheetHeight, setSheetHeight] = useState(302);
   const [sheetCollapsed, setSheetCollapsed] = useState(false);
   const location = useDriverLocation();
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const lastGeocodeRef = useRef<{ latitude: number; longitude: number; at: number } | null>(null);
   const geocodeRequestRef = useRef(0);
+  const scanLockedRef = useRef(false);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const gestureStartY = useRef(0);
   const collapsedOffset = Math.max(0, sheetHeight - 76);
@@ -190,6 +195,25 @@ export default function RecordTripScreen() {
     } finally {
       if (showLoading) setIsLoading(false);
     }
+  }, []);
+
+  const openCameraScanner = useCallback(async () => {
+    setScanActionMessage(null);
+    setCameraError(null);
+    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
+    if (!permission.granted) {
+      setScanActionMessage('Camera permission is needed to scan the ticket. Enable it in your device settings and try again.');
+      return;
+    }
+    scanLockedRef.current = false;
+    setScanTicketOpen(false);
+    setCameraOpen(true);
+  }, [cameraPermission, requestCameraPermission]);
+
+  const handleTicketQrScanned = useCallback(() => {
+    if (scanLockedRef.current) return;
+    scanLockedRef.current = true;
+    setCameraError('QR detected. Live ticket verification is not connected yet.');
   }, []);
 
   useEffect(() => { void loadDispatch(); }, [loadDispatch]);
@@ -457,9 +481,9 @@ export default function RecordTripScreen() {
             </View>
             <Text style={styles.scanHint}>Scan Dispatcher’s QR Code to Get Your Dispatch Ticket</Text>
             <Pressable
-              onPress={() => setScanActionMessage('Camera scanning will be connected in the next QR screen.')}
+              onPress={() => void openCameraScanner()}
               style={styles.scanButton}>
-              <Text style={styles.scanButtonText}>Scan Ticket QR Code</Text>
+              <Text style={styles.scanButtonText}>{cameraPermission?.granted ? 'Scan Ticket QR Code' : 'Allow Camera & Scan'}</Text>
             </Pressable>
             {scanActionMessage ? <Text style={styles.scanActionMessage}>{scanActionMessage}</Text> : null}
             <Pressable onPress={() => { setScanTicketOpen(false); setScanActionMessage(null); }} style={styles.scanCancelButton}>
@@ -467,6 +491,29 @@ export default function RecordTripScreen() {
             </Pressable>
           </Pressable>
         </Pressable>
+      </Modal>
+      <Modal visible={cameraOpen} animationType="slide" onRequestClose={() => setCameraOpen(false)}>
+        <View style={styles.cameraScreen}>
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            onBarcodeScanned={handleTicketQrScanned}
+          />
+          <SafeAreaView style={styles.cameraHeader} edges={['top']}>
+            <Pressable accessibilityLabel="Close QR scanner" onPress={() => setCameraOpen(false)} style={styles.cameraCloseButton}>
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </Pressable>
+            <Text style={styles.cameraTitle}>Scan dispatch ticket</Text>
+            <View style={styles.cameraCloseButton} />
+          </SafeAreaView>
+          <View pointerEvents="none" style={styles.cameraTargetArea}>
+            <View style={styles.cameraFrame} />
+          </View>
+          <View style={styles.cameraFooter}>
+            <Text style={styles.cameraFooterText}>{cameraError || 'Point at a dispatch ticket QR code'}</Text>
+          </View>
+        </View>
       </Modal>
       <Modal transparent visible={directionPickerOpen && !activeTrip} animationType="fade" onRequestClose={() => setDirectionPickerOpen(false)}>
         <Pressable style={styles.directionBackdrop} onPress={() => setDirectionPickerOpen(false)}>
@@ -594,6 +641,14 @@ const styles = StyleSheet.create({
   scanActionMessage: { marginTop: 8, color: '#657A75', fontSize: 11, textAlign: 'center' },
   scanCancelButton: { width: '100%', height: 42, alignItems: 'center', justifyContent: 'center', marginTop: 10, borderWidth: 1, borderColor: '#C5C5C5', borderRadius: 5 },
   scanCancelText: { color: '#111111', fontSize: 15 },
+  cameraScreen: { flex: 1, justifyContent: 'space-between', backgroundColor: '#000000' },
+  cameraHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 12, backgroundColor: 'rgba(0,0,0,0.42)' },
+  cameraCloseButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  cameraTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '700' },
+  cameraTargetArea: { alignItems: 'center', justifyContent: 'center' },
+  cameraFrame: { width: 260, height: 260, borderWidth: 3, borderColor: '#00D0B9', borderRadius: 22 },
+  cameraFooter: { minHeight: 92, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, paddingBottom: 18, backgroundColor: 'rgba(0,0,0,0.55)' },
+  cameraFooterText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600', textAlign: 'center' },
   summaryBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.52)' },
   summaryCard: { width: '100%', alignItems: 'center', borderRadius: 18, paddingHorizontal: 18, paddingTop: 22, paddingBottom: 18, backgroundColor: '#FFFFFF' },
   summaryCheckCircle: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#00A99A' },
