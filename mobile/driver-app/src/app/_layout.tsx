@@ -49,7 +49,8 @@ function RootNavigator() {
         <Stack.Screen name="change-password" />
       </Stack.Protected>
       <Stack.Protected guard={!isAuthenticated}>
-        <Stack.Screen name="login" />
+        <Stack.Screen name="entrance" options={{ animation: 'none' }} />
+        <Stack.Screen name="login" options={{ animation: 'none' }} />
         <Stack.Screen name="forgot-password" />
       </Stack.Protected>
     </Stack>

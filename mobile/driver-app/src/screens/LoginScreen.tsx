@@ -2,56 +2,60 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'expo-router';
 import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  StyleSheet,
-  Image,
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { loginDriver } from '../api/authAPI';
-import { useAuth } from '@/hooks/useAuth'; 
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-const entrance = (delay: number) => FadeInDown.duration(460).delay(delay);
+import { loginDriver } from '@/api/authAPI';
+import { useAuth } from '@/hooks/useAuth';
+
+const riseIn = (delay: number) => FadeInDown.duration(460).delay(delay);
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn } = useAuth();
 
-  const [username, setUsername] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async (): Promise<void> => {
     if (!username.trim() || !password) {
-      setError('Please enter both username and password.');
+      setError('Please enter your username or phone and password.');
       return;
     }
+
     setError('');
     setLoading(true);
     try {
       const response = await loginDriver(username.trim(), password);
       signIn(response.user.first_name);
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const detail = error.response?.data?.error?.message || error.response?.data?.detail;
+    } catch (loginError) {
+      if (axios.isAxiosError(loginError)) {
+        const detail = loginError.response?.data?.error?.message || loginError.response?.data?.detail;
         setError(
-          error.response?.status === 401
-            ? 'Invalid username or password.'
-            : error.response?.status === 403 && detail?.toLowerCase().includes('suspended')
-              ? 'Your account has been suspended. Please contact the terminal administrator.'
-            : detail || 'Unable to sign in. Please try again.'
+          loginError.response?.status === 401
+            ? 'Account username or password is incorrect.'
+            : loginError.response?.status === 403 && detail?.toLowerCase().includes('suspended')
+              ? 'Your account has been suspended. Please contact the ticketing officer.'
+              : detail || 'Unable to sign in. Please try again.',
         );
-      } else if (error instanceof Error) {
-        setError(error.message);
+      } else if (loginError instanceof Error) {
+        setError(loginError.message);
       } else {
         setError('Unable to sign in. Please try again.');
       }
@@ -60,206 +64,281 @@ export default function LoginScreen() {
     }
   };
 
+  const clearError = () => {
+    if (error) setError('');
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <StatusBar barStyle="light-content" />
-
-      {/* Watermark seal, low opacity, sits behind everything */}
-      <Image
-        source={require('../../assets/expo.icon/Assets/grid.png')}
-        style={styles.watermark}
-        resizeMode="contain"
-      />
-
-      <View style={styles.headerBlock}>
-        <Animated.View entering={entrance(540)}>
-          <Text style={styles.title}>Login</Text>
-        </Animated.View>
-        <Animated.View entering={entrance(450)} style={styles.titleUnderline} />
-        <Animated.View entering={entrance(360)}>
-          <Text style={styles.subtitle}>ART Fusion Driver</Text>
-        </Animated.View>
-      </View>
-
-      <View style={styles.card}>
-        <Animated.View entering={entrance(270)}>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="person-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Username"
-              placeholderTextColor="#7FA8A4"
-              autoCapitalize="none"
-              autoCorrect={false}
-              value={username}
-              onChangeText={setUsername}
-              returnKeyType="next"
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View entering={riseIn(440)} style={styles.logoWrap}>
+            <Image
+              source={require('@/assets/images/ormoc-driver-mark.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel="Ormoc City bus logo"
             />
-          </View>
-        </Animated.View>
+          </Animated.View>
 
-        <Animated.View entering={entrance(180)}>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="key-outline" size={20} color="#8FD9D3" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#7FA8A4"
-              secureTextEntry={!showPassword}
-              autoCapitalize='none'
-              autoCorrect={false}
-              value={password}
-              onChangeText={setPassword}
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
-            />
-            <Pressable
-              onPress={() => setShowPassword((v) => !v)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              style={styles.eyeButton}
-            >
-              <Ionicons
-                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                size={20}
-                color="#8FD9D3"
-              />
-            </Pressable>
-          </View>
-        </Animated.View>
+          <Animated.Text entering={riseIn(360)} style={styles.title}>
+            Login your Driver Account
+          </Animated.Text>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <Animated.View entering={riseIn(40)} style={styles.card}>
+            <Animated.View entering={riseIn(260)}>
+              <Text style={styles.fieldLabel}>Username or Phone</Text>
+              <View style={[styles.inputWrapper, error && styles.inputError]}>
+                <Ionicons name="person-outline" size={17} color={COLORS.ink} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="09xxxxxxxxx"
+                  placeholderTextColor={COLORS.placeholder}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={username}
+                  onChangeText={(value) => {
+                    setUsername(value);
+                    clearError();
+                  }}
+                  returnKeyType="next"
+                  accessibilityLabel="Username or phone"
+                />
+              </View>
+            </Animated.View>
 
-        <Animated.View entering={entrance(90)}>
-          <Pressable
-            onPress={() => router.push('/forgot-password')}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={styles.forgotWrapper}
-          >
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </Pressable>
-        </Animated.View>
+            <Animated.View entering={riseIn(180)} style={styles.passwordGroup}>
+              <Text style={styles.fieldLabel}>Password</Text>
+              <View style={[styles.inputWrapper, error && styles.inputError]}>
+                <Ionicons name="key-outline" size={17} color={COLORS.ink} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="••••••••"
+                  placeholderTextColor={COLORS.placeholder}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={password}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    clearError();
+                  }}
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                  accessibilityLabel="Password"
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  onPress={() => setShowPassword((visible) => !visible)}
+                  hitSlop={10}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={18}
+                    color={COLORS.ink}
+                  />
+                </Pressable>
+              </View>
+            </Animated.View>
 
-        <Animated.View entering={entrance(0)}>
-          <Pressable
-            onPress={handleLogin}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.loginButton,
-              pressed && styles.loginButtonPressed,
-              loading && styles.loginButtonDisabled,
-            ]}
-          >
-            {loading ? (
-              <ActivityIndicator color="#042F2E" />
-            ) : (
-              <Text style={styles.loginButtonText}>Login</Text>
-            )}
-          </Pressable>
-        </Animated.View>
-      </View>
-    </KeyboardAvoidingView>
+            {error ? (
+              <Animated.View entering={FadeIn.duration(180)} style={styles.errorBanner} accessibilityRole="alert">
+                <Ionicons name="close-outline" size={16} color={COLORS.error} />
+                <Text style={styles.errorText}>{error}</Text>
+              </Animated.View>
+            ) : null}
+
+            <Animated.View entering={riseIn(100)}>
+              <Pressable
+                onPress={handleLogin}
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.loginButton,
+                  error && styles.loginButtonAfterError,
+                  pressed && styles.loginButtonPressed,
+                  loading && styles.loginButtonDisabled,
+                ]}
+              >
+                {loading ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <View style={styles.loginButtonContent}>
+                    <Text style={styles.loginButtonText}>Login</Text>
+                  </View>
+                )}
+              </Pressable>
+            </Animated.View>
+
+            <Animated.View entering={riseIn(0)} style={styles.forgotWrap}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push('/forgot-password')}
+                hitSlop={8}
+              >
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
+            </Animated.View>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
+const COLORS = {
+  background: '#D3DFEA',
+  white: '#FFFFFF',
+  ink: '#111111',
+  placeholder: '#73777A',
+  border: '#A9ADB0',
+  primary: '#00A99D',
+  primaryPressed: '#00988E',
+  error: '#F04444',
+  errorBorder: '#FF8D8D',
+  errorBackground: '#FFDADA',
+};
+
 const styles = StyleSheet.create({
-  screen: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#042F2E',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
+    backgroundColor: COLORS.background,
   },
-  watermark: {
-    position: 'absolute',
-    top: '30%',
-    left: '15%',
-    width: '70%',
-    height: '40%',
-    opacity: 0.06,
+  keyboardView: {
+    flex: 1,
   },
-  headerBlock: {
+  content: {
+    flexGrow: 1,
     alignItems: 'center',
-    marginBottom: 28,
+    paddingHorizontal: 15,
+    paddingTop: 66,
+  },
+  logoWrap: {
+    width: 108,
+    height: 108,
+  },
+  logo: {
+    width: '100%',
+    height: '100%',
   },
   title: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  titleUnderline: {
-    width: 56,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#2DD4BF',
-    marginTop: 8,
-  },
-  subtitle: {
-    marginTop: 10,
-    fontSize: 13,
-    color: '#8FD9D3',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    marginTop: 25,
+    marginBottom: 65,
+    color: COLORS.ink,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 17,
+    lineHeight: 25,
+    textAlign: 'center',
   },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 20,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    width: '100%',
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingTop: 16,
+    paddingBottom: 14,
+    flexDirection: 'column',
+    gap: 10
+  },
+  fieldLabel: {
+    marginBottom: 4,
+    color: COLORS.ink,
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 12,
+    lineHeight: 15,
   },
   inputWrapper: {
+    height: 46,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-    height: 52,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 7,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.white,
+  },
+  inputError: {
+    borderColor: COLORS.errorBorder,
   },
   inputIcon: {
-    marginRight: 10,
+    marginRight: 13,
   },
   input: {
     flex: 1,
-    color: '#FFFFFF',
-    fontSize: 16,
+    height: '100%',
+    padding: 0,
+    color: COLORS.ink,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 12,
+  },
+  passwordGroup: {
+    marginTop: 10,
   },
   eyeButton: {
-    padding: 4,
+    padding: 3,
+  },
+  errorBanner: {
+    minHeight: 26,
+    marginTop: 28,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 3,
+    backgroundColor: COLORS.errorBackground,
   },
   errorText: {
-    color: '#FCA5A5',
-    fontSize: 13,
-    marginBottom: 8,
-    marginTop: -6,
-  },
-  forgotWrapper: {
-    alignSelf: 'flex-end',
-    marginBottom: 22,
-  },
-  forgotText: {
-    color: '#8FD9D3',
-    fontSize: 13,
+    flex: 1,
+    marginLeft: 5,
+    color: COLORS.error,
+    fontFamily: 'Poppins_400Regular',
+    fontSize: 10,
+    lineHeight: 14,
   },
   loginButton: {
-    backgroundColor: '#2DD4BF',
-    borderRadius: 14,
-    height: 54,
+    height: 42,
+    marginTop: 29,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 5,
+    backgroundColor: COLORS.primary,
+  },
+  loginButtonAfterError: {
+    marginTop: 11,
   },
   loginButtonPressed: {
-    backgroundColor: '#26B8A5',
+    backgroundColor: COLORS.primaryPressed,
   },
   loginButtonDisabled: {
     opacity: 0.7,
   },
+  loginButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   loginButtonText: {
-    color: '#042F2E',
-    fontSize: 17,
-    fontWeight: '700',
+    color: COLORS.white,
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 18,
+  },
+  forgotWrap: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  forgotText: {
+    color: COLORS.ink,
+    fontFamily: 'Poppins_500Medium',
+    fontSize: 13,
+    lineHeight: 15,
+    marginBottom: 10
   },
 });

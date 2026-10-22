@@ -10,5 +10,5 @@ export default function Index() {
     return null;
   }
 
-  return <Redirect href={isAuthenticated ? '/tabs' : '/login'} />;
+  return <Redirect href={isAuthenticated ? '/tabs' : '/entrance'} />;
 }
