@@ -25,7 +25,8 @@ export default function BottomNav() {
     <View style={styles.nav}>
       <View style={styles.navButtons}>
         {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href === '/tabs' && pathname === '/tabs/');
+          const isActive = pathname === item.href
+            || (item.href === '/tabs' && pathname === '/tabs/');
           return (
             <Pressable
               key={item.label}

@@ -171,7 +171,7 @@ export default function HomeScreen() {
               label="My Tickets"
               icon="ticket"
               color="#F20D18"
-              onPress={() => Alert.alert('My Tickets', ticketSummary)}
+              onPress={() => router.push('/tabs/my-tickets')}
             />
             <QuickAction
               label="Start Trip"

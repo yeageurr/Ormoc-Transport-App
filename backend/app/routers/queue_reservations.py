@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
@@ -17,7 +17,11 @@ from app.models.queue_reservation import QueueReservation
 from app.models.route import Route
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
-from app.schemas.queue_reservation import QueueReservationCreate, QueueReservationResponse
+from app.schemas.queue_reservation import (
+  DriverQueueReservationHistoryResponse,
+  QueueReservationCreate,
+  QueueReservationResponse,
+)
 from app.services.dispatch_ticket_service import generate_unique_ticket_reference
 
 router = APIRouter()
@@ -83,6 +87,54 @@ def current_driver_reservation(
   if reservation is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active reservation")
   return _response(reservation)
+
+
+@router.get("/driver/mine", response_model=list[DriverQueueReservationHistoryResponse])
+def driver_reservation_history(
+  db: Session = Depends(get_db),
+  account: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Return all of the signed-in driver's reservation and ticket records."""
+  driver = get_driver_profile(db, account)
+  reservations = (
+    db.query(QueueReservation)
+    .options(
+      joinedload(QueueReservation.driver),
+      joinedload(QueueReservation.vehicle),
+      joinedload(QueueReservation.route).joinedload(Route.origin),
+      joinedload(QueueReservation.route).joinedload(Route.destination),
+      joinedload(QueueReservation.ticket),
+    )
+    .filter(QueueReservation.driver_id == driver.user_id)
+    .order_by(QueueReservation.reserved_at.desc())
+    .all()
+  )
+
+  history = []
+  for reservation in reservations:
+    ticket = reservation.ticket
+    response_data = _response(reservation).model_dump()
+    if ticket is not None:
+      # Departed reservations clear their queue number to release the daily
+      # uniqueness slot, so display the immutable number retained on the ticket.
+      response_data["queue_number"] = ticket.queue_number
+      response_data["queue_display"] = f"{reservation.route.queue_prefix}-{ticket.queue_number:04d}"
+    history.append(DriverQueueReservationHistoryResponse(
+      **response_data,
+      driver_name=f"{reservation.driver.first_name} {reservation.driver.last_name}",
+      route_label=(
+        f"{reservation.route.origin.terminal_name} - {reservation.route.destination.name}"
+      ),
+      vehicle_plate=reservation.vehicle.plate_number,
+      vehicle_body_number=reservation.vehicle.body_number,
+      loading_at=reservation.loading_at,
+      departed_at=reservation.departed_at,
+      ticket_created_at=ticket.created_at if ticket else None,
+      ticket_used_at=ticket.used_at if ticket else None,
+      ticket_cancelled_at=ticket.cancelled_at if ticket else None,
+      ticket_expired_at=ticket.expired_at if ticket else None,
+    ))
+  return history
 
 
 @router.post("", response_model=QueueReservationResponse, status_code=status.HTTP_201_CREATED)
