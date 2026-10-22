@@ -60,7 +60,7 @@ def seed_routes():
     db.flush()  # get terminal_id before creating routes that reference it
     print(f"Created terminal: {terminal.terminal_name} (terminal_id={terminal.terminal_id})")
 
-    for dest_data in PILOT_DESTINATIONS:
+    for destination_index, dest_data in enumerate(PILOT_DESTINATIONS, start=1):
       destination = Destination(**dest_data)
       db.add(destination)
       db.flush()
@@ -78,6 +78,10 @@ def seed_routes():
       route = Route(
         origin_id=terminal.terminal_id,
         destination_id=destination.destination_id,
+        # Queue prefixes are independent public route codes. They currently
+        # start at 001 for a fresh seed and can be reassigned without changing
+        # route/destination primary keys or historical foreign keys.
+        queue_prefix=f"{destination_index:03d}",
         distance=distance,
       )
       db.add(route)

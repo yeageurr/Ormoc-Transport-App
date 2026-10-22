@@ -29,7 +29,7 @@ router = APIRouter()
 def list_eligible_owners(
   vehicle_id: int | None = None,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """Active, unassigned drivers, plus the current owner while editing."""
   return (
@@ -65,7 +65,7 @@ class LiveVehicleSummary(BaseModel):
 @router.get("/live", response_model=list[LiveVehicleSummary])
 def get_live_vehicle_overview(
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """REST snapshot for the Live Map's initial page load, before any
   WebSocket pings have arrived yet. WS handles updates after this;
@@ -151,7 +151,7 @@ def get_live_vehicle_overview(
 def create_vehicle(
   payload: VehicleCreate,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   owner = db.query(User).filter(User.user_id == payload.owner_id).first()
   if owner is None:
@@ -193,7 +193,7 @@ def create_vehicle(
 
 
   log_action(
-    db, current_admin.account_id, AuditAction.CREATE, "vehicles", vehicle.vehicle_id,
+    db, ticketing_officer.account_id, AuditAction.CREATE, "vehicles", vehicle.vehicle_id,
     f"Created vehicle {vehicle.plate_number} for {owner.first_name} {owner.last_name}",
   )
 
@@ -203,7 +203,7 @@ def create_vehicle(
 @router.get("", response_model=list[VehicleResponse])
 def list_vehicles(
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   return db.query(Vehicle).all()
 
@@ -212,7 +212,7 @@ def list_vehicles(
 def get_vehicle(
   vehicle_id: int,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
   if vehicle is None:
@@ -225,7 +225,7 @@ def update_vehicle(
   vehicle_id: int,
   payload: VehicleUpdate,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
   if vehicle is None:
@@ -281,7 +281,7 @@ def update_vehicle(
   db.refresh(vehicle)
 
   log_action(
-    db, current_admin.account_id, AuditAction.UPDATE, "vehicles", vehicle_id,
+    db, ticketing_officer.account_id, AuditAction.UPDATE, "vehicles", vehicle_id,
     f"Updated vehicle {vehicle.plate_number}: {', '.join(changes) or 'no field changes'}",
   )
 
@@ -292,13 +292,13 @@ def update_vehicle(
 def delete_vehicle(
   vehicle_id: int,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """Permanently remove an unused vehicle.
 
   A vehicle with dispatch history is retained so the dispatch, trip, and
   incident records that refer to it remain valid. Those vehicles must not be
-  deleted from the admin UI.
+  deleted from the ticketing officer interface.
   """
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
   if vehicle is None:
@@ -318,6 +318,6 @@ def delete_vehicle(
   db.commit()
 
   log_action(
-    db, current_admin.account_id, AuditAction.DELETE, "vehicles", vehicle_id,
+    db, ticketing_officer.account_id, AuditAction.DELETE, "vehicles", vehicle_id,
     f"Deleted unused vehicle {plate_number}",
   )

@@ -45,7 +45,7 @@ class RecentIncidentSummary(BaseModel):
 @router.get("/stats", response_model=DashboardStats)
 def get_dashboard_stats(
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   now = datetime.now(ZoneInfo("Asia/Manila"))
   today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -127,7 +127,7 @@ def get_dashboard_stats(
 @router.get("/trip-volume", response_model=list[TripVolumeDay])
 def get_trip_volume_last_7_days(
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """Completed trip count per day, last 7 days, oldest first — matches
   the Mon-Sun bar chart in the dashboard mockup."""
@@ -154,7 +154,7 @@ def get_trip_volume_last_7_days(
 def get_recent_incidents(
   limit: int = 5,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   incidents = (
     db.query(Incident)

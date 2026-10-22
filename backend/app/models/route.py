@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Numeric, ForeignKey, Boolean
+from sqlalchemy import JSON, Numeric, ForeignKey, Boolean, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
@@ -14,8 +14,12 @@ if TYPE_CHECKING:
 
 class Route(Base):
   __tablename__ = "routes"
+  __table_args__ = (
+    UniqueConstraint("queue_prefix", name="uq_routes_queue_prefix"),
+  )
 
   route_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+  queue_prefix: Mapped[str] = mapped_column(String(8), nullable=False)
   origin_id: Mapped[int] = mapped_column(ForeignKey("terminals.terminal_id"), nullable=False)
   destination_id: Mapped[int] = mapped_column(ForeignKey("destinations.destination_id"), nullable=False)
   distance: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)

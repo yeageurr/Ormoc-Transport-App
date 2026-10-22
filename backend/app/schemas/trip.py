@@ -61,7 +61,7 @@ class TripDriverSummary(BaseModel):
 
 
 class AdminTripResponse(BaseModel):
-  """Used for the admin-wide Trip Logs table, which needs driver name
+  """Used for the ticketing-officer Trip Logs table, which needs driver name
   and route directly, not just IDs — driver's own /trips/driver/mine
   doesn't need this since it's implicitly always their own trips."""
   trip_id: int

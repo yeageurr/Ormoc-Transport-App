@@ -116,17 +116,17 @@ def current_driver_dispatch(db: Session = Depends(get_db), current_driver: Accou
 
 
 @router.post("", response_model=DispatchResponse, status_code=status.HTTP_201_CREATED)
-def create_dispatch(item: DispatchCreate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
+def create_dispatch(item: DispatchCreate, db: Session = Depends(get_db), ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER))):
   validate_dispatch(db, item)
 
 
-  dispatch = DispatchLog(admin_id=current_admin.account_id, **item.model_dump())
+  dispatch = DispatchLog(admin_id=ticketing_officer.account_id, **item.model_dump())
   db.add(dispatch)
   db.commit()
   db.refresh(dispatch)
 
   log_action(
-    db, current_admin.account_id, 
+    db, ticketing_officer.account_id,
     AuditAction.CREATE, 
     "dispatch_logs", 
     dispatch.dispatch_id,
@@ -137,7 +137,7 @@ def create_dispatch(item: DispatchCreate, db: Session = Depends(get_db), current
 
 
 @router.post("/batch", response_model=list[DispatchResponse], status_code=status.HTTP_201_CREATED)
-def create_dispatch_batch(payload: DispatchBatchCreate, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
+def create_dispatch_batch(payload: DispatchBatchCreate, db: Session = Depends(get_db), ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER))):
   batch_day, _ = day_bounds(payload.dispatches[0].effective_on)
   drivers, vehicles = set(), set()
 
@@ -152,7 +152,7 @@ def create_dispatch_batch(payload: DispatchBatchCreate, db: Session = Depends(ge
 
     drivers.add(item.driver_id); vehicles.add(item.vehicle_id); validate_dispatch(db, item)
 
-  dispatches = [DispatchLog(admin_id=current_admin.account_id, **item.model_dump()) for item in payload.dispatches]
+  dispatches = [DispatchLog(admin_id=ticketing_officer.account_id, **item.model_dump()) for item in payload.dispatches]
 
   db.add_all(dispatches)
   db.commit()
@@ -161,7 +161,7 @@ def create_dispatch_batch(payload: DispatchBatchCreate, db: Session = Depends(ge
     db.refresh(dispatch)
     log_action(
       db, 
-      current_admin.account_id, 
+      ticketing_officer.account_id,
       AuditAction.CREATE, 
       "dispatch_logs", 
       dispatch.dispatch_id,
@@ -172,12 +172,12 @@ def create_dispatch_batch(payload: DispatchBatchCreate, db: Session = Depends(ge
 
 
 @router.get("", response_model=list[DispatchResponse])
-def list_dispatches(db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
+def list_dispatches(db: Session = Depends(get_db), ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER))):
   return db.query(DispatchLog).order_by(DispatchLog.effective_on.desc()).all()
 
 
 @router.get("/{dispatch_id}", response_model=DispatchResponse)
-def get_dispatch(dispatch_id: int, db: Session = Depends(get_db), current_admin: Account = Depends(require_role(AccountRole.ADMIN))):
+def get_dispatch(dispatch_id: int, db: Session = Depends(get_db), ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER))):
   dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == dispatch_id).first()
 
   if not dispatch: 

@@ -81,7 +81,7 @@ class EmailOtpVerify(BaseModel):
 
 class DriverAdminUpdate(BaseModel):
   """Admin editing a driver's profile — unlike UserUpdate, this CAN
-  touch contact_number and license fields, since the admin is the
+  touch contact_number and license fields, since the ticketing officer is the
   authoritative source for correcting driver records (e.g. a typo'd
   phone number or license renewal), not the driver themselves."""
   first_name: str | None = None

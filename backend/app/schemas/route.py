@@ -48,10 +48,11 @@ class DestinationResponse(BaseModel):
 
 class RouteResponse(BaseModel):
   """No RouteCreate/RouteUpdate schemas — routes are seeded once at
-  deployment and are fully view-only, no admin write access at all."""
+  deployment and are fully view-only, no ticketing-officer write access at all."""
   model_config = ConfigDict(from_attributes=True)
 
   route_id: int
+  queue_prefix: str
   origin_id: int
   destination_id: int
   distance: float

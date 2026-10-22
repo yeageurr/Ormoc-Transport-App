@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, func, text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -24,6 +24,18 @@ class DispatcherAssignment(Base):
       unique=True,
       postgresql_where=text("closed_at IS NULL"),
       sqlite_where=text("closed_at IS NULL"),
+    ),
+    Index(
+      "ix_dispatcher_assignments_due_for_autoclose",
+      "created_at",
+      postgresql_where=text("closed_at IS NULL"),
+      sqlite_where=text("closed_at IS NULL"),
+    ),
+    CheckConstraint(
+      "(closed_at IS NULL AND auto_closed = false AND closed_by IS NULL) OR "
+      "(closed_at IS NOT NULL AND ((auto_closed = true AND closed_by IS NULL) OR "
+      "(auto_closed = false AND closed_by IS NOT NULL)))",
+      name="ck_dispatcher_assignments_closure_metadata",
     ),
   )
 

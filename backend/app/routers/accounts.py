@@ -12,7 +12,7 @@ from app.core.security import hash_password
 from app.core.permissions import require_role
 from app.services.account_service import generate_account_code, generate_driver_id
 from app.enums import AccountRole, AccountStatus
-from app.services.account_activity_email import notify_admin_user_created, notify_driver_profile_updated
+from app.services.account_activity_email import notify_ticketing_officer_user_created, notify_driver_profile_updated
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ def generate_temp_password(num: str) -> str:
 def create_driver(
   payload: DriverCreate,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
 
   existing_account = db.query(Account).filter(Account.username == payload.contact_number).first()
@@ -73,12 +73,12 @@ def create_driver(
   from app.services.audit_service import log_action
   from app.enums import AuditAction
   log_action(
-    db, current_admin.account_id, AuditAction.CREATE, "users", driver.user_id,
+    db, ticketing_officer.account_id, AuditAction.CREATE, "users", driver.user_id,
     f"Created driver account for {payload.first_name} {payload.last_name} ({payload.contact_number})",
   )
-  notify_admin_user_created(current_admin)
+  notify_ticketing_officer_user_created(ticketing_officer)
 
-  # In a real deployment this would be relayed to the admin creating the
+  # In a real deployment this would be relayed to the ticketing officer creating the
   # account (e.g. displayed once in the UI), not returned in the API response.
   print(f"[seed] Temp password for {payload.contact_number}: {temp_password}")
 
@@ -88,7 +88,7 @@ def create_driver(
 @router.get("/drivers", response_model=list[UserResponse])
 def list_drivers(
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   return (
     db.query(User)
@@ -103,7 +103,7 @@ def list_drivers(
 async def suspend_driver(
   user_id: int,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   driver = db.query(User).filter(User.user_id == user_id).first()
   if driver is None:
@@ -115,7 +115,7 @@ async def suspend_driver(
   from app.services.audit_service import log_action
   from app.enums import AuditAction
   log_action(
-    db, current_admin.account_id, AuditAction.SUSPEND, "accounts", driver.account_id,
+    db, ticketing_officer.account_id, AuditAction.SUSPEND, "accounts", driver.account_id,
     f"Suspended driver account for {driver.first_name} {driver.last_name}",
   )
 
@@ -123,7 +123,7 @@ async def suspend_driver(
   from app.enums import NotificationType
   await send_targeted_notification(
     db, driver.account_id, NotificationType.SUSPENSION,
-    "Your account has been suspended. Contact the terminal admin for details.",
+    "Your account has been suspended. Contact the ticketing officer for details.",
   )
 
   return {"detail": f"Driver {driver.first_name} {driver.last_name} has been suspended"}
@@ -133,7 +133,7 @@ async def suspend_driver(
 async def reactivate_driver(
   user_id: int,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """Reactivate a suspended or disabled driver account."""
   driver = db.query(User).filter(User.user_id == user_id).first()
@@ -153,7 +153,7 @@ async def reactivate_driver(
   from app.services.audit_service import log_action
   from app.enums import AuditAction
   log_action(
-    db, current_admin.account_id, AuditAction.UPDATE, "accounts", driver.account_id,
+    db, ticketing_officer.account_id, AuditAction.UPDATE, "accounts", driver.account_id,
     f"Reactivated driver account for {driver.first_name} {driver.last_name} (was {previous_status})",
   )
 
@@ -168,12 +168,12 @@ async def reactivate_driver(
 
 
 @router.patch("/drivers/{user_id}", response_model=UserResponse)
-def admin_update_driver(
+def ticketing_officer_update_driver(
   user_id: int,
   payload: DriverAdminUpdate,
   request: Request,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """Admin-facing edit — unlike PATCH /users/me, this CAN touch
   contact_number (which also means updating the linked account's
@@ -208,7 +208,7 @@ def admin_update_driver(
   from app.services.audit_service import log_action
   from app.enums import AuditAction
   log_action(
-    db, current_admin.account_id, AuditAction.UPDATE, "users", driver.user_id,
+    db, ticketing_officer.account_id, AuditAction.UPDATE, "users", driver.user_id,
     f"Updated driver profile for {driver.first_name} {driver.last_name}",
   )
   if profile_changed:
@@ -221,7 +221,7 @@ def admin_update_driver(
 def delete_driver(
   user_id: int,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """Soft-delete only — flips status to DISABLED rather than actually
   removing the row, preserving historical dispatch/trip/incident records
@@ -237,7 +237,7 @@ def delete_driver(
   from app.services.audit_service import log_action
   from app.enums import AuditAction
   log_action(
-    db, current_admin.account_id, AuditAction.DELETE, "accounts", driver.account_id,
+    db, ticketing_officer.account_id, AuditAction.DELETE, "accounts", driver.account_id,
     f"Disabled (soft-deleted) driver account for {driver.first_name} {driver.last_name}",
   )
 

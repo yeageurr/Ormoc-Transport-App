@@ -82,7 +82,7 @@ async def send_route_broadcast(
 ) -> BroadcastNotification:
   """Called from other routers (e.g. incident reporting, passenger queue
   detection) — not exposed directly. Persists the broadcast AND pushes
-  it to route-scoped drivers plus all connected admins."""
+  it to route-scoped drivers plus all connected ticketing officers."""
 
   broadcast = BroadcastNotification(
     terminal_id=terminal_id,
@@ -104,8 +104,8 @@ async def send_route_broadcast(
   }
 
   # Admins always see every broadcast, regardless of route.
-  admin_ids = [acc.account_id for acc in db.query(Account).filter(Account.role == AccountRole.ADMIN).all()]
-  await manager.broadcast_to(admin_ids, payload)
+  ticketing_officer_ids = [acc.account_id for acc in db.query(Account).filter(Account.role == AccountRole.TICKETING_OFFICER).all()]
+  await manager.broadcast_to(ticketing_officer_ids, payload)
 
   # Drivers only see it if they're currently dispatched on the affected route today.
   if route_id is not None:

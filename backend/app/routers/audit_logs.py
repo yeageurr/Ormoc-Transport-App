@@ -16,7 +16,7 @@ def list_audit_logs(
   target_table: str | None = None, 
   actor_id: int | None = None, 
   db: Session = Depends(get_db), 
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN),)
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER),)
 ):
 
   query = db.query(AuditLog)
@@ -34,7 +34,7 @@ def list_audit_logs(
 def get_audit_log(
   audit_id: int,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
 
   entry = db.query(AuditLog).filter(AuditLog.audit_id == audit_id).first()

@@ -76,12 +76,12 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
   db.commit()
   db.refresh(location)
 
-  admin_ids = [
+  ticketing_officer_ids = [
     account_id for (account_id,) in db.query(Account.account_id)
-    .filter(Account.role == AccountRole.ADMIN).all()
+    .filter(Account.role == AccountRole.TICKETING_OFFICER).all()
   ]
 
-  await manager.broadcast_to(admin_ids, {
+  await manager.broadcast_to(ticketing_officer_ids, {
   "type": "gps_update",
     "data": {
       "vehicle_id": location.vehicle_id,
@@ -130,12 +130,12 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
   db.refresh(gps_log)
 
 
-  admin_ids = [
+  ticketing_officer_ids = [
     acc.account_id
-    for acc in db.query(Account).filter(Account.role == AccountRole.ADMIN).all()
+    for acc in db.query(Account).filter(Account.role == AccountRole.TICKETING_OFFICER).all()
   ]
 
-  await manager.broadcast_to(admin_ids, {
+  await manager.broadcast_to(ticketing_officer_ids, {
     "type": "gps_update",
     "data": {
       # vehicle_id added so the Live Map can update the right marker
@@ -157,7 +157,7 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
 def get_trip_path(
   trip_id: int,
   db: Session = Depends(get_db),
-  current_account: Account = Depends(require_role(AccountRole.ADMIN, AccountRole.DRIVER)),
+  current_account: Account = Depends(require_role(AccountRole.TICKETING_OFFICER, AccountRole.DRIVER)),
 ):
   """Full GPS trail for a trip — used to draw the route path after the fact."""
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()

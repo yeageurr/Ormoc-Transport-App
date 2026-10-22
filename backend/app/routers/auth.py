@@ -113,7 +113,7 @@ def request_password_reset_code(payload: PasswordResetCodeRequest, db: Session =
   if not accounts:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No driver account is registered with this email address")
   if len(accounts) > 1:
-    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email is linked to multiple driver accounts. Contact the terminal administrator.")
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email is linked to multiple driver accounts. Contact a ticketing officer.")
 
   account = accounts[0]
   verification = db.query(PasswordResetOtp).filter(PasswordResetOtp.account_id == account.account_id).first()

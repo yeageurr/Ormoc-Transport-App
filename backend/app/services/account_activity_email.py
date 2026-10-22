@@ -45,9 +45,9 @@ def _send_to_unique_recipients(recipients: Iterable[str | None], subject: str, n
       _send(recipient, subject, notice)
 
 
-def notify_admin_user_created(admin: Account) -> None:
+def notify_ticketing_officer_user_created(officer: Account) -> None:
   _send(
-    admin.email,
+    officer.email,
     "New user account created",
     "A new user account has been created, review these changes if it wasn't you who performed the action. "
     "If it wasn't you, immediately change your password to avoid any further changes.",
@@ -56,13 +56,13 @@ def notify_admin_user_created(admin: Account) -> None:
 
 def notify_password_changed(account: Account, request: Request, recipient: str | None = None) -> None:
   action_date, action_time, performer_ip = _performer_details(request)
-  if account.role == AccountRole.ADMIN:
+  if account.role == AccountRole.TICKETING_OFFICER:
     notice = (
       f"Notice: Your password was changed on: {action_date} at {action_time} ({performer_ip}). "
       "If this wasn't you, kindly update your password using your email via forgot password. "
       "Disregard if it was you."
     )
-    subject = "Admin account password changed"
+    subject = "Ticketing officer account password changed"
   else:
     notice = (
       f"Notice: Your password was updated on: {action_date}, at: {action_time} - {performer_ip}. "

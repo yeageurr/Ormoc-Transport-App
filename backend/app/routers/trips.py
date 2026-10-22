@@ -267,7 +267,7 @@ def get_trip(
 @router.get("", response_model=list[AdminTripResponse])
 def list_all_trips(
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   trips = db.query(Trip).order_by(Trip.time_departed.desc()).all()
   terminal = db.query(Terminal).first()

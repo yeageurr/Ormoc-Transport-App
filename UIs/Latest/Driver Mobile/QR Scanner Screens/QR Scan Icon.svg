@@ -1,0 +1,19 @@
+<svg width="163" height="163" viewBox="0 0 163 163" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="163" height="163" fill="#C7FFFA"/>
+<path d="M66.5 67H95.5V97H66.5V67Z" stroke-width="6" stroke="#00A799"/>
+<rect x="72.5" y="73" width="17" height="17" fill="#C7FFFA"/>
+<path d="M5 1.5H158C159.933 1.5 161.5 3.067 161.5 5V158C161.5 159.933 159.933 161.5 158 161.5H5C3.067 161.5 1.5 159.933 1.5 158V5C1.5 3.067 3.067 1.5 5 1.5Z" stroke-width="3" stroke="#00A799"/>
+<rect y="44" width="3" height="75" fill="white"/>
+<rect width="3" height="47" rx="1.5" fill="#00A799"/>
+<rect y="116" width="3" height="47" rx="1.5" fill="#00A799"/>
+<rect x="160" y="44" width="3" height="75" fill="white"/>
+<rect x="119" width="3" height="75" transform="rotate(90 119 0)" fill="white"/>
+<rect x="119" y="160" width="3" height="75" transform="rotate(90 119 160)" fill="white"/>
+<rect y="163" width="3" height="47" rx="1.5" transform="rotate(-90 0 163)" fill="#00A799"/>
+<rect x="116" y="163" width="3" height="47" rx="1.5" transform="rotate(-90 116 163)" fill="#00A799"/>
+<rect x="160" y="116" width="3" height="47" rx="1.5" fill="#00A799"/>
+<rect x="160" width="3" height="47" rx="1.5" fill="#00A799"/>
+<rect x="116" y="3" width="3" height="47" rx="1.5" transform="rotate(-90 116 3)" fill="#00A799"/>
+<rect y="3" width="3" height="47" rx="1.5" transform="rotate(-90 0 3)" fill="#00A799"/>
+<rect x="12" y="80" width="140" height="4" rx="2" fill="#00A799"/>
+</svg>

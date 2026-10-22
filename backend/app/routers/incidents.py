@@ -77,7 +77,7 @@ async def report_incident(payload: IncidentCreate, db: Session = Depends(get_db)
 @router.get("", response_model=list[IncidentResponse])
 def list_incidents(
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   incidents = db.query(Incident).order_by(Incident.reported_at.desc()).all()
   return [_build_incident_response(i) for i in incidents]
@@ -129,7 +129,7 @@ def update_incident(
   incident_id: int,
   payload: IncidentUpdate,
   db: Session = Depends(get_db),
-  current_admin: Account = Depends(require_role(AccountRole.ADMIN)),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
   """Admin moves an incident through its lifecycle. If status is being
   set to RESOLVED, resolved_by/resolved_at are stamped automatically."""
@@ -147,21 +147,21 @@ def update_incident(
   if "status" in update_data:
     new_status = update_data["status"]
     if new_status == IncidentStatus.RESOLVED and incident.status != IncidentStatus.RESOLVED:
-      incident.resolved_by = current_admin.account_id
+      incident.resolved_by = ticketing_officer.account_id
       incident.resolved_at = datetime.now(timezone.utc)
       is_resolving = True
 
   for field, value in update_data.items():
     setattr(incident, field, value)
 
-  incident.updated_by = current_admin.account_id
+  incident.updated_by = ticketing_officer.account_id
   incident.updated_at = datetime.now(timezone.utc)
 
   db.commit()
   db.refresh(incident)
 
   log_action(
-    db, current_admin.account_id,
+    db, ticketing_officer.account_id,
     AuditAction.RESOLVE if is_resolving else AuditAction.UPDATE,
     "incidents", incident.incident_id,
     f"{'Resolved' if is_resolving else 'Updated'} incident #{incident.incident_id} ({incident.incident_type.value})",
