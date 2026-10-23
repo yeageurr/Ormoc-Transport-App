@@ -1,16 +1,32 @@
-# React + Vite
+# OTA Ticketing Officer Portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Vite + React portal for ticketing-officer workflows. Tailwind CSS is configured through `@tailwindcss/vite`.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```sh
+npm run dev
+```
 
-## React Compiler
+Set `VITE_API_BASE_URL` in a local `.env` file to point at the FastAPI base URL; it defaults to `http://localhost:8000`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Source structure
 
-## Expanding the ESLint configuration
+```text
+src/
+  api/                 Shared HTTP client and backend API modules
+  components/
+    auth/              Role/session guards
+    layout/            Portal shell, sidebar, top bar (add with the pages)
+    ui/                Reusable controls (add as needed)
+  context/             Authentication/session state
+  hooks/               Reusable UI state hooks (add as needed)
+  pages/
+    auth/              Login and password flows (next implementation step)
+    drivers/           Driver account management (next implementation step)
+    vehicles/          Vehicle management (next implementation step)
+    dispatch/          Assignment/open/close workflows (next implementation step)
+  styles/              Tailwind entry point and global styles
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+API modules currently wrap available FastAPI endpoints. The backend does not yet expose dispatcher account list/create endpoints or dispatcher-assignment list/open endpoints, so those cannot be wired into the UI until backend contracts exist.
