@@ -28,19 +28,35 @@ from app.services.email_service import EmailDeliveryError, send_password_reset_c
 from app.services.account_activity_email import notify_password_changed
 
 router = APIRouter()
+PASSWORD_RECOVERY_ROLES = (AccountRole.DRIVER, AccountRole.TICKETING_OFFICER)
 
 
 @router.post("/login")
 def login(credentials: LoginRequest, response: Response, db: Session = Depends(get_db), ):
-  account = db.query(Account).filter(Account.username == credentials.username).first()
+  identity = credentials.username.strip()
+  matches = (
+    db.query(Account)
+    .outerjoin(User, User.account_id == Account.account_id)
+    .filter(
+      or_(
+        Account.username == identity,
+        func.lower(Account.email) == identity.lower(),
+        func.lower(User.email) == identity.lower(),
+      )
+    )
+    .distinct()
+    .all()
+  )
 
   invalid_credentials = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Invalid username or password",
   )
 
-  if account is None:
+  if len(matches) != 1:
     raise invalid_credentials
+
+  account = matches[0]
 
   if not verify_password(credentials.password, account.password_hash):
     raise invalid_credentials
@@ -87,7 +103,7 @@ def get_me(current_account: Account = Depends(get_current_account)):
     "role": current_account.role,
     "username": current_account.username,
     "first_name": current_account.user.first_name if current_account.user else None,
-    "last_name": current_account.user.last_name,
+    "last_name": current_account.user.last_name if current_account.user else None,
     "must_change_password": current_account.must_change_password,
   }
 
@@ -103,17 +119,18 @@ def request_password_reset_code(payload: PasswordResetCodeRequest, db: Session =
   email = str(payload.email).strip().lower()
   accounts = (
     db.query(Account)
-    .join(User, User.account_id == Account.account_id)
+    .outerjoin(User, User.account_id == Account.account_id)
     .filter(
-      Account.role == AccountRole.DRIVER,
+      Account.role.in_(PASSWORD_RECOVERY_ROLES),
       or_(func.lower(Account.email) == email, func.lower(User.email) == email),
     )
+    .distinct()
     .all()
   )
   if not accounts:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No driver account is registered with this email address")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No account is registered with this email address")
   if len(accounts) > 1:
-    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email is linked to multiple driver accounts. Contact a ticketing officer.")
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email is linked to multiple accounts. Contact the system operator.")
 
   account = accounts[0]
   verification = db.query(PasswordResetOtp).filter(PasswordResetOtp.account_id == account.account_id).first()
@@ -154,7 +171,7 @@ def resend_password_reset_code(payload: PasswordResetCodeRequest, db: Session = 
     db.query(PasswordResetOtp)
     .join(Account, Account.account_id == PasswordResetOtp.account_id)
     .filter(
-      Account.role == AccountRole.DRIVER,
+      Account.role.in_(PASSWORD_RECOVERY_ROLES),
       func.lower(PasswordResetOtp.target_email) == email,
     )
     .first()
@@ -194,7 +211,7 @@ def verify_password_reset_code(payload: PasswordResetCodeVerify, db: Session = D
     db.query(PasswordResetOtp)
     .join(Account, Account.account_id == PasswordResetOtp.account_id)
     .filter(
-      Account.role == AccountRole.DRIVER,
+      Account.role.in_(PASSWORD_RECOVERY_ROLES),
       func.lower(PasswordResetOtp.target_email) == email,
     )
     .first()
@@ -210,9 +227,6 @@ def verify_password_reset_code(payload: PasswordResetCodeVerify, db: Session = D
     db.delete(verification)
     db.commit()
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That code has expired. Request a new code.")
-  if verification.attempts >= 5:
-    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many incorrect codes. Request a new code.")
-
   submitted_hash = hashlib.sha256(f"{verification.code_salt}:{payload.code}".encode()).hexdigest()
   if not secrets.compare_digest(submitted_hash, verification.code_hash):
     verification.attempts += 1
@@ -241,7 +255,7 @@ def complete_password_reset(payload: PasswordResetComplete, request: Request, re
 
   account = db.query(Account).filter(
     Account.account_id == verification.account_id,
-    Account.role == AccountRole.DRIVER,
+    Account.role.in_(PASSWORD_RECOVERY_ROLES),
   ).first()
   if account is None:
     db.delete(verification)

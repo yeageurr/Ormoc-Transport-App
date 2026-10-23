@@ -51,9 +51,12 @@ export function AuthProvider({ children }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    await authApi.logout();
-    setAccount(null);
-    setMustChangePassword(false);
+    try {
+      await authApi.logout();
+    } finally {
+      setAccount(null);
+      setMustChangePassword(false);
+    }
   }, []);
 
   const value = useMemo(() => ({
