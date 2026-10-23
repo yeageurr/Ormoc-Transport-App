@@ -31,6 +31,12 @@ export interface DriverReservationHistory extends DriverReservation {
   ticket_expired_at: string | null;
 }
 
+export interface CreateDriverReservationPayload {
+  route_id: number;
+  vehicle_id: number;
+  operating_date: string;
+}
+
 /** Returns the driver's pending or currently active reservation, if one exists. */
 export async function getCurrentDriverReservation(): Promise<DriverReservation | null> {
   try {
@@ -45,5 +51,11 @@ export async function getCurrentDriverReservation(): Promise<DriverReservation |
 /** Returns the signed-in driver's complete reservation and ticket history. */
 export async function getDriverReservationHistory(): Promise<DriverReservationHistory[]> {
   const { data } = await authClient.get<DriverReservationHistory[]>('/queue-reservations/driver/mine');
+  return data;
+}
+
+/** Creates a pending reservation request for the signed-in driver. */
+export async function createDriverReservation(payload: CreateDriverReservationPayload): Promise<DriverReservation> {
+  const { data } = await authClient.post<DriverReservation>('/queue-reservations', payload);
   return data;
 }

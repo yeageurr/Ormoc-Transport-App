@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
@@ -95,12 +95,13 @@ export default function HomeScreen() {
     void checkGpsStatus(true);
   }, [checkGpsStatus, gpsStatus]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     void loadTrips();
     void loadCurrentDispatch();
     void loadCurrentReservation();
-    void checkGpsStatus(true);
-  }, [checkGpsStatus, loadCurrentDispatch, loadCurrentReservation, loadTrips]);
+  }, [loadCurrentDispatch, loadCurrentReservation, loadTrips]));
+
+  useEffect(() => { void checkGpsStatus(true); }, [checkGpsStatus]);
 
   const todayTrips = useMemo(
     () => trips.filter((trip) => trip.is_complete && trip.time_arrived && isTodayInManila(trip.time_arrived)),
@@ -118,9 +119,6 @@ export default function HomeScreen() {
     : currentDispatch
       ? 'Ready to Reserve'
       : 'No Current Dispatch';
-  const ticketSummary = currentReservation
-    ? `Ticket: ${currentReservation.ticket_reference || 'Pending approval'}\nQueue: ${currentReservation.queue_display || 'Not assigned yet'}\nStatus: ${queueStatusLabel}\nDate: ${currentReservation.operating_date}`
-    : 'You do not have an active ticket.';
   const firstName = fullName?.trim().split(/\s+/)[0] || 'Driver';
 
   return (
@@ -185,8 +183,8 @@ export default function HomeScreen() {
               color={currentReservation || hasActiveTrip ? '#858585' : '#FF6500'}
               disabled={!currentReservation && hasActiveTrip}
               onPress={() => currentReservation
-                ? Alert.alert('Your Ticket', ticketSummary)
-                : Alert.alert('Reservation', 'The reservation screen is not available yet.')}
+                ? router.push('/tabs/my-tickets')
+                : router.push('/tabs/make-reservation')}
             />
           </View>
 
@@ -305,6 +303,13 @@ function gpsStatusLabel(status: GpsStatus) {
   return 'GPS unavailable · tap to retry';
 }
 
+const POPPINS = {
+  "Light": 'Poppins_300Light',
+  "Regular": 'Poppins_400Regular',
+  "Medium": 'Poppins_500Medium',
+  "SBold": 'Poppins_600SemiBold'
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#D3DFEA' },
   content: { paddingBottom: 20 },
@@ -351,7 +356,7 @@ const styles = StyleSheet.create({
   returningIcon: { backgroundColor: '#E1F5E9' },
   tripCopy: { flex: 1, minWidth: 0 },
   tripDirection: { color: '#222222', fontSize: 14, fontWeight: '600' },
-  tripTime: { color: '#555555', fontSize: 9, marginTop: 2 },
+  tripTime: { color: '#555555', fontSize: 9, marginTop: 2, fontFamily: POPPINS.Light },
   tripMetrics: { maxWidth: 112, color: '#333333', fontSize: 10, textAlign: 'right' },
   emptyTrips: { minHeight: 145, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 12, borderRadius: 8, backgroundColor: 'transparent' },
   emptyTripsText: { color: '#718481', fontSize: 12, textAlign: 'center' },

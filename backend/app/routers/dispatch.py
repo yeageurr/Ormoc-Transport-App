@@ -102,6 +102,7 @@ def current_driver_dispatch(db: Session = Depends(get_db), current_driver: Accou
   return CurrentDriverDispatch(
     dispatch_id=dispatch.dispatch_id,
     route_id=dispatch.route_id,
+    vehicle_id=dispatch.vehicle_id,
     vehicle_plate=dispatch.vehicle.plate_number if dispatch.vehicle else "—",
     vehicle_activity_status=dispatch.vehicle.activity_status.value if dispatch.vehicle else "unknown",
     route_label=route_label,

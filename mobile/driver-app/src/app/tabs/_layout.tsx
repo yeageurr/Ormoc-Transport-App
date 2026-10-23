@@ -37,6 +37,7 @@ export default function TabsLayout() {
             <Stack.Screen name="report-incident" />
             <Stack.Screen name="trip-logs" />
             <Stack.Screen name="my-tickets" />
+            <Stack.Screen name="make-reservation" />
           </Stack>
         </View>
         {pathname !== '/tabs/record-trip' && <BottomNav />}
