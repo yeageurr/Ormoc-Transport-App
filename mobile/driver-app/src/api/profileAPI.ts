@@ -6,6 +6,7 @@ export interface DriverProfile {
   first_name: string;
   last_name: string;
   contact_number: string;
+  vehicle_plate_number?: string | null;
   email: string | null;
   license_num: string;
   license_expiry: string;

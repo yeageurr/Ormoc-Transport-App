@@ -1,5 +1,27 @@
 import { authClient } from './authAPI';
 
+export interface ReservationRoute {
+  route_id: number;
+  queue_prefix: string;
+  destination: { name: string } | null;
+}
+
+export interface ReservationVehicle {
+  vehicle_id: number;
+  plate_number: string;
+  body_number: string;
+}
+
+export async function getReservationRoutes(): Promise<ReservationRoute[]> {
+  const { data } = await authClient.get<ReservationRoute[]>('/queue-reservations/driver/available-routes');
+  return data;
+}
+
+export async function getMyReservationVehicle(): Promise<ReservationVehicle> {
+  const { data } = await authClient.get<ReservationVehicle>('/vehicles/driver/mine');
+  return data;
+}
+
 export interface DriverReservation {
   id: number;
   route_id: number;

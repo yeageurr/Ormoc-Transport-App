@@ -44,6 +44,7 @@ class UserResponse(UserBase):
 
   user_id: int
   driver_id: str
+  vehicle_plate_number: str | None = None
   account: AccountResponse
 
 

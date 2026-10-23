@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
-import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
 import { NotificationBell } from '@/components/NotificationCenter';
 import { getMyProfile, type DriverProfile } from '@/api/profileAPI';
 import { useAuth } from '@/hooks/useAuth';
@@ -24,21 +23,13 @@ export default function ProfileScreen() {
   const { signOut } = useAuth();
 
   const [profile, setProfile] = useState<DriverProfile | null>(null);
-  const [dispatch, setDispatch] = useState<CurrentDispatch | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
 
   const loadProfile = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
-
-    const [profileResult, dispatchResult] = await Promise.all([
-      getMyProfile().catch(() => null),
-      getCurrentDispatch().catch(() => null),
-    ]);
-
-    setProfile(profileResult);
-    setDispatch(dispatchResult);
+    setProfile(await getMyProfile().catch(() => null));
     setLoading(false);
   }, []);
 
@@ -107,9 +98,7 @@ export default function ProfileScreen() {
                   <View style={styles.infoDivider}></View>
                   <ProfileInfoRow icon="mail-outline" value={profile?.email ?? '--'} label="Email" />
                   <View style={styles.infoDivider}></View>
-                  <ProfileInfoRow icon="git-compare-outline" value={dispatch?.route_label ?? 'Currently not assigned'} label="Route" />
-                  <View style={styles.infoDivider}></View>
-                  <ProfileInfoRow icon="car-sport-outline" value={dispatch?.vehicle_plate ?? 'Currently not assigned'} label="Vehicle" />
+                  <ProfileInfoRow icon="car-sport-outline" value={profile?.vehicle_plate_number?.toUpperCase() ?? 'Currently not assigned'} label="Vehicle" />
                   <View style={styles.infoDivider}></View>
                   <ProfileInfoRow icon="card-outline" value={profile?.license_num ?? '--'} label="License number" last />
                 </View>

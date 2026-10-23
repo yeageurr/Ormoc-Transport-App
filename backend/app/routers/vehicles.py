@@ -208,6 +208,21 @@ def list_vehicles(
   return db.query(Vehicle).all()
 
 
+@router.get("/driver/mine", response_model=VehicleResponse)
+def get_my_vehicle(
+  db: Session = Depends(get_db),
+  driver_account: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Return the vehicle owned by the authenticated driver for reservation forms."""
+  user = db.query(User).filter(User.account_id == driver_account.account_id).first()
+  if user is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver profile not found")
+  vehicle = db.query(Vehicle).filter(Vehicle.owner_id == user.user_id).first()
+  if vehicle is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No vehicle is assigned to your account")
+  return vehicle
+
+
 @router.get("/{vehicle_id}", response_model=VehicleResponse)
 def get_vehicle(
   vehicle_id: int,

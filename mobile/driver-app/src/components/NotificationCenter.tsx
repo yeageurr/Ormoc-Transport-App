@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -15,6 +16,9 @@ import {
   markNotificationRead,
   type DriverNotification,
 } from '@/api/notificationsAPI';
+import { useAuth } from '@/hooks/useAuth';
+
+const NOTIFICATION_REFRESH_MS = 15_000;
 
 interface NotificationCenterValue {
   openNotifications: () => void;
@@ -24,6 +28,7 @@ interface NotificationCenterValue {
 const NotificationCenterContext = createContext<NotificationCenterValue | undefined>(undefined);
 
 export function NotificationCenterProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [notifications, setNotifications] = useState<DriverNotification[]>([]);
@@ -41,6 +46,30 @@ export function NotificationCenterProvider({ children }: { children: ReactNode }
     setIsOpen(true);
     void loadNotifications();
   }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setNotifications([]);
+      return;
+    }
+
+    const refreshQuietly = () => {
+      if (AppState.currentState === 'active') {
+        void getMyNotifications().then(setNotifications).catch(() => undefined);
+      }
+    };
+
+    refreshQuietly();
+    const interval = setInterval(refreshQuietly, NOTIFICATION_REFRESH_MS);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshQuietly();
+    });
+
+    return () => {
+      clearInterval(interval);
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
 
   const markRead = useCallback(async (notificationId: number) => {
     const notification = notifications.find((item) => item.notification_id === notificationId);

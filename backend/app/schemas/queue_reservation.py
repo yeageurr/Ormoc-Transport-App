@@ -42,3 +42,7 @@ class DriverQueueReservationHistoryResponse(QueueReservationResponse):
   ticket_used_at: datetime | None = None
   ticket_cancelled_at: datetime | None = None
   ticket_expired_at: datetime | None = None
+
+
+class DispatcherQueueReservationResponse(DriverQueueReservationHistoryResponse):
+  driver_public_id: str

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.account import Account
 from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.user import EmailOtpVerify, UserResponse, UserUpdate, UserUpdateResponse
 from app.core.permissions import get_current_account, require_role
 from app.core.security import verify_password
@@ -23,13 +24,21 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserResponse)
 def get_my_profile(db: Session = Depends(get_db), current_account: Account = Depends(get_current_account), ):
-  user = db.query(User).filter(User.account_id == current_account.account_id).first()
-  if user is None:
+  profile_row = (
+    db.query(User, Vehicle.plate_number.label("vehicle_plate_number"))
+    .outerjoin(Vehicle, Vehicle.owner_id == User.user_id)
+    .filter(User.account_id == current_account.account_id)
+    .order_by(Vehicle.vehicle_id.asc())
+    .first()
+  )
+  if profile_row is None:
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND,
       detail="No profile linked to this account (ticketing officer accounts do not have a User row)"
     )
-  return user
+  user, vehicle_plate_number = profile_row
+  profile = UserResponse.model_validate(user)
+  return profile.model_copy(update={"vehicle_plate_number": vehicle_plate_number})
 
 
 @router.patch("/me", response_model=UserUpdateResponse)

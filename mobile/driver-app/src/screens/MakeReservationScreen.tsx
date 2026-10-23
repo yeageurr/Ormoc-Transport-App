@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -13,9 +14,21 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
-import { createDriverReservation, getCurrentDriverReservation, type DriverReservation } from '@/api/queueAPI';
+import {
+  createDriverReservation,
+  getCurrentDriverReservation,
+  getMyReservationVehicle,
+  getReservationRoutes,
+  type DriverReservation,
+  type ReservationRoute,
+  type ReservationVehicle,
+} from '@/api/queueAPI';
+import { getMyProfile, type DriverProfile } from '@/api/profileAPI';
 import { getTripLogs } from '@/api/tripsAPI';
+
+const TEAL = '#00A99A';
+const INK = '#111719';
+const CANVAS = '#D5E1EC';
 
 function manilaDateKey(date: Date) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -25,16 +38,11 @@ function manilaDateKey(date: Date) {
   return `${fields.year}-${fields.month}-${fields.day}`;
 }
 
-function formatDateKey(value: string) {
-  const [year, month, day] = value.split('-').map(Number);
+function displayDateTime(date: Date) {
   return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
-}
-
-function monthLabel(year: number, month: number) {
-  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-    .format(new Date(Date.UTC(year, month, 1)));
+    timeZone: 'Asia/Manila', day: '2-digit', month: 'short', year: 'numeric',
+    hour: 'numeric', minute: '2-digit',
+  }).format(date);
 }
 
 function errorMessage(error: any) {
@@ -45,215 +53,233 @@ function errorMessage(error: any) {
 
 export default function MakeReservationScreen() {
   const router = useRouter();
-  const todayKey = useMemo(() => manilaDateKey(new Date()), []);
-  const [dispatch, setDispatch] = useState<CurrentDispatch | null>(null);
+  const [profile, setProfile] = useState<DriverProfile | null>(null);
+  const [vehicle, setVehicle] = useState<ReservationVehicle | null>(null);
+  const [routes, setRoutes] = useState<ReservationRoute[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
   const [currentReservation, setCurrentReservation] = useState<DriverReservation | null>(null);
   const [hasActiveTrip, setHasActiveTrip] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(todayKey);
-  const [visibleMonth, setVisibleMonth] = useState(() => {
-    const [year, month] = todayKey.split('-').map(Number);
-    return { year, month: month - 1 };
-  });
-  const [requestCreated, setRequestCreated] = useState<DriverReservation | null>(null);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [routePickerOpen, setRoutePickerOpen] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     setError(null);
-    const [dispatchResult, reservationResult, tripsResult] = await Promise.allSettled([
-      getCurrentDispatch(),
-      getCurrentDriverReservation(),
-      getTripLogs(),
-    ]);
-    setDispatch(dispatchResult.status === 'fulfilled' ? dispatchResult.value : null);
-    setCurrentReservation(reservationResult.status === 'fulfilled' ? reservationResult.value : null);
-    setHasActiveTrip(tripsResult.status === 'fulfilled' && tripsResult.value.some((trip) => !trip.is_complete));
-    if (dispatchResult.status === 'rejected') {
-      setError('Unable to load your assigned route and vehicle. Pull down to retry.');
+    try {
+      const [profileData, vehicleData, routeData, reservationData, tripsData] = await Promise.all([
+        getMyProfile(),
+        getMyReservationVehicle(),
+        getReservationRoutes(),
+        getCurrentDriverReservation(),
+        getTripLogs(),
+      ]);
+      setProfile(profileData);
+      setVehicle(vehicleData);
+      setRoutes(routeData);
+      setCurrentReservation(reservationData);
+      setHasActiveTrip(tripsData.some((trip) => !trip.is_complete));
+      setSelectedRouteId((existing) => existing && routeData.some((route) => route.route_id === existing)
+        ? existing
+        : routeData[0]?.route_id ?? null);
+    } catch (loadError: any) {
+      setError(errorMessage(loadError));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  const daysInMonth = new Date(Date.UTC(visibleMonth.year, visibleMonth.month + 1, 0)).getUTCDate();
-  const firstWeekday = new Date(Date.UTC(visibleMonth.year, visibleMonth.month, 1)).getUTCDay();
-  const calendarCells = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, index) => index + 1)];
-  while (calendarCells.length % 7 !== 0) calendarCells.push(null);
-  const currentMonth = Number(todayKey.slice(5, 7)) - 1;
-  const currentYear = Number(todayKey.slice(0, 4));
-  const previousMonthDisabled = visibleMonth.year === currentYear && visibleMonth.month <= currentMonth;
+  const selectedRoute = useMemo(
+    () => routes.find((route) => route.route_id === selectedRouteId) ?? null,
+    [routes, selectedRouteId],
+  );
+  const driverName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : '—';
 
   const submitReservation = useCallback(async () => {
-    if (submitting || loading || currentReservation || hasActiveTrip) return;
-    if (!dispatch) {
-      setError('You need an assigned route and vehicle before making a reservation.');
-      return;
-    }
+    if (submitting || !selectedRoute || !vehicle || !profile) return;
     setSubmitting(true);
     setError(null);
     try {
       const reservation = await createDriverReservation({
-        route_id: dispatch.route_id,
-        vehicle_id: dispatch.vehicle_id,
-        operating_date: selectedDate,
+        route_id: selectedRoute.route_id,
+        vehicle_id: vehicle.vehicle_id,
+        operating_date: manilaDateKey(new Date()),
       });
       setCurrentReservation(reservation);
-      setRequestCreated(reservation);
+      setSubmitted(true);
     } catch (submitError) {
       setError(errorMessage(submitError));
     } finally {
       setSubmitting(false);
     }
-  }, [currentReservation, dispatch, hasActiveTrip, loading, selectedDate, submitting]);
+  }, [profile, selectedRoute, submitting, vehicle]);
 
-  const stepMonth = (delta: number) => {
-    const next = new Date(Date.UTC(visibleMonth.year, visibleMonth.month + delta, 1));
-    setVisibleMonth({ year: next.getUTCFullYear(), month: next.getUTCMonth() });
-  };
+  const cancel = () => router.canGoBack() ? router.back() : router.replace('/tabs');
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['top']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.centerState}><ActivityIndicator size="large" color={TEAL} /><Text style={styles.stateText}>Loading reservation details…</Text></View>
+      </SafeAreaView>
+    );
+  }
+
+  if (currentReservation || hasActiveTrip || !profile || !vehicle) {
+    const activeReservation = Boolean(currentReservation);
+    const activeTrip = !activeReservation && hasActiveTrip;
+    const title = activeReservation ? 'Active reservation found' : activeTrip ? 'Reservation unavailable' : 'Details unavailable';
+    const message = activeReservation
+      ? 'You already have a pending or active reservation. View it to check its current status.'
+      : activeTrip
+        ? 'Finish your current trip before requesting a reservation.'
+        : error || 'A driver profile and vehicle must be linked to your account before you can reserve.';
+    return (
+      <SafeAreaView style={styles.screen} edges={['top']}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.blockedHeader}>
+          <Pressable onPress={cancel} hitSlop={12}><Ionicons name="arrow-back" size={22} color={INK} /></Pressable>
+          <Text style={styles.blockedHeaderTitle}>Make a Reservation</Text>
+        </View>
+        <View style={styles.blockedState}>
+          <View style={[styles.blockedIcon, activeTrip && styles.warningIcon]}>
+            <Ionicons name={activeReservation ? 'ticket-outline' : activeTrip ? 'navigate-outline' : 'alert-circle-outline'} size={27} color={activeTrip ? '#A56A00' : TEAL} />
+          </View>
+          <Text style={styles.blockedTitle}>{title}</Text>
+          <Text style={styles.blockedCopy}>{message}</Text>
+          <Pressable style={styles.cta} onPress={() => activeReservation ? router.replace('/tabs/my-tickets') : activeTrip ? router.replace('/tabs/record-trip') : void load()}>
+            <Text style={styles.ctaText}>{activeReservation ? 'View My Tickets' : activeTrip ? 'Return to Live Map' : 'Try Again'}</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F2F6F8" />
-      <View style={styles.header}>
-        <Pressable accessibilityLabel="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/tabs')} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={22} color="#183D3A" />
-        </Pressable>
-        <View style={styles.headerCopy}>
-          <Text style={styles.headerTitle}>Make a Reservation</Text>
-          <Text style={styles.headerSubtitle}>Request your place in the dispatch queue</Text>
+    <SafeAreaView style={[styles.screen, step === 3 && styles.summaryScreen]} edges={['top']}>
+      <StatusBar barStyle="dark-content" backgroundColor={step === 3 ? CANVAS : '#FFFFFF'} />
+      {step === 3 ? (
+        <View style={styles.summaryTopBar}>
+          <Pressable style={styles.cancelTop} onPress={cancel}>
+            <Ionicons name="chevron-back" size={17} color="#20292D" />
+            <Text style={styles.cancelTopText}>Cancel</Text>
+          </Pressable>
+          <ProgressDots active={2} />
+          <View style={styles.cancelTopSpacer} />
         </View>
-        <Ionicons name="ticket-outline" size={23} color="#087C73" />
-      </View>
+      ) : (
+        <View style={styles.formHeading}>
+          <Text style={styles.formTitle}>{step === 1 ? 'Personal Details' : 'Service Details'}</Text>
+          <ProgressDots active={step} />
+        </View>
+      )}
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {loading ? (
-          <View style={styles.loadingState}><ActivityIndicator size="large" color="#078B7D" /><Text style={styles.loadingText}>Loading your assignment…</Text></View>
-        ) : currentReservation ? (
-          <View style={styles.noticeCard}>
-            <View style={styles.noticeIcon}><Ionicons name="ticket" size={22} color="#087C73" /></View>
-            <Text style={styles.noticeTitle}>You already have an active reservation</Text>
-            <Text style={styles.noticeCopy}>A new request is available after this reservation is completed or closed.</Text>
-            <Pressable style={styles.primaryButton} onPress={() => router.push('/tabs/my-tickets')}>
-              <Text style={styles.primaryButtonText}>View My Ticket</Text>
+      {step === 1 ? (
+        <>
+          <ScrollView
+            contentContainerStyle={styles.formContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(false); }} tintColor={TEAL} />}
+            keyboardShouldPersistTaps="handled"
+          >
+            <FormField label="Driver Name" value={driverName} />
+            <FormField label="Contact Number" value={profile.contact_number} />
+          </ScrollView>
+          <View style={styles.formActions}>
+            <Pressable style={styles.cta} onPress={() => { setError(null); setStep(2); }}>
+              <Text style={styles.ctaText}>Next</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" />
             </Pressable>
+            <Pressable style={styles.outlineButton} onPress={cancel}><Text style={styles.outlineText}>Cancel</Text></Pressable>
           </View>
-        ) : hasActiveTrip ? (
-          <View style={styles.noticeCard}>
-            <View style={[styles.noticeIcon, styles.noticeIconWarning]}><Ionicons name="navigate" size={22} color="#A86900" /></View>
-            <Text style={styles.noticeTitle}>Reservation unavailable during a trip</Text>
-            <Text style={styles.noticeCopy}>Finish your current trip before requesting a reservation.</Text>
-            <Pressable style={styles.secondaryButton} onPress={() => router.replace('/tabs/record-trip')}>
-              <Text style={styles.secondaryButtonText}>Return to Live Map</Text>
+        </>
+      ) : step === 2 ? (
+        <>
+          <ScrollView
+            contentContainerStyle={styles.formContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(false); }} tintColor={TEAL} />}
+          >
+            <Text style={styles.fieldLabel}>Route / Destination</Text>
+            <Pressable style={styles.selectField} onPress={() => setRoutePickerOpen(true)}>
+              <Text style={[styles.fieldValue, !selectedRoute && styles.placeholder]}>{selectedRoute?.destination?.name ?? 'Select Trip Destination'}</Text>
+              <Ionicons name="chevron-down" size={20} color="#111719" />
             </Pressable>
+            <FormField label="Vehicle Plate Number" value={vehicle.plate_number} />
+            <FormField label="Vehicle Body Number" value={vehicle.body_number} />
+            <Text style={styles.serviceHint}>Your assigned vehicle details are included with this request.</Text>
+          </ScrollView>
+          <View style={styles.formActions}>
+            {error ? <Text style={styles.inlineError}>{error}</Text> : null}
+            <Pressable
+              style={[styles.cta, !selectedRoute && styles.disabledCta]}
+              disabled={!selectedRoute}
+              onPress={() => { setError(null); setStep(3); }}
+            >
+              <Text style={styles.ctaText}>Next</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" />
+            </Pressable>
+            <Pressable style={styles.outlineButton} onPress={() => { setError(null); setStep(1); }}><Text style={styles.outlineText}>Go Back</Text></Pressable>
           </View>
-        ) : !dispatch ? (
-          <View style={styles.noticeCard}>
-            <View style={[styles.noticeIcon, styles.noticeIconWarning]}><Ionicons name="alert-circle-outline" size={22} color="#A86900" /></View>
-            <Text style={styles.noticeTitle}>No route or vehicle assignment found</Text>
-            <Text style={styles.noticeCopy}>Contact the ticketing officer to confirm your route and vehicle assignment before reserving.</Text>
-            <Pressable style={styles.secondaryButton} onPress={() => void load()}>
-              <Text style={styles.secondaryButtonText}>Try Again</Text>
+        </>
+      ) : (
+        <>
+          <ScrollView contentContainerStyle={styles.summaryContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.ticketMark}><Ionicons name="ticket-outline" size={34} color="#00A8F0" /></View>
+            <Text style={styles.summaryTitle}>Reservation Summary</Text>
+            <View style={styles.summaryCard}>
+              <SummaryLine label="Full Name:" value={driverName} />
+              <SummaryLine label="Contact No.:" value={profile.contact_number} />
+              <SummaryLine label="Vehicle Plate No.:" value={vehicle.plate_number} />
+              <SummaryLine label="Vehicle Body No.:" value={vehicle.body_number} />
+              <SummaryLine label="Route / Destination:" value={selectedRoute?.destination?.name ?? '—'} />
+              <SummaryLine label="Date & Time:" value={displayDateTime(new Date())} />
+            </View>
+            {error ? <Text style={styles.inlineError}>{error}</Text> : null}
+          </ScrollView>
+          <View style={styles.summaryActions}>
+            <Pressable style={[styles.cta, submitting && styles.disabledCta]} onPress={() => void submitReservation()} disabled={submitting}>
+              {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.ctaText}>Finish</Text>}
             </Pressable>
+            <Pressable style={styles.summaryBack} onPress={() => { setError(null); setStep(2); }}><Text style={styles.outlineText}>Go Back</Text></Pressable>
           </View>
-        ) : (
-          <>
-            <View style={styles.infoBanner}>
-              <Ionicons name="information-circle-outline" size={19} color="#147A68" />
-              <Text style={styles.infoBannerText}>Review your assignment and operating date before sending the request.</Text>
-            </View>
+        </>
+      )}
 
-            <Text style={styles.sectionLabel}>YOUR ASSIGNMENT</Text>
-            <View style={styles.assignmentCard}>
-              <AssignmentRow icon="git-branch-outline" label="Route" value={dispatch.route_label} />
-              <View style={styles.divider} />
-              <AssignmentRow icon="car-outline" label="Vehicle" value={dispatch.vehicle_plate} />
-            </View>
-
-            <Text style={[styles.sectionLabel, styles.dateSectionLabel]}>OPERATING DATE</Text>
-            <Pressable style={styles.dateField} onPress={() => setCalendarOpen(true)}>
-              <View style={styles.dateIcon}><Ionicons name="calendar-outline" size={20} color="#087C73" /></View>
-              <View style={styles.dateCopy}>
-                <Text style={styles.dateCaption}>Reservation date</Text>
-                <Text style={styles.dateValue}>{formatDateKey(selectedDate)}</Text>
-              </View>
-              <Ionicons name="chevron-down" size={18} color="#607772" />
-            </Pressable>
-            <Text style={styles.dateHint}>Choose the day you plan to depart. Past dates are unavailable.</Text>
-
-            <View style={styles.requestNote}>
-              <Ionicons name="time-outline" size={17} color="#667B77" />
-              <Text style={styles.requestNoteText}>Your request time will be recorded automatically when submitted.</Text>
-            </View>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-            <Pressable onPress={() => void submitReservation()} disabled={submitting || !dispatch} style={[styles.primaryButton, (submitting || !dispatch) && styles.buttonDisabled]}>
-              {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>Send Reservation Request</Text>}
-            </Pressable>
-            <Text style={styles.approvalNote}>Your queue number and ticket are issued after the dispatcher approves this request.</Text>
-          </>
-        )}
-      </ScrollView>
-
-      <Modal transparent visible={calendarOpen} animationType="fade" onRequestClose={() => setCalendarOpen(false)}>
-        <Pressable style={styles.calendarBackdrop} onPress={() => setCalendarOpen(false)}>
-          <Pressable style={styles.calendarCard} onPress={(event) => event.stopPropagation()}>
-            <View style={styles.calendarHeading}>
-              <Pressable accessibilityLabel="Previous month" disabled={previousMonthDisabled} onPress={() => stepMonth(-1)} style={styles.monthButton}>
-                <Ionicons name="chevron-back" size={18} color={previousMonthDisabled ? '#C9D1D0' : '#40565D'} />
-              </Pressable>
-              <Text style={styles.monthTitle}>{monthLabel(visibleMonth.year, visibleMonth.month)}</Text>
-              <Pressable accessibilityLabel="Next month" onPress={() => stepMonth(1)} style={styles.monthButton}>
-                <Ionicons name="chevron-forward" size={18} color="#40565D" />
-              </Pressable>
-            </View>
-            <View style={styles.weekRow}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={styles.weekday}>{day}</Text>)}</View>
-            <View style={styles.calendarGrid}>
-              {calendarCells.map((day, index) => {
-                if (day == null) return <View key={`blank-${index}`} style={styles.calendarCell} />;
-                const dateKey = `${visibleMonth.year}-${String(visibleMonth.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const disabled = dateKey < todayKey;
-                const isSelected = dateKey === selectedDate;
-                const isToday = dateKey === todayKey;
-                return (
-                  <Pressable
-                    key={dateKey}
-                    disabled={disabled}
-                    onPress={() => { setSelectedDate(dateKey); setCalendarOpen(false); }}
-                    style={styles.calendarCell}>
-                    <View style={[styles.dayCircle, isSelected && styles.dayCircleSelected]}>
-                      <Text style={[styles.dayText, disabled && styles.dayTextDisabled, isSelected && styles.dayTextSelected]}>{day}</Text>
-                      {isToday && <View style={[styles.todayDot, isSelected && styles.todayDotSelected]} />}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Pressable onPress={() => setCalendarOpen(false)} style={styles.calendarDoneButton}><Text style={styles.calendarDoneText}>Done</Text></Pressable>
+      <Modal transparent visible={routePickerOpen} animationType="fade" onRequestClose={() => setRoutePickerOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setRoutePickerOpen(false)}>
+          <Pressable style={styles.routeSheet} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.routeSheetTitle}>Select Trip Destination</Text>
+            <ScrollView style={styles.routeList}>
+              {routes.map((route) => (
+                <Pressable
+                  key={route.route_id}
+                  style={styles.routeOption}
+                  onPress={() => { setSelectedRouteId(route.route_id); setRoutePickerOpen(false); }}
+                >
+                  <Text style={styles.routeOptionText}>{route.destination?.name ?? `Route ${route.route_id}`}</Text>
+                  {selectedRouteId === route.route_id ? <Ionicons name="checkmark-circle" size={20} color={TEAL} /> : null}
+                </Pressable>
+              ))}
+              {routes.length === 0 ? <Text style={styles.noRoutes}>No active routes are available.</Text> : null}
+            </ScrollView>
+            <Pressable style={styles.routeDone} onPress={() => setRoutePickerOpen(false)}><Text style={styles.routeDoneText}>Close</Text></Pressable>
           </Pressable>
         </Pressable>
       </Modal>
 
-      <Modal transparent visible={requestCreated !== null} animationType="fade" onRequestClose={() => setRequestCreated(null)}>
-        <View style={styles.successBackdrop}>
+      <Modal transparent visible={submitted} animationType="fade" onRequestClose={() => setSubmitted(false)}>
+        <View style={styles.modalBackdrop}>
           <View style={styles.successCard}>
-            <View style={styles.successIcon}><Ionicons name="checkmark" size={26} color="#FFFFFF" /></View>
-            <Text style={styles.successTitle}>Request sent</Text>
-            <Text style={styles.successCopy}>Your reservation is pending dispatcher approval.</Text>
-            <View style={styles.successDetails}>
-              <AssignmentRow icon="git-branch-outline" label="Route" value={dispatch?.route_label || '—'} />
-              <AssignmentRow icon="calendar-outline" label="Operating date" value={requestCreated ? formatDateKey(requestCreated.operating_date) : '—'} />
-              <AssignmentRow icon="ticket-outline" label="Queue number" value={requestCreated?.queue_display || 'Assigned after approval'} />
-            </View>
-            <Text style={styles.requestedAt}>Requested at {requestCreated?.reserved_at ? new Date(requestCreated.reserved_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'now'}</Text>
-            <Pressable style={styles.primaryButton} onPress={() => { setRequestCreated(null); router.replace('/tabs/my-tickets'); }}>
-              <Text style={styles.primaryButtonText}>View My Tickets</Text>
+            <View style={styles.successIcon}><Ionicons name="checkmark" size={27} color="#FFFFFF" /></View>
+            <Text style={styles.successTitle}>Reservation Submitted!</Text>
+            <Text style={styles.successCopy}>Please wait for the dispatcher’s approval.</Text>
+            <Pressable style={styles.cta} onPress={() => { setSubmitted(false); router.replace('/tabs/my-tickets'); }}>
+              <Text style={styles.ctaText}>Close</Text>
             </Pressable>
-            <Pressable style={styles.successDone} onPress={() => { setRequestCreated(null); router.replace('/tabs'); }}><Text style={styles.successDoneText}>Done</Text></Pressable>
           </View>
         </View>
       </Modal>
@@ -261,80 +287,79 @@ export default function MakeReservationScreen() {
   );
 }
 
-function AssignmentRow({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
+function ProgressDots({ active }: { active: number }) {
+  return <View style={styles.progressDots}><View style={[styles.dot, active >= 1 && styles.activeDot]} /><View style={[styles.dot, active >= 2 && styles.activeDot]} /></View>;
+}
+
+function FormField({ label, value }: { label: string; value: string }) {
   return (
-    <View style={styles.assignmentRow}>
-      <Ionicons name={icon} size={17} color="#087C73" />
-      <Text style={styles.assignmentLabel}>{label}</Text>
-      <Text style={styles.assignmentValue} numberOfLines={2}>{value}</Text>
+    <View style={styles.formField}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.readonlyField}><Text style={styles.fieldValue}>{value || '—'}</Text></View>
     </View>
   );
 }
 
+function SummaryLine({ label, value }: { label: string; value: string }) {
+  return <View style={styles.summaryLine}><Text style={styles.summaryLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>;
+}
+
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F2F6F8' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#D8E2E5', backgroundColor: '#FFFFFF' },
-  backButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: '#E9F2F0' },
-  headerCopy: { flex: 1 },
-  headerTitle: { color: '#183D3A', fontSize: 17, fontWeight: '800' },
-  headerSubtitle: { marginTop: 2, color: '#687A7D', fontSize: 10 },
-  content: { paddingHorizontal: 16, paddingTop: 17, paddingBottom: 35 },
-  loadingState: { minHeight: 280, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  loadingText: { color: '#647873', fontSize: 13 },
-  infoBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 8, padding: 11, backgroundColor: '#E1F2EE' },
-  infoBannerText: { flex: 1, color: '#315B55', fontSize: 11, lineHeight: 16 },
-  sectionLabel: { marginTop: 22, marginBottom: 8, color: '#526A66', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  assignmentCard: { borderRadius: 10, paddingHorizontal: 13, backgroundColor: '#FFFFFF' },
-  assignmentRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  assignmentLabel: { width: 92, color: '#687A7D', fontSize: 11 },
-  assignmentValue: { flex: 1, color: '#183D3A', fontSize: 12, fontWeight: '700', textAlign: 'right' },
-  divider: { height: StyleSheet.hairlineWidth, backgroundColor: '#DCE5E3' },
-  dateSectionLabel: { marginTop: 21 },
-  dateField: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 10, paddingHorizontal: 12, backgroundColor: '#FFFFFF' },
-  dateIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#E2F3EF' },
-  dateCopy: { flex: 1 },
-  dateCaption: { color: '#687A7D', fontSize: 10 },
-  dateValue: { marginTop: 3, color: '#183D3A', fontSize: 13, fontWeight: '700' },
-  dateHint: { marginTop: 7, color: '#71817F', fontSize: 10 },
-  requestNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 18, paddingHorizontal: 2 },
-  requestNoteText: { flex: 1, color: '#687A7D', fontSize: 10, lineHeight: 15 },
-  primaryButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 8, marginTop: 21, paddingHorizontal: 14, backgroundColor: '#00A694' },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  buttonDisabled: { opacity: 0.65 },
-  approvalNote: { marginTop: 10, color: '#6C7D7B', fontSize: 10, lineHeight: 15, textAlign: 'center' },
-  errorText: { marginTop: 14, color: '#B64040', fontSize: 12, lineHeight: 17 },
-  noticeCard: { alignItems: 'center', borderRadius: 12, marginTop: 28, padding: 20, backgroundColor: '#FFFFFF' },
-  noticeIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#E2F3EF' },
-  noticeIconWarning: { backgroundColor: '#FFF1D9' },
-  noticeTitle: { marginTop: 14, color: '#183D3A', fontSize: 16, fontWeight: '800', textAlign: 'center' },
-  noticeCopy: { marginTop: 7, color: '#687A7D', fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  secondaryButton: { minHeight: 43, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', borderWidth: 1, borderColor: '#00A694', borderRadius: 8, marginTop: 17 },
-  secondaryButtonText: { color: '#087C73', fontSize: 13, fontWeight: '700' },
-  calendarBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.48)' },
-  calendarCard: { width: '100%', borderRadius: 14, padding: 17, backgroundColor: '#FFFFFF' },
-  calendarHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 13 },
-  monthButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-  monthTitle: { color: '#183D3A', fontSize: 15, fontWeight: '700' },
-  weekRow: { flexDirection: 'row', marginBottom: 5 },
-  weekday: { width: `${100 / 7}%`, color: '#70807F', fontSize: 11, fontWeight: '600', textAlign: 'center' },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calendarCell: { width: `${100 / 7}%`, height: 43, alignItems: 'center', justifyContent: 'center' },
-  dayCircle: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 },
-  dayCircleSelected: { backgroundColor: '#00A694' },
-  dayText: { color: '#233D3B', fontSize: 12, fontWeight: '500' },
-  dayTextDisabled: { color: '#C9D1D0' },
-  dayTextSelected: { color: '#FFFFFF', fontWeight: '800' },
-  todayDot: { position: 'absolute', bottom: 2, width: 4, height: 4, borderRadius: 2, backgroundColor: '#00A694' },
-  todayDotSelected: { backgroundColor: '#FFFFFF' },
-  calendarDoneButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 7, marginTop: 10, backgroundColor: '#E8F2F1' },
-  calendarDoneText: { color: '#087C73', fontSize: 13, fontWeight: '700' },
-  successBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: 'rgba(0,0,0,0.5)' },
-  successCard: { width: '100%', alignItems: 'center', borderRadius: 16, paddingHorizontal: 17, paddingTop: 22, paddingBottom: 17, backgroundColor: '#FFFFFF' },
-  successIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#00A694' },
-  successTitle: { marginTop: 10, color: '#183D3A', fontSize: 19, fontWeight: '800' },
-  successCopy: { marginTop: 4, color: '#687A7D', fontSize: 11, textAlign: 'center' },
-  successDetails: { alignSelf: 'stretch', borderRadius: 9, marginTop: 15, paddingHorizontal: 10, backgroundColor: '#EAF3F1' },
-  requestedAt: { marginTop: 10, color: '#6A7A78', fontSize: 10 },
-  successDone: { minHeight: 42, alignItems: 'center', justifyContent: 'center', marginTop: 3 },
-  successDoneText: { color: '#087C73', fontSize: 13, fontWeight: '700' },
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  summaryScreen: { backgroundColor: CANVAS },
+  formHeading: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 },
+  formTitle: { color: INK, fontSize: 16, fontWeight: '600' },
+  progressDots: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: { width: 11, height: 11, borderRadius: 6, backgroundColor: '#D8D8D8' },
+  activeDot: { backgroundColor: TEAL },
+  formContent: { flexGrow: 1, paddingHorizontal: 15, paddingTop: 8, paddingBottom: 20 },
+  formField: { marginBottom: 25 },
+  fieldLabel: { marginBottom: 7, color: '#15191B', fontSize: 11, fontWeight: '500' },
+  readonlyField: { height: 45, justifyContent: 'center', borderWidth: 1, borderColor: '#858585', borderRadius: 8, paddingHorizontal: 10 },
+  fieldValue: { color: '#25292B', fontSize: 14 },
+  placeholder: { color: '#74797B' },
+  selectField: { height: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#858585', borderRadius: 8, marginBottom: 25, paddingHorizontal: 10 },
+  formActions: { paddingHorizontal: 15, paddingTop: 8, paddingBottom: 15, gap: 10 },
+  cta: { minHeight: 43, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 5, paddingHorizontal: 14, backgroundColor: TEAL },
+  ctaText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  disabledCta: { opacity: 0.55 },
+  outlineButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#72D9D0', borderRadius: 5 },
+  outlineText: { color: '#111719', fontSize: 14, fontWeight: '500' },
+  serviceHint: { marginTop: -13, color: '#6E797B', fontSize: 11 },
+  inlineError: { marginBottom: 8, color: '#BA3B3B', fontSize: 12, lineHeight: 17 },
+  summaryTopBar: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 },
+  cancelTop: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  cancelTopText: { color: '#273238', fontSize: 13 },
+  cancelTopSpacer: { width: 54 },
+  summaryContent: { flexGrow: 1, alignItems: 'center', paddingHorizontal: 20, paddingTop: 45, paddingBottom: 15 },
+  ticketMark: { width: 48, height: 46, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  summaryTitle: { marginBottom: 27, color: '#101619', fontSize: 19, fontWeight: '600' },
+  summaryCard: { alignSelf: 'stretch', borderRadius: 6, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#FFFFFF' },
+  summaryLine: { minHeight: 35, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  summaryLabel: { flex: 1, color: '#41484B', fontSize: 11 },
+  summaryValue: { flex: 1.25, color: '#111719', fontSize: 12, fontWeight: '500', textAlign: 'right' },
+  summaryActions: { paddingHorizontal: 15, paddingBottom: 15 },
+  summaryBack: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 5 },
+  modalBackdrop: { flex: 1, justifyContent: 'center', paddingHorizontal: 20, backgroundColor: 'rgba(0,0,0,0.42)' },
+  routeSheet: { maxHeight: '75%', borderRadius: 12, padding: 18, backgroundColor: '#FFFFFF' },
+  routeSheetTitle: { marginBottom: 10, color: INK, fontSize: 16, fontWeight: '700' },
+  routeList: { flexGrow: 0 },
+  routeOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#DDE3E4' },
+  routeOptionText: { color: '#20292D', fontSize: 14 },
+  noRoutes: { paddingVertical: 20, color: '#6A7679', fontSize: 13, textAlign: 'center' },
+  routeDone: { minHeight: 42, alignItems: 'center', justifyContent: 'center', marginTop: 12, borderRadius: 6, backgroundColor: '#EAF5F3' },
+  routeDoneText: { color: '#087F75', fontSize: 14, fontWeight: '700' },
+  successCard: { alignItems: 'center', borderRadius: 12, paddingHorizontal: 15, paddingTop: 25, paddingBottom: 16, backgroundColor: '#FFFFFF' },
+  successIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, marginBottom: 19, backgroundColor: TEAL },
+  successTitle: { color: '#111719', fontSize: 17, fontWeight: '700' },
+  successCopy: { marginTop: 8, marginBottom: 19, color: '#343B3E', fontSize: 14, textAlign: 'center' },
+  blockedHeader: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16 },
+  blockedHeaderTitle: { color: INK, fontSize: 16, fontWeight: '600' },
+  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 11 },
+  stateText: { color: '#687477', fontSize: 13 },
+  blockedState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  blockedIcon: { width: 58, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: 29, backgroundColor: '#E5F5F2' },
+  warningIcon: { backgroundColor: '#FFF3DB' },
+  blockedTitle: { marginTop: 17, color: INK, fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  blockedCopy: { marginTop: 8, color: '#667477', fontSize: 13, lineHeight: 19, textAlign: 'center' },
 });

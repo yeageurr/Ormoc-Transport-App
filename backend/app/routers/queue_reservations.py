@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+import logging
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,24 +9,44 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
-from app.enums import AccountRole
+from app.enums import AccountRole, NotificationType
 from app.models.account import Account
 from app.models.dispatch_log import DispatchLog
 from app.models.dispatch_ticket import DispatchTicket
 from app.models.dispatcher_assignment import DispatcherAssignment
+from app.models.notification import Notification
 from app.models.queue_reservation import QueueReservation
 from app.models.route import Route
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
 from app.schemas.queue_reservation import (
+  DispatcherQueueReservationResponse,
   DriverQueueReservationHistoryResponse,
   QueueReservationCreate,
   QueueReservationResponse,
 )
+from app.schemas.route import RouteResponse
 from app.services.dispatch_ticket_service import generate_unique_ticket_reference
+from app.websocket.connection_manager import manager
 
 router = APIRouter()
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
+logger = logging.getLogger(__name__)
+
+
+async def _push_saved_notification(notification: Notification) -> None:
+  try:
+    await manager.send_to(notification.recipient_id, {
+      "type": "notification",
+      "data": {
+        "notification_id": notification.notification_id,
+        "notification_type": notification.notification_type.value,
+        "message": notification.message,
+        "created_at": notification.created_at.isoformat(),
+      },
+    })
+  except Exception:
+    logger.warning("Notification %s committed but live delivery failed", notification.notification_id, exc_info=True)
 
 
 def _has_active_trip(db: Session, driver_id: int) -> bool:
@@ -89,6 +110,29 @@ def current_driver_reservation(
   return _response(reservation)
 
 
+@router.get("/driver/available-routes", response_model=list[RouteResponse])
+def available_driver_reservation_routes(
+  db: Session = Depends(get_db),
+  account: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Return routes with an open dispatcher assignment for today's PH operating date."""
+  now = datetime.now(PH_TIMEZONE)
+  routes = (
+    db.query(Route)
+    .join(DispatcherAssignment, DispatcherAssignment.route_id == Route.route_id)
+    .filter(
+      Route.is_active.is_(True),
+      DispatcherAssignment.operating_date == now.date(),
+      DispatcherAssignment.closed_at.is_(None),
+      DispatcherAssignment.created_at > datetime.now(timezone.utc) - timedelta(hours=24),
+    )
+    .order_by(Route.route_id.asc())
+    .all()
+  )
+  # A route may have more than one legacy open row; expose one selector option.
+  return list({route.route_id: route for route in routes}.values())
+
+
 @router.get("/driver/mine", response_model=list[DriverQueueReservationHistoryResponse])
 def driver_reservation_history(
   db: Session = Depends(get_db),
@@ -137,8 +181,67 @@ def driver_reservation_history(
   return history
 
 
+@router.get("/dispatcher/pending", response_model=list[DispatcherQueueReservationResponse])
+def pending_dispatcher_reservations(
+  operating_date: date | None = None,
+  db: Session = Depends(get_db),
+  dispatcher: Account = Depends(require_role(AccountRole.DISPATCHER)),
+):
+  """List pending requests for this dispatcher's open route/date assignment."""
+  target_date = operating_date or datetime.now(PH_TIMEZONE).date()
+  assignment = (
+    db.query(DispatcherAssignment)
+    .filter(
+      DispatcherAssignment.dispatcher_id == dispatcher.account_id,
+      DispatcherAssignment.operating_date == target_date,
+      DispatcherAssignment.closed_at.is_(None),
+      DispatcherAssignment.created_at > datetime.now(timezone.utc) - timedelta(hours=24),
+    )
+    .first()
+  )
+  if assignment is None:
+    return []
+
+  reservations = (
+    db.query(QueueReservation)
+    .options(
+      joinedload(QueueReservation.driver),
+      joinedload(QueueReservation.vehicle),
+      joinedload(QueueReservation.route).joinedload(Route.origin),
+      joinedload(QueueReservation.route).joinedload(Route.destination),
+      joinedload(QueueReservation.ticket),
+    )
+    .filter(
+      QueueReservation.route_id == assignment.route_id,
+      QueueReservation.operating_date == target_date,
+      QueueReservation.approval_status == "pending",
+    )
+    .order_by(QueueReservation.reserved_at.asc())
+    .all()
+  )
+
+  responses = []
+  for reservation in reservations:
+    response_data = _response(reservation).model_dump()
+    responses.append(DispatcherQueueReservationResponse(
+      **response_data,
+      driver_name=f"{reservation.driver.first_name} {reservation.driver.last_name}",
+      driver_public_id=reservation.driver.driver_id,
+      route_label=f"{reservation.route.origin.terminal_name} - {reservation.route.destination.name}",
+      vehicle_plate=reservation.vehicle.plate_number,
+      vehicle_body_number=reservation.vehicle.body_number,
+      loading_at=reservation.loading_at,
+      departed_at=reservation.departed_at,
+      ticket_created_at=None,
+      ticket_used_at=None,
+      ticket_cancelled_at=None,
+      ticket_expired_at=None,
+    ))
+  return responses
+
+
 @router.post("", response_model=QueueReservationResponse, status_code=status.HTTP_201_CREATED)
-def create_driver_reservation(
+async def create_driver_reservation(
   request: QueueReservationCreate,
   db: Session = Depends(get_db),
   account: Account = Depends(require_role(AccountRole.DRIVER)),
@@ -153,6 +256,22 @@ def create_driver_reservation(
   today = datetime.now(PH_TIMEZONE).date()
   if request.operating_date < today:
     raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Operating date cannot be in the past")
+
+  assignment = (
+    db.query(DispatcherAssignment)
+    .filter(
+      DispatcherAssignment.route_id == request.route_id,
+      DispatcherAssignment.operating_date == request.operating_date,
+      DispatcherAssignment.closed_at.is_(None),
+      DispatcherAssignment.created_at > datetime.now(timezone.utc) - timedelta(hours=24),
+    )
+    .first()
+  )
+  if assignment is None:
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="There is no active dispatcher assignment for this route and operating date",
+    )
 
   has_active_reservation = (
     db.query(QueueReservation.id)
@@ -189,6 +308,16 @@ def create_driver_reservation(
     queue_status=None,
   )
   db.add(reservation)
+  notification = Notification(
+    recipient_id=assignment.dispatcher_id,
+    notification_type=NotificationType.UPDATED,
+    message=(
+      f"New reservation request from {driver.first_name} {driver.last_name} "
+      f"for {route.origin.terminal_name} - {route.destination.name} "
+      f"on {request.operating_date.isoformat()}. Review the pending request."
+    ),
+  )
+  db.add(notification)
   try:
     db.commit()
   except IntegrityError:
@@ -198,11 +327,13 @@ def create_driver_reservation(
       detail="An active reservation already exists for your account",
     )
   db.refresh(reservation)
+  db.refresh(notification)
+  await _push_saved_notification(notification)
   return _response(reservation)
 
 
 @router.post("/{reservation_id}/confirm", response_model=QueueReservationResponse)
-def confirm_reservation(
+async def confirm_reservation(
   reservation_id: int,
   db: Session = Depends(get_db),
   dispatcher: Account = Depends(require_role(AccountRole.DISPATCHER)),
@@ -270,6 +401,17 @@ def confirm_reservation(
   reservation.approved_by = dispatcher.account_id
   reservation.approved_at = datetime.now(PH_TIMEZONE)
   db.add(ticket)
+  notification = Notification(
+    recipient_id=reservation.driver.account_id,
+    notification_type=NotificationType.UPDATED,
+    message=(
+      f"Your reservation for {reservation.route.origin.terminal_name} - "
+      f"{reservation.route.destination.name} on {reservation.operating_date.isoformat()} "
+      f"was approved. Your queue number is {route.queue_prefix}-{next_queue_number:04d}. "
+      "Open My Tickets to view the reservation details."
+    ),
+  )
+  db.add(notification)
   try:
     db.commit()
   except IntegrityError as exc:
@@ -277,4 +419,6 @@ def confirm_reservation(
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Queue position was allocated concurrently; retry confirmation") from exc
   db.expire(reservation, ["ticket"])
   db.refresh(reservation)
+  db.refresh(notification)
+  await _push_saved_notification(notification)
   return _response(reservation)
