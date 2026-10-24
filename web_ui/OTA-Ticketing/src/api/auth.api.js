@@ -1,13 +1,13 @@
 import { get, post, saveAccessToken } from './http';
 
 export async function login(username, password) {
-  const result = await post('/auth/login', { username, password });
+  const result = await post('/auth/login', { username, password, portal: 'ticketing_officer' });
   saveAccessToken(result.access_token);
   return result;
 }
 
 export async function getCurrentAccount() {
-  return get('/auth/me');
+  return get('/auth/me?portal=ticketing_officer');
 }
 
 export async function logout() {

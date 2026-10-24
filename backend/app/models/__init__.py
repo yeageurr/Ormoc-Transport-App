@@ -17,6 +17,7 @@ from app.models.password_reset_otp import PasswordResetOtp
 from app.models.queue_reservation import QueueReservation
 from app.models.dispatch_ticket import DispatchTicket
 from app.models.dispatcher_assignment import DispatcherAssignment
+from app.models.dispatcher_profile import DispatcherProfile
 
 __all__ = [
   "Account",
@@ -39,4 +40,5 @@ __all__ = [
   "QueueReservation",
   "DispatchTicket",
   "DispatcherAssignment",
+  "DispatcherProfile",
 ]

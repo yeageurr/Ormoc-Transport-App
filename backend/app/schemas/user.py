@@ -4,6 +4,7 @@ import re
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
 from app.enums import AccountStatus, AccountRole
+from app.schemas.vehicle import VehicleBase
 
 
 # ---------- Account ----------
@@ -37,6 +38,36 @@ class UserBase(BaseModel):
 
 class DriverCreate(UserBase):
   password: str | None = None
+  vehicle: VehicleBase | None = None
+
+  @field_validator("contact_number")
+  @classmethod
+  def validate_contact_number(cls, value: str) -> str:
+    if not re.fullmatch(r"\d{11}", value):
+      raise ValueError("Contact number must be exactly 11 digits")
+    return value
+
+
+class DispatcherCreate(BaseModel):
+  first_name: str
+  last_name: str
+  contact_number: str
+  email: EmailStr | None = None
+
+  @field_validator("contact_number")
+  @classmethod
+  def validate_contact_number(cls, value: str) -> str:
+    if not re.fullmatch(r"\d{11}", value):
+      raise ValueError("Contact number must be exactly 11 digits")
+    return value
+
+  @field_validator("first_name", "last_name")
+  @classmethod
+  def validate_name(cls, value: str) -> str:
+    value = value.strip()
+    if not value or len(value) > 50:
+      raise ValueError("Name must be between 1 and 50 characters")
+    return value
 
 
 class UserResponse(UserBase):

@@ -49,7 +49,7 @@ export default function LoginScreen() {
         const detail = loginError.response?.data?.error?.message || loginError.response?.data?.detail;
         setError(
           loginError.response?.status === 401
-            ? 'Account username or password is incorrect.'
+            ? "Account doesn't exist."
             : loginError.response?.status === 403 && detail?.toLowerCase().includes('suspended')
               ? 'Your account has been suspended. Please contact the ticketing officer.'
               : detail || 'Unable to sign in. Please try again.',

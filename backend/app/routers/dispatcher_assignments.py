@@ -1,22 +1,51 @@
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.core.permissions import require_role
-from app.enums import AccountRole
+from app.enums import AccountRole, AuditAction
 from app.models.account import Account
 from app.models.dispatcher_assignment import DispatcherAssignment
 from app.models.route import Route
 from app.schemas.dispatcher_assignment import DispatcherAssignmentCreate, DispatcherAssignmentResponse
 from app.services.dispatcher_assignment_service import expire_assignment_reservations
+from app.services.audit_service import log_action
 
 router = APIRouter()
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
 MANUAL_CLOSE_START = time(21, 0)
+
+
+@router.get("")
+def list_assignments(
+  operating_date: date | None = Query(default=None),
+  db: Session = Depends(get_db),
+  officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+):
+  query = db.query(DispatcherAssignment)
+  if operating_date is not None:
+    query = query.filter(DispatcherAssignment.operating_date == operating_date)
+  assignments = query.order_by(DispatcherAssignment.created_at.desc()).all()
+  return [
+    {
+      "id": item.id,
+      "operating_date": item.operating_date,
+      "route_id": item.route_id,
+      "dispatcher_id": item.dispatcher_id,
+      "assigned_by": item.assigned_by,
+      "created_at": item.created_at,
+      "closed_at": item.closed_at,
+      "closed_by": item.closed_by,
+      "auto_closed": item.auto_closed,
+    }
+    for item in assignments
+  ]
 
 
 @router.post("", response_model=DispatcherAssignmentResponse, status_code=status.HTTP_201_CREATED)
@@ -54,6 +83,10 @@ def create_assignment(
       detail="The dispatcher or route already has an open assignment for that date",
     ) from exc
   db.refresh(assignment)
+  log_action(
+    db, officer.account_id, AuditAction.CREATE, "dispatcher_assignments", assignment.id,
+    f"Opened dispatch ticketing for route {assignment.route_id} on {assignment.operating_date}; dispatcher account {assignment.dispatcher_id}",
+  )
   return {
     "id": assignment.id,
     "operating_date": assignment.operating_date,
@@ -101,6 +134,10 @@ def close_assignment(
   expire_assignment_reservations(db, assignment, now)
   db.commit()
   db.refresh(assignment)
+  log_action(
+    db, officer.account_id, AuditAction.UPDATE, "dispatcher_assignments", assignment.id,
+    f"Closed dispatch ticketing for route {assignment.route_id} on {assignment.operating_date}",
+  )
   return {
     "id": assignment.id,
     "operating_date": assignment.operating_date,

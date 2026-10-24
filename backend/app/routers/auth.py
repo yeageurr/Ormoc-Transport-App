@@ -2,6 +2,7 @@ import hashlib
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import func, or_
@@ -50,7 +51,7 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
 
   invalid_credentials = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Invalid username or password",
+    detail="Account doesn't exist",
   )
 
   if len(matches) != 1:
@@ -58,14 +59,13 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
 
   account = matches[0]
 
-  if not verify_password(credentials.password, account.password_hash):
+  password_matches = verify_password(credentials.password, account.password_hash)
+  expected_role = AccountRole(credentials.portal)
+  if not password_matches or account.role != expected_role:
     raise invalid_credentials
 
   if account.status != AccountStatus.ACTIVE:
-    raise HTTPException(
-      status_code=status.HTTP_403_FORBIDDEN,
-      detail=f"Account is {account.status.value}",
-    )
+    raise invalid_credentials
 
   account.last_login = datetime.now(timezone.utc)
   db.commit()
@@ -97,7 +97,12 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
 
 
 @router.get("/me")
-def get_me(current_account: Account = Depends(get_current_account)):
+def get_me(
+  portal: Literal["ticketing_officer", "driver", "dispatcher"],
+  current_account: Account = Depends(get_current_account),
+):
+  if current_account.role != AccountRole(portal):
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account doesn't exist")
   return {
     "account_id": current_account.account_id,
     "role": current_account.role,

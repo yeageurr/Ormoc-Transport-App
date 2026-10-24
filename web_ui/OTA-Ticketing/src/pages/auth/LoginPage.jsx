@@ -3,7 +3,7 @@ import BrandHeader from '../../components/auth/BrandHeader';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LoginPage({ onForgotPassword, onSignedIn }) {
-  const { signIn, signOut } = useAuth();
+  const { signIn } = useAuth();
   const [identity, setIdentity] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,12 +15,7 @@ export default function LoginPage({ onForgotPassword, onSignedIn }) {
     setError('');
     setSubmitting(true);
     try {
-      const result = await signIn(identity.trim(), password);
-      if (String(result.user?.role).toLowerCase() !== 'ticketing_officer') {
-        await signOut();
-        setError('This portal is for ticketing officer accounts.');
-        return;
-      }
+      await signIn(identity.trim(), password);
       onSignedIn();
     } catch (loginError) {
       setError(loginError.message || 'Unable to sign in. Check your connection and try again.');
@@ -34,34 +29,34 @@ export default function LoginPage({ onForgotPassword, onSignedIn }) {
       <BrandHeader />
       <form onSubmit={handleSubmit} className="mt-12 w-full max-w-md rounded-lg bg-white/45 p-5 sm:p-7">
         <Field label="Email or Phone" icon="mail">
-          <input autoComplete="username" value={identity} onChange={(event) => setIdentity(event.target.value)} placeholder="email@example.com or phone" required />
+          <input className="w-full min-w-0 border-0 bg-transparent py-[10px] pl-[42px] pr-3 text-sm text-[#182428] outline-none placeholder:text-[#71828a]" autoComplete="username" value={identity} onChange={(event) => setIdentity(event.target.value)} placeholder="email@example.com or phone" required />
         </Field>
         <Field label="Password" icon="key">
-          <input autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" required />
-          <button type="button" className="password-toggle" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+          <input className="w-full min-w-0 border-0 bg-transparent py-[10px] pl-[42px] pr-10 text-sm text-[#182428] outline-none placeholder:text-[#71828a]" autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" required />
+          <button type="button" className="absolute right-[10px] top-1/2 flex -translate-y-1/2 cursor-pointer border-0 bg-transparent p-1 text-[#263b42]" onClick={() => setShowPassword((shown) => !shown)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
             {showPassword ? <EyeOff /> : <Eye />}
           </button>
         </Field>
         {error ? <p role="alert" className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
-        <button className="primary-button" type="submit" disabled={submitting}>
+        <button className="flex min-h-11 w-full cursor-pointer items-center justify-center rounded-md border border-[#00ce79] bg-[#00ed85] text-[15px] font-semibold text-[#08120e] transition hover:bg-[#00d978] active:translate-y-px disabled:cursor-wait disabled:opacity-65" type="submit" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Login'}
         </button>
-        <button className="text-button mt-3 w-full" type="button" onClick={onForgotPassword}>Forgot Password?</button>
+        <button className="mt-3 w-full cursor-pointer border-0 bg-transparent text-[13px] font-medium text-[#142126]" type="button" onClick={onForgotPassword}>Forgot Password?</button>
       </form>
     </AuthShell>
   );
 }
 
 export function AuthShell({ children }) {
-  return <main className="auth-page"><div className="auth-content">{children}</div></main>;
+  return <main className="grid min-h-screen place-items-center bg-[#a8e2f8] px-5 py-10"><div className="flex w-full max-w-[560px] flex-col items-center">{children}</div></main>;
 }
 
 function Field({ label, icon, children }) {
   return (
-    <label className="auth-field">
-      <span>{label}</span>
-      <span className="auth-input-wrap">
-        <span className="field-icon" aria-hidden="true">{icon === 'mail' ? <Mail /> : <Key />}</span>
+    <label className="mb-6 block text-[13px] font-medium text-[#101719] sm:text-sm">
+      <span className="mb-[7px] block">{label}</span>
+      <span className="relative flex min-h-11 items-center rounded-md border border-[#33464c] text-[#1c3037] focus-within:border-[#0284c7] focus-within:outline focus-within:outline-2 focus-within:outline-[#0ea5e9]/30">
+        <span className="absolute left-[11px] top-1/2 grid -translate-y-1/2 text-[#263b42]" aria-hidden="true">{icon === 'mail' ? <Mail /> : <Key />}</span>
         {children}
       </span>
     </label>

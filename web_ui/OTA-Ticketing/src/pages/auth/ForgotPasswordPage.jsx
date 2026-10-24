@@ -85,31 +85,32 @@ export default function ForgotPasswordPage({ onBackToLogin }) {
   return (
     <AuthShell>
       <BrandHeader compact={step === 'otp'} />
-      <section className="auth-card mt-8 w-full max-w-md">
+      <section className="mt-8 w-full max-w-md rounded-md bg-white/40 px-[15px] py-[27px] sm:px-4 sm:py-7">
         {step === 'email' ? (
           <form onSubmit={sendCode}>
-            <h1>Forgot your password?</h1>
-            <p className="auth-description">Enter the email address linked to your ticketing officer account.</p>
-            <label className="auth-field">
-              <span>Enter your email</span>
-              <span className="auth-input-wrap"><span className="field-icon"><Mail /></span><input autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@example.com" required /></span>
+            <h1 className="m-0 text-center text-xl font-semibold text-[#101719]">Forgot your password?</h1>
+            <p className="my-4 mb-[25px] text-center text-sm leading-relaxed text-[#20292d]">Enter the email address linked to your ticketing officer account.</p>
+            <label className="mb-6 block text-[13px] font-medium text-[#101719] sm:text-sm">
+              <span className="mb-[7px] block">Enter your email</span>
+              <span className="relative flex min-h-11 items-center rounded-md border border-[#33464c] text-[#1c3037] focus-within:border-[#0284c7] focus-within:outline focus-within:outline-2 focus-within:outline-[#0ea5e9]/30"><span className="absolute left-[11px] top-1/2 grid -translate-y-1/2 text-[#263b42]"><Mail /></span><input className="w-full min-w-0 border-0 bg-transparent py-[10px] pl-[42px] pr-3 text-sm text-[#182428] outline-none placeholder:text-[#71828a]" autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email@example.com" required /></span>
             </label>
             <Feedback error={error} message={message} />
-            <button className="primary-button mt-2" type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send OTP'}</button>
-            <button className="text-button mt-3 w-full" type="button" onClick={onBackToLogin}>Back to Login</button>
+            <button className="mt-2 flex min-h-11 w-full cursor-pointer items-center justify-center rounded-md border border-[#00ce79] bg-[#00ed85] text-[15px] font-semibold text-[#08120e] transition hover:bg-[#00d978] disabled:cursor-wait disabled:opacity-65" type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send OTP'}</button>
+            <button className="mt-3 w-full cursor-pointer border-0 bg-transparent text-[13px] font-medium text-[#142126]" type="button" onClick={onBackToLogin}>Back to Login</button>
           </form>
         ) : null}
 
         {step === 'otp' ? (
           <form onSubmit={verifyCode}>
-            <h1>Verify Email Address</h1>
-            <p className="auth-description">Enter the 6-digit OTP sent to your email.</p>
-            <div className="otp-inputs" role="group" aria-label="6-digit verification code">
+            <h1 className="m-0 text-center text-xl font-semibold text-[#101719]">Verify Email Address</h1>
+            <p className="my-4 mb-[25px] text-center text-sm leading-relaxed text-[#20292d]">Enter the 6-digit OTP sent to your email.</p>
+            <div className="flex justify-center gap-[clamp(5px,2vw,11px)]" role="group" aria-label="6-digit verification code">
               {digits.map((digit, index) => (
                 <input
                   key={index}
                   ref={(node) => { inputRefs.current[index] = node; }}
                   aria-label={`OTP digit ${index + 1}`}
+                  className="h-16 w-[clamp(38px,12vw,54px)] rounded-md border border-[#344950] bg-transparent text-center text-[25px] outline-none focus:border-[#0284c7] focus:outline focus:outline-2 focus:outline-[#0ea5e9]/30"
                   autoComplete={index === 0 ? 'one-time-code' : 'off'}
                   inputMode="numeric"
                   maxLength={1}
@@ -124,38 +125,38 @@ export default function ForgotPasswordPage({ onBackToLogin }) {
               ))}
             </div>
             <Feedback error={error} message={message} />
-            <button className="primary-button mt-5" type="submit" disabled={busy}>{busy ? 'Verifying…' : 'Verify'}</button>
-            <button className="text-button mt-3 w-full" type="button" disabled={cooldown > 0 || busy} onClick={() => void resendCode()}>
+            <button className="mt-5 flex min-h-11 w-full cursor-pointer items-center justify-center rounded-md border border-[#00ce79] bg-[#00ed85] text-[15px] font-semibold text-[#08120e] transition hover:bg-[#00d978] disabled:cursor-wait disabled:opacity-65" type="submit" disabled={busy}>{busy ? 'Verifying…' : 'Verify'}</button>
+            <button className="mt-3 w-full cursor-pointer border-0 bg-transparent text-[13px] font-medium text-[#142126] disabled:cursor-default disabled:text-[#65747a]" type="button" disabled={cooldown > 0 || busy} onClick={() => void resendCode()}>
               {cooldown > 0 ? `Resend OTP in ${cooldown}s` : 'Resend OTP'}
             </button>
-            <button className="text-button mt-1 w-full text-slate-500" type="button" onClick={() => { setStep('email'); setError(''); setMessage(''); }}>Change email</button>
+            <button className="mt-1 w-full cursor-pointer border-0 bg-transparent text-[13px] font-medium text-slate-500" type="button" onClick={() => { setStep('email'); setError(''); setMessage(''); }}>Change email</button>
           </form>
         ) : null}
 
         {step === 'password' ? (
           <form onSubmit={savePassword}>
-            <h1>Set Your New Password</h1>
-            <p className="auth-description">Make sure you can remember it next time.</p>
-            <label className="auth-field">
-              <span>New Password</span>
-              <span className="auth-input-wrap"><span className="field-icon"><Key /></span><input autoComplete="new-password" type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><button type="button" className="password-toggle" onClick={() => setShowPassword((shown) => !shown)} aria-label="Toggle password visibility">{showPassword ? 'Hide' : 'Show'}</button></span>
+            <h1 className="m-0 text-center text-xl font-semibold text-[#101719]">Set Your New Password</h1>
+            <p className="my-4 mb-[25px] text-center text-sm leading-relaxed text-[#20292d]">Make sure you can remember it next time.</p>
+            <label className="mb-6 block text-[13px] font-medium text-[#101719] sm:text-sm">
+              <span className="mb-[7px] block">New Password</span>
+              <span className="relative flex min-h-11 items-center rounded-md border border-[#33464c] text-[#1c3037] focus-within:border-[#0284c7] focus-within:outline focus-within:outline-2 focus-within:outline-[#0ea5e9]/30"><span className="absolute left-[11px] top-1/2 grid -translate-y-1/2 text-[#263b42]"><Key /></span><input className="w-full min-w-0 border-0 bg-transparent py-[10px] pl-[42px] pr-14 text-sm text-[#182428] outline-none" autoComplete="new-password" type={showPassword ? 'text' : 'password'} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /><button type="button" className="absolute right-[10px] top-1/2 flex -translate-y-1/2 cursor-pointer border-0 bg-transparent p-1 text-[#263b42]" onClick={() => setShowPassword((shown) => !shown)} aria-label="Toggle password visibility">{showPassword ? 'Hide' : 'Show'}</button></span>
             </label>
-            <label className="auth-field">
-              <span>Confirm New Password</span>
-              <span className="auth-input-wrap"><span className="field-icon"><Key /></span><input autoComplete="new-password" type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required /></span>
+            <label className="mb-6 block text-[13px] font-medium text-[#101719] sm:text-sm">
+              <span className="mb-[7px] block">Confirm New Password</span>
+              <span className="relative flex min-h-11 items-center rounded-md border border-[#33464c] text-[#1c3037] focus-within:border-[#0284c7] focus-within:outline focus-within:outline-2 focus-within:outline-[#0ea5e9]/30"><span className="absolute left-[11px] top-1/2 grid -translate-y-1/2 text-[#263b42]"><Key /></span><input className="w-full min-w-0 border-0 bg-transparent py-[10px] pl-[42px] pr-3 text-sm text-[#182428] outline-none" autoComplete="new-password" type={showPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required /></span>
             </label>
-            <p className="password-guidance">At least 8 characters, including uppercase, lowercase, and a number.</p>
+            <p className="-mt-[15px] mb-5 text-[11px] text-[#526167]">At least 8 characters, including uppercase, lowercase, and a number.</p>
             <Feedback error={error} message={message} />
-            <button className="primary-button mt-4" type="submit" disabled={busy}>{busy ? 'Updating…' : 'Confirm and Login'}</button>
+            <button className="mt-4 flex min-h-11 w-full cursor-pointer items-center justify-center rounded-md border border-[#00ce79] bg-[#00ed85] text-[15px] font-semibold text-[#08120e] transition hover:bg-[#00d978] disabled:cursor-wait disabled:opacity-65" type="submit" disabled={busy}>{busy ? 'Updating…' : 'Confirm and Login'}</button>
           </form>
         ) : null}
 
         {step === 'success' ? (
           <div className="text-center">
-            <div className="success-mark" aria-hidden="true">✓</div>
-            <h1>Password Updated</h1>
-            <p className="auth-description">Your password was changed. Sign in with your new password.</p>
-            <button className="primary-button mt-5" type="button" onClick={onBackToLogin}>Back to Login</button>
+            <div className="mx-auto mb-[17px] grid h-[54px] w-[54px] place-items-center rounded-full bg-[#00b981] text-[30px] text-white" aria-hidden="true">✓</div>
+            <h1 className="m-0 text-center text-xl font-semibold text-[#101719]">Password Updated</h1>
+            <p className="my-4 mb-[25px] text-center text-sm leading-relaxed text-[#20292d]">Your password was changed. Sign in with your new password.</p>
+            <button className="mt-5 flex min-h-11 w-full cursor-pointer items-center justify-center rounded-md border border-[#00ce79] bg-[#00ed85] text-[15px] font-semibold text-[#08120e] transition hover:bg-[#00d978]" type="button" onClick={onBackToLogin}>Back to Login</button>
           </div>
         ) : null}
       </section>
@@ -164,7 +165,7 @@ export default function ForgotPasswordPage({ onBackToLogin }) {
 }
 
 function Feedback({ error, message }) {
-  return <>{error ? <p role="alert" className="feedback-error">{error}</p> : null}{message ? <p role="status" className="feedback-message">{message}</p> : null}</>;
+  return <>{error ? <p role="alert" className="-mb-3 -mt-[9px] rounded-[5px] bg-[#fff0f0] px-[10px] py-[9px] text-xs leading-relaxed text-[#a62828]">{error}</p> : null}{message ? <p role="status" className="-mb-3 -mt-[9px] rounded-[5px] bg-[#eafaf3] px-[10px] py-[9px] text-xs leading-relaxed text-[#176743]">{message}</p> : null}</>;
 }
 function Mail() { return <svg viewBox="0 0 24 24" fill="none" className="size-5"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.6"/><path d="m4 7 8 6 8-6" stroke="currentColor" strokeWidth="1.6"/></svg>; }
 function Key() { return <svg viewBox="0 0 24 24" fill="none" className="size-5"><circle cx="8" cy="15" r="4" stroke="currentColor" strokeWidth="1.6"/><path d="m11 12 8-8 2 2-2 2 2 2-3 3-2-2-3 3" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>; }

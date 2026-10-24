@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -8,6 +9,7 @@ from app.enums import AccountRole
 class LoginRequest(BaseModel):
   username: str
   password: str
+  portal: Literal["ticketing_officer", "driver", "dispatcher"]
 
 
 class TokenResponse(BaseModel):

@@ -41,6 +41,7 @@ export async function loginDriver(
   const response = await authClient.post<LoginResponse>('/auth/login', {
     username,
     password,
+    portal: 'driver',
   });
 
   if (!response.data.access_token) {
@@ -89,7 +90,7 @@ export async function logoutDriver(): Promise<void> {
 
 /** Returns the current driver's profile details for an existing session. */
 export async function getCurrentUser(): Promise<AuthenticatedUser> {
-  const { data } = await authClient.get<AuthenticatedUser>('/auth/me');
+  const { data } = await authClient.get<AuthenticatedUser>('/auth/me?portal=driver');
   return data;
 }
 
