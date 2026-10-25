@@ -42,11 +42,23 @@ def list_dispatchers(
   dispatchers = (
     db.query(Account)
     .filter(Account.role == AccountRole.DISPATCHER, Account.status == AccountStatus.ACTIVE)
+    .options(joinedload(Account.user))
     .order_by(Account.account_code.asc())
     .all()
   )
+  profiles = {
+    profile.account_id: profile
+    for profile in db.query(DispatcherProfile).all()
+  }
   return [
-    {"account_id": item.account_id, "account_code": item.account_code, "username": item.username}
+    {
+      "account_id": item.account_id,
+      "full_name": (
+        f"{profiles[item.account_id].first_name} {profiles[item.account_id].last_name}"
+        if item.account_id in profiles
+        else f"{item.user.first_name} {item.user.last_name}" if item.user else None
+      ),
+    }
     for item in dispatchers
   ]
 

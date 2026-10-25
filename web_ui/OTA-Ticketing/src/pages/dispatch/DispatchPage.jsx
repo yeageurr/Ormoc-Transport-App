@@ -109,7 +109,7 @@ export default function DispatchPage() {
       <main className=" flex flex-col gap-1 box-border h-full min-h-[calc(100vh-32px)] flex-1 rounded-lg bg-[#A9E4FF] max-[760px]:mx-2 max-[760px]:my-2 max-[760px]:min-h-[calc(100vh-16px)]">
         <header className="rounded-lg top-0 flex min-h-[47px] items-center justify-between border-b border-[#b3d7e6] bg-[#f3faff] px-3 max-[760px]:px-[5px]">
           <strong className="text-[13px] font-semibold">{account?.role === 'ticketing_officer' ? 'Ticketing Officer' : 'admin'}</strong>
-          <div className="flex items-center gap-[18px] max-[760px]:gap-[6px]"><span className="inline-flex items-center gap-[5px] rounded-[7px] bg-[#a6e3fa] px-[10px] py-[5px] text-[11px] text-[#183b4c] max-[760px]:text-[0px]"><CalendarIcon /> {fullDate(now)}</span><button className="inline-flex cursor-pointer items-center gap-[6px] rounded-[7px] border border-[#b7cbd3] bg-transparent px-[10px] py-[5px] text-[11px] text-[#304851] disabled:opacity-50 max-[760px]:text-[0px]" onClick={() => void refresh()} disabled={loading}><RefreshIcon /> Refresh</button></div>
+          <div className="flex items-center gap-[18px] max-[760px]:gap-[6px]"><span className="inline-flex items-center gap-[5px] rounded-[7px] bg-[#a6e3fa] px-[10px] py-[5px] text-[11px] text-[#183b4c] max-[760px]:text-[0px]"><CalendarIcon /> {fullDate(now)}</span></div>
         </header>
 
         <section className="box-border min-h-[calc(100vh-79px)] rounded-lg bg-[#f5fbff] px-[10px] pb-7 pt-[15px] max-[760px]:min-h-[calc(100vh-63px)] max-[760px]:px-[5px] max-[760px]:pb-5 max-[760px]:pt-[10px]">
@@ -156,7 +156,7 @@ export default function DispatchPage() {
           <span className="text-[10px] font-bold tracking-[.1em] text-[#0879ac]">OPEN ROUTE OPERATION</span><h2 className="mb-2 mr-5 mt-2 text-[22px] font-bold text-[#173b4e]">Assign a dispatcher</h2><p className="mb-5 text-[13px] leading-relaxed text-[#536c78]">Choose an active dispatcher for <strong className="text-[#284b5c]">{selectedRoute.destination?.name || `Route ${selectedRoute.route_id}`}</strong> on {fullDate(now)}.</p>
           <label className="mb-[6px] mt-[15px] block text-xs font-semibold text-[#294a5b]" htmlFor="dispatcher-select">Dispatcher</label>
           <select id="dispatcher-select" className="h-[42px] w-full rounded-md border border-[#acc4ce] bg-white px-[10px] text-[#284858]" value={selectedDispatcher} onChange={(event) => setSelectedDispatcher(event.target.value)} required>
-            <option value="">Select dispatcher</option>{dispatchers.map((dispatcher) => <option key={dispatcher.account_id} value={dispatcher.account_id}>{dispatcher.account_code} · {dispatcher.username}</option>)}
+            <option value="">Select dispatcher</option>{dispatchers.map((dispatcher) => <option key={dispatcher.account_id} value={dispatcher.account_id}>{dispatcher.full_name || 'Name not on file'}</option>)}
           </select>
           {!dispatchers.length && <p className="mb-0 mt-[9px] text-[11px] text-[#758891]">No active dispatcher accounts are available.</p>}
           <div className="mt-[25px] flex justify-end gap-[9px]"><button type="button" className="min-h-[38px] cursor-pointer rounded-md border-0 bg-[#edf4f7] px-[14px] text-xs font-semibold text-[#34515f] disabled:opacity-50" onClick={() => setSelectedRoute(null)} disabled={busy}>Cancel</button><button className="min-h-[38px] cursor-pointer rounded-md border-0 bg-[#0796d1] px-[14px] text-xs font-semibold text-white disabled:opacity-50" disabled={busy || !dispatchers.length}>{busy ? 'Opening…' : 'Assign and Open'}</button></div>
@@ -182,6 +182,5 @@ export default function DispatchPage() {
 }
 
 function CalendarIcon() { return <svg className="h-[15px] w-[15px] shrink-0 max-[760px]:h-[17px] max-[760px]:w-[17px]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M7.5 3v4M16.5 3v4M4 9h16" stroke="currentColor" strokeWidth="1.5"/></svg>; }
-function RefreshIcon() { return <svg className="h-[15px] w-[15px] shrink-0 max-[760px]:h-[18px] max-[760px]:w-[18px]" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.6-4L4 9m0 0V5m0 4h4m-4 4a8 8 0 0 0 14.6 4L20 15m0 0v4m0-4h-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
 function ExpandIcon() { return <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7 3H3v4m10-4h4v4M3 13v4h4m10-4v4h-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>; }
 function EditIcon() { return <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m12.8 4.2 3 3M4 16l3.2-.7 8.9-8.9a2.1 2.1 0 0 0-3-3l-8.9 8.9L4 16Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/></svg>; }
