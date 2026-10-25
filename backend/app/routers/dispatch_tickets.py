@@ -92,6 +92,7 @@ def list_dispatch_records(
       "route_name": destination.name,
       "operating_date": ticket.operating_date,
       "plate_number": vehicle.plate_number.upper(),
+      "vehicle_type": vehicle.vehicle_type,
       "driver_name": f"{driver.first_name} {driver.last_name}".strip(),
       "driver_contact": driver.contact_number,
       "issued_at": ticket.created_at,
