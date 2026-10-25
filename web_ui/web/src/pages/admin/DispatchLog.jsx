@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Eye } from "lucide-react";
 
-import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
 import CreateDispatchModal from "../../components/modals/CreateDispatchModal";
 import DispatchReviewModal from "../../components/modals/DispatchReviewModal";
 import EditDispatchModal from "../../components/modals/EditDispatchModal";
@@ -13,7 +12,6 @@ import { createDispatchBatch, getDispatches } from "../../api/dispatchAPI";
 import { getRoutes } from "../../api/routesAPI";
 import { getDrivers } from "../../api/usersAPI";
 import { getVehicles } from "../../api/vehiclesAPI";
-import { useAuth } from "../../context/AuthContext";
 import {
   AdminSearchField,
   adminCreateButtonClassName,
@@ -53,10 +51,8 @@ const displayDate = (date) =>
 
 export default function DispatchLog() {
   setTitle('Dispatch Logs');
-  const { mustChangePassword, setMustChangePassword } = useAuth();
 
   // Forced "change password on first login" flow
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Create-dispatch wizard: null | "route" | "assignment" | "review"
   const [step, setStep] = useState(null);
@@ -84,10 +80,6 @@ export default function DispatchLog() {
   const [addingToGroup, setAddingToGroup] = useState(null);
 
   const effectiveDate = tomorrow();
-
-  useEffect(() => {
-    setShowPasswordModal(mustChangePassword);
-  }, [mustChangePassword]);
 
 
   const loadAll = async () => {
@@ -380,15 +372,6 @@ export default function DispatchLog() {
         />
       )}
 
-      {showPasswordModal && (
-        <ChangePasswordModal
-          onClose={() => setShowPasswordModal(false)}
-          onSuccess={() => {
-            setMustChangePassword(false);
-            setShowPasswordModal(false);
-          }}
-        />
-      )}
     </main>
   );
 }

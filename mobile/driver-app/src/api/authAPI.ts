@@ -28,6 +28,7 @@ export interface AuthenticatedUser {
   username: string;
   first_name: string | null;
   last_name: string | null;
+  must_change_password: boolean;
 }
 
 /**

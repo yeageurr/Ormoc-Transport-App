@@ -5,11 +5,14 @@ import { listPortalUsers } from '../../api/portalUsers.api';
 import { createDriver, createDispatcher } from '../../api/drivers.api';
 import { listDispatcherAssignments } from '../../api/dispatcherAssignments.api';
 import { useAuth } from '../../context/AuthContext';
+import EmptyTableState from '../../components/ui/EmptyTableState';
 
 const PH = 'Asia/Manila';
 const NAV_ITEMS = [
   { id: 'dispatch', label: 'Dispatch Operations' },
   { id: 'users', label: 'Users' },
+  { id: 'dispatch-history', label: 'Dispatch Records' },
+  { id: 'history', label: 'Audit History' },
 ];
 const todayInPH = () => new Intl.DateTimeFormat('en-CA', { timeZone: PH, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const dateTime = (value) => value ? new Intl.DateTimeFormat('en-GB', { timeZone: PH, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—';
@@ -101,16 +104,16 @@ export default function UsersPage() {
 
           {error && <div role="alert" className="mx-[5px] mb-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
           {notice && <div role="status" className="mx-[5px] mb-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</div>}
-          <div className="mx-[5px] min-h-[305px] overflow-x-auto rounded-[5px] border border-[#a8d5e8] bg-white px-[10px] py-[7px]">
-            <table className="w-full min-w-[680px] border-collapse text-left text-[11px] text-[#29485a]">
+          <div className="mx-[5px] min-h-76.25 overflow-x-auto rounded-[5px] border border-[#a8d5e8] bg-white px-[10px] py-[7px]">
+            <table className="w-full min-w-170 border-collapse text-left text-[11px] text-[#29485a]">
               <thead><tr>
-                <th className="w-[9%] border-b border-[#9daeb7] px-[9px] py-[10px]" aria-label="View details"></th>
-                <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Name</th>
-                <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Date and Time Created</th>
-                {filter === 'dispatcher' && <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Currently Assigned</th>}
-                {filter === 'driver' && <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Vehicle Plate Number</th>}
-                {filter === 'all' && <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Role</th>}
-                <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Account Status</th>
+                <th className="w-[9%] border-b border-[#9daeb7] px-2.25 py-2.5" aria-label="View details"></th>
+                <th className="border-b border-[#9daeb7] px-2.25 py-2.5 font-semibold">Name</th>
+                <th className="border-b border-[#9daeb7] px-2.25 py-2.5 font-semibold">Date and Time Created</th>
+                {filter === 'dispatcher' && <th className="border-b border-[#9daeb7] px-2.25 py-2.5 font-semibold">Currently Assigned</th>}
+                {filter === 'driver' && <th className="border-b border-[#9daeb7] px-2.25 py-2.5 font-semibold">Vehicle Plate Number</th>}
+                {filter === 'all' && <th className="border-b border-[#9daeb7] px-2.25 py-2.5 font-semibold">Role</th>}
+                <th className="border-b border-[#9daeb7] px-2.25 py-2.5 font-semibold">Account Status</th>
               </tr></thead>
               <tbody>
                 {filteredUsers.map((user) => <tr className="border-b border-[#9daeb7] last:border-b-0" key={user.account_id}>
@@ -122,7 +125,7 @@ export default function UsersPage() {
                   {filter === 'all' && <td className="px-[9px] py-[9px] capitalize">{user.role}</td>}
                   <td className="px-[9px] py-[9px]"><StatusBadge status={user.status} /></td>
                 </tr>)}
-                {!loading && !filteredUsers.length && <tr><td colSpan="5" className="h-28 text-center text-[#718792]">{search ? 'No accounts match your search.' : 'No accounts found.'}</td></tr>}
+                {!loading && !filteredUsers.length && <tr><td colSpan="5"><EmptyTableState /></td></tr>}
                 {loading && <tr><td colSpan="5" className="h-28 text-center text-[#718792]">Loading users…</td></tr>}
               </tbody>
             </table>

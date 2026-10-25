@@ -26,6 +26,8 @@ export async function changePassword(currentPassword, newPassword, confirmPasswo
   });
 }
 
+export const verifyCurrentPassword = (password) => post('/auth/verify-password', { password });
+
 export const requestPasswordResetCode = (email) => post('/auth/password-reset/request-code', { email });
 export const resendPasswordResetCode = (email) => post('/auth/password-reset/resend-code', { email });
 export const verifyPasswordResetCode = (email, code) => post('/auth/password-reset/verify-code', { email, code });

@@ -107,7 +107,6 @@ export default function ProfileScreen() {
               <View style={styles.profileSection}>
                 <Text style={styles.sectionTitle}>Account</Text>
                 <View style={styles.accountCard}>
-                  <AccountAction icon="lock-closed-outline" label="Change password" onPress={() => router.push('/change-password' as never)} />
                   <AccountAction icon="person-outline" label="Edit profile" onPress={() => router.push('/edit-profile' as never)} last />
                   <Pressable onPress={() => setLogoutOpen(true)} style={styles.logout}>
                   <Ionicons name="log-out-outline" size={20} color="#FFB27B" />

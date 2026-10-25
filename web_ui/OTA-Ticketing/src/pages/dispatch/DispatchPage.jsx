@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Navbar from '../../components/layout/Navbar';
 import { listRoutes } from '../../api/routes.api';
-import { createDispatcherAssignment, closeDispatcherAssignment, listDispatcherAssignments } from '../../api/dispatcherAssignments.api';
-import { listAuditLogs, listDispatchers } from '../../api/dispatch.api';
+import { createDispatcherAssignment, closeDispatcherAssignment, closeAllDispatcherAssignments, listDispatcherAssignments } from '../../api/dispatcherAssignments.api';
+import { listDispatchers, listDispatchHistory } from '../../api/dispatch.api';
 import { useAuth } from '../../context/AuthContext';
 import setTitle from '../../components/pageTitle';
+import EmptyTableState from '../../components/ui/EmptyTableState';
 
 const PH = 'Asia/Manila';
 const todayInPH = () => new Intl.DateTimeFormat('en-CA', { timeZone: PH, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
@@ -13,6 +14,8 @@ const shortDateTime = (value) => new Intl.DateTimeFormat('en-GB', { timeZone: PH
 const NAV_ITEMS = [
   { id: 'dispatch', label: 'Dispatch Operations' },
   { id: 'users', label: 'Users' },
+  { id: 'dispatch-history', label: 'Dispatch Records' },
+  { id: 'history', label: 'Audit History' },
 ];
 
 export default function DispatchPage() {
@@ -21,7 +24,7 @@ export default function DispatchPage() {
   const [routes, setRoutes] = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [dispatchers, setDispatchers] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [recentRecords, setRecentRecords] = useState([]);
   const [now, setNow] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,16 +40,16 @@ export default function DispatchPage() {
   const refresh = useCallback(async () => {
     setError('');
     try {
-      const [routeRows, assignmentRows, dispatcherRows, logs] = await Promise.all([
+      const [routeRows, assignmentRows, dispatcherRows, dispatchRows] = await Promise.all([
         listRoutes(),
         listDispatcherAssignments(todayInPH()),
         listDispatchers(),
-        listAuditLogs('dispatcher_assignments'),
+        listDispatchHistory(),
       ]);
       setRoutes(routeRows);
       setAssignments(assignmentRows);
       setDispatchers(dispatcherRows);
-      setAuditLogs(logs.slice(0, 8));
+      setRecentRecords((dispatchRows.routes || []).flatMap((route) => route.tickets.map((ticket) => ({ ...ticket, route_name: route.route_name }))).sort((a, b) => new Date(b.departure_at) - new Date(a.departure_at)).slice(0, 5));
     } catch (err) {
       setError(err.message || 'Could not load dispatch operations.');
     } finally {
@@ -93,35 +96,39 @@ export default function DispatchPage() {
     setBusy(true);
     setError('');
     setNotice('');
-    const results = await Promise.allSettled(activeAssignments.map(({ id }) => closeDispatcherAssignment(id)));
-    const failed = results.filter((result) => result.status === 'rejected');
     setConfirmCloseAll(false);
-    await refresh();
-    if (failed.length) setError(`${failed.length} operation(s) could not be closed. ${failed[0].reason?.message || ''}`);
-    else setNotice('All open route operations have been closed.');
-    setBusy(false);
+    try {
+      await closeAllDispatcherAssignments();
+      await refresh();
+      setNotice('All open route operations have been closed.');
+    } catch (err) {
+      setError(err.message || 'Could not close all route operations.');
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="p-2.5 gap-2.5 box-border flex h-screen flex-row justify-center bg-[#A9E4FF] text-[#18364a]">
+    <div className="box-border flex h-screen flex-row justify-center gap-2.5 overflow-hidden bg-[#A9E4FF] p-2.5 text-[#18364a]">
       <Navbar account={account} items={NAV_ITEMS} activePage="dispatch" onNavigate={goTo} onLogout={() => void signOut()} />
 
-      <main className=" flex flex-col gap-1 box-border h-full min-h-[calc(100vh-32px)] flex-1 rounded-lg bg-[#A9E4FF] max-[760px]:mx-2 max-[760px]:my-2 max-[760px]:min-h-[calc(100vh-16px)]">
+      <main className="box-border flex h-full min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden rounded-lg bg-[#A9E4FF]">
         <header className="rounded-lg top-0 flex min-h-[47px] items-center justify-between border-b border-[#b3d7e6] bg-[#f3faff] px-3 max-[760px]:px-[5px]">
           <strong className="text-[13px] font-semibold">{account?.role === 'ticketing_officer' ? 'Ticketing Officer' : 'admin'}</strong>
           <div className="flex items-center gap-[18px] max-[760px]:gap-[6px]"><span className="inline-flex items-center gap-[5px] rounded-[7px] bg-[#a6e3fa] px-[10px] py-[5px] text-[11px] text-[#183b4c] max-[760px]:text-[0px]"><CalendarIcon /> {fullDate(now)}</span></div>
         </header>
 
-        <section className="box-border min-h-[calc(100vh-79px)] rounded-lg bg-[#f5fbff] px-[10px] pb-7 pt-[15px] max-[760px]:min-h-[calc(100vh-63px)] max-[760px]:px-[5px] max-[760px]:pb-5 max-[760px]:pt-[10px]">
+        <section className="box-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-[#f5fbff] px-[10px] pb-5 pt-[15px] max-[760px]:px-[5px] max-[760px]:pb-3 max-[760px]:pt-[10px]">
           <div className="flex min-h-20 items-center justify-between rounded-[11px] border border-[#9acfe8] bg-white px-[26px] py-[11px] max-[760px]:items-start max-[760px]:px-[11px]">
             <div><small className="block text-[9px] text-[#466475]">Today, {fullDate(now)}</small><strong className="mt-[3px] block text-[25px] font-semibold leading-[1.05] text-[#27495b]">{new Intl.DateTimeFormat('en-GB', { timeZone: PH, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now)}</strong><span className="mt-1 block text-[9px] text-[#486272] max-[760px]:max-w-[190px] max-[760px]:leading-[1.35]">Manual closing is available from 21:00. Open operations close automatically after 24 hours.</span></div>
-            <div className="flex items-center gap-[34px] max-[760px]:flex-col max-[760px]:items-end max-[760px]:gap-2"><strong className="whitespace-nowrap text-sm text-[#008b43] max-[760px]:text-xs">{activeAssignments.length} Routes Active</strong><button className="h-[31px] min-w-[82px] cursor-pointer rounded-md border-0 bg-[#ff383b] text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!activeAssignments.length || !canClose || busy} onClick={() => setConfirmCloseAll(true)}>Close All</button></div>
+            <div className="flex items-center gap-3 max-[760px]:flex-col max-[760px]:items-end max-[760px]:gap-2"><strong className="whitespace-nowrap text-sm text-[#008b43] max-[760px]:text-xs">{activeAssignments.length} Routes Active</strong><button className="h-[31px] min-w-[82px] cursor-pointer rounded-md border-0 bg-[#ff383b] text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45" disabled={!activeAssignments.length || !canClose || busy} onClick={() => setConfirmCloseAll(true)}>Close All</button></div>
           </div>
 
           {error && <div className="mt-3 rounded-[7px] bg-[#fff0f0] px-[13px] py-[10px] text-[13px] text-[#a62828]" role="alert">{error}</div>}
           {notice && <div className="mt-3 rounded-[7px] bg-[#e9faf2] px-[13px] py-[10px] text-[13px] text-[#176743]" role="status">{notice}</div>}
 
-          <section className="mt-[41px] max-[760px]:mt-[25px]">
+          <section className="mt-[30px] min-h-0 flex-[0_1_auto] overflow-y-auto max-[760px]:mt-[18px]">
             <div className="mb-[11px] ml-[5px] mr-[5px] flex items-center justify-between"><h1 className="m-0 text-base font-bold text-[#244659]">Route Activities</h1><span className="text-[11px] text-[#597582]">{loading ? 'Loading routes…' : `${routes.length} routes`}</span></div>
             {routes.length === 0 && !loading ? <div className="mx-[5px] rounded-[10px] border border-[#a8d5e8] bg-white p-8 text-center text-[#607987]">No active routes are available.</div> : <div className="grid gap-[10px] px-[5px]">
               {routes.map((route) => {
@@ -138,15 +145,17 @@ export default function DispatchPage() {
             </div>}
           </section>
 
-          <section className="mt-11.5 max-[760px]:mt-[30px]">
-            <div className="mb-[11px] ml-[5px] mr-[5px] flex items-center justify-between"><h2 className="m-0 text-base font-bold text-[#244659]">Recent Dates</h2><span className="text-[11px] text-[#597582]">Dispatch operation history</span></div>
-            <div className="min-h-[252px] overflow-x-auto rounded-[5px] border border-[#a8d5e8] bg-white px-[10px] py-[7px]">
-              <table className="w-full border-collapse text-left text-[11px] text-[#29485a] max-[760px]:min-w-[620px]"><thead><tr>{['Action', 'Date and Time', 'Performed By', 'Routes Affected'].map((heading) => <th className="border-b border-[#9daeb7] px-[9px] py-[10px] text-[10px] font-semibold" key={heading}>{heading}</th>)}</tr></thead>
-                <tbody>{auditLogs.map((item) => <tr key={item.audit_id}><td className="w-1/4 border-b border-[#9daeb7] px-[9px] py-[10px] text-[#38586a]">{item.action === 'create' ? 'Opened dispatch ticketing' : 'Closed dispatch ticketing'}</td><td className="border-b border-[#9daeb7] px-[9px] py-[10px]">{shortDateTime(item.created_at)}</td><td className="border-b border-[#9daeb7] px-[9px] py-[10px]">{item.actor?.account_code || `Account ${item.actor_id}`}</td><td className="border-b border-[#9daeb7] px-[9px] py-[10px]">{item.details?.match(/route (\d+)/i)?.[1] ? `Route ${item.details.match(/route (\d+)/i)[1]}` : '—'}</td></tr>)}
-                {!auditLogs.length && <tr><td colSpan="4" className="h-20 border-b border-[#9daeb7] px-[9px] py-[10px] text-center text-[#718792]">No dispatch operation history yet.</td></tr>}</tbody>
-              </table>
+          <section className="mt-5 flex min-h-0 flex-1 flex-col max-[760px]:mt-3">
+            <div className="mb-[11px] ml-[5px] mr-[5px] flex shrink-0 items-center justify-between"><h2 className="m-0 text-base font-bold text-[#244659]">Recent Dates</h2><div className="flex items-center gap-4"><span className="text-[11px] text-[#597582]">Latest dispatch records</span><button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold italic text-[#0879ac] hover:underline focus-visible:underline" onClick={() => goTo('dispatch-history')}>View all dispatch records</button></div></div>
+            <div className="min-h-0 flex-1 overflow-auto rounded-[5px] border border-[#a8d5e8] bg-white px-[10px] py-[7px]">
+              <table className={`${!recentRecords.length && !loading ? 'h-full' : ''} w-full min-w-[600px] border-collapse text-left text-[11px] text-[#29485a]`}><thead><tr>{['Route', 'Plate Number', 'Time of Departure', 'Driver'].map((heading) => <th className="border-b border-[#9daeb7] px-[9px] py-[10px] text-[10px] font-semibold" key={heading}>{heading}</th>)}</tr></thead><tbody className={!recentRecords.length && !loading ? 'h-full' : ''}>
+                {recentRecords.map((record) => <tr className="h-[42px] border-b border-[#9daeb7] last:border-0" key={record.ticket_id}><td className="px-[9px] py-0">{record.route_name}</td><td className="px-[9px] py-0">{record.plate_number}</td><td className="px-[9px] py-0">{shortDateTime(record.departure_at)}</td><td className="px-[9px] py-0">{record.driver_name}</td></tr>)}
+                {!recentRecords.length && !loading && <tr className="h-full"><td className="h-full" colSpan="4"><EmptyTableState fill /></td></tr>}
+                {loading && <tr><td colSpan="4" className="h-16 text-center text-[#718792]">Loading dispatch records…</td></tr>}
+              </tbody></table>
             </div>
           </section>
+
         </section>
       </main>
 

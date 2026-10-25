@@ -43,7 +43,7 @@ async def websocket_endpoint(websocket: WebSocket):
   db: Session = SessionLocal()
   try:
     account = db.query(Account).filter(Account.account_id == account_id).first()
-    if account is None or account.status != AccountStatus.ACTIVE:
+    if account is None or account.status != AccountStatus.ACTIVE or account.must_change_password:
       await websocket.close(code=4401)
       return
   finally:

@@ -22,6 +22,7 @@ class Account(Base):
   account_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
   account_code: Mapped[str] = mapped_column(String(10), unique=True, nullable=False)
   username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+  display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
   email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
   password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
   password_reset_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -33,7 +34,7 @@ class Account(Base):
   created_on: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
   updated_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
   last_login: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-  must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+  must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
 
 
   # Relationships

@@ -29,7 +29,7 @@ class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="auth/login", auto_error=False)
 
 
-def get_current_account( token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db) ) -> Account:
+def _resolve_current_account(token: Optional[str], db: Session, allow_password_setup: bool = False) -> Account:
   credentials_exception = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
     detail="Could not validate credentials",
@@ -57,7 +57,22 @@ def get_current_account( token: Optional[str] = Depends(oauth2_scheme), db: Sess
       detail=f"Account is {account.status.value}"
     )
 
+  if account.must_change_password and not allow_password_setup:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="Change your temporary password before using this account",
+    )
+
   return account
+
+
+def get_current_account(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Account:
+  return _resolve_current_account(token, db)
+
+
+def get_account_for_password_setup(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Account:
+  """Allow only safe auth setup endpoints to inspect accounts before initial password change."""
+  return _resolve_current_account(token, db, allow_password_setup=True)
 
 
 def require_role(*allowed_roles: AccountRole):

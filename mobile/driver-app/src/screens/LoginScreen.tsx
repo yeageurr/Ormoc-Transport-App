@@ -43,7 +43,8 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const response = await loginDriver(username.trim(), password);
-      signIn(response.user.first_name);
+      signIn(response.user.first_name, response.must_change_password);
+      if (response.must_change_password) router.replace('/change-password' as never);
     } catch (loginError) {
       if (axios.isAxiosError(loginError)) {
         const detail = loginError.response?.data?.error?.message || loginError.response?.data?.detail;

@@ -20,9 +20,10 @@ from app.schemas.auth import (
   PasswordResetCodeVerify,
   PasswordResetComplete,
   ResetPasswordRequest,
+  VerifyPasswordRequest,
 )
 from app.core.security import verify_password, hash_password, create_access_token
-from app.core.permissions import get_current_account
+from app.core.permissions import get_account_for_password_setup, require_role
 from app.enums import AccountRole, AccountStatus, AuditAction
 from app.services.audit_service import log_action
 from app.services.email_service import EmailDeliveryError, send_password_reset_code, send_password_reset_email
@@ -30,6 +31,18 @@ from app.services.account_activity_email import notify_password_changed
 
 router = APIRouter()
 PASSWORD_RECOVERY_ROLES = (AccountRole.DRIVER, AccountRole.TICKETING_OFFICER)
+
+
+@router.post("/verify-password")
+def verify_current_password(
+  payload: VerifyPasswordRequest,
+  current_account: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+):
+  if not verify_password(payload.password, current_account.password_hash):
+    # A bad password supplied for this action does not mean the login session
+    # is invalid. 401 is handled globally by the web clients as session expiry.
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password verification failed")
+  return {"verified": True}
 
 
 @router.post("/login")
@@ -89,7 +102,10 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
       "account_id": account.account_id,
       "role": account.role,
       "username": account.username,
+      "display_name": account.display_name,
       "first_name": account.user.first_name if account.user else None,
+      "last_name": account.user.last_name if account.user else None,
+      "must_change_password": account.must_change_password,
     },
     "must_change_password": account.must_change_password,
   }
@@ -99,7 +115,7 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
 @router.get("/me")
 def get_me(
   portal: Literal["ticketing_officer", "driver", "dispatcher"],
-  current_account: Account = Depends(get_current_account),
+  current_account: Account = Depends(get_account_for_password_setup),
 ):
   if current_account.role != AccountRole(portal):
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account doesn't exist")
@@ -107,6 +123,7 @@ def get_me(
     "account_id": current_account.account_id,
     "role": current_account.role,
     "username": current_account.username,
+    "display_name": current_account.display_name,
     "first_name": current_account.user.first_name if current_account.user else None,
     "last_name": current_account.user.last_name if current_account.user else None,
     "must_change_password": current_account.must_change_password,
@@ -349,10 +366,15 @@ def reset_password(payload: ResetPasswordRequest, request: Request, response: Re
 def change_password(
   payload: ChangePasswordRequest,
   request: Request,
-  response: Response,
   db: Session = Depends(get_db),
-  current_account: Account = Depends(get_current_account),
+  current_account: Account = Depends(get_account_for_password_setup),
 ):
+  if not current_account.must_change_password:
+    raise HTTPException(
+      status_code=status.HTTP_403_FORBIDDEN,
+      detail="The initial password has already been set. Password changes are unavailable.",
+    )
+
   if not verify_password(payload.current_password, current_account.password_hash):
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
@@ -363,6 +385,12 @@ def change_password(
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
       detail="New password and confirmation do not match",
+    )
+
+  if verify_password(payload.new_password, current_account.password_hash):
+    raise HTTPException(
+      status_code=status.HTTP_400_BAD_REQUEST,
+      detail="Choose a password different from the temporary password.",
     )
 
   current_account.password_hash = hash_password(payload.new_password)
@@ -379,8 +407,4 @@ def change_password(
   )
   notify_password_changed(current_account, request)
 
-  # End the current browser session. The UI then explicitly directs the user
-  # to sign in again, which issues a fresh authentication cookie/JWT.
-  response.delete_cookie(key="access_token", path="/")
-
-  return {"detail": "Password updated successfully. Please sign in again."}
+  return {"detail": "Password updated successfully.", "must_change_password": False}

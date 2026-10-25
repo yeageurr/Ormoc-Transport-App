@@ -59,15 +59,20 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const completePasswordChange = useCallback(() => {
+    setMustChangePassword(false);
+  }, []);
+
   const value = useMemo(() => ({
     account,
     isLoading,
     mustChangePassword,
+    completePasswordChange,
     setMustChangePassword,
     signIn,
     signOut,
     refreshAccount,
-  }), [account, isLoading, mustChangePassword, signIn, signOut, refreshAccount]);
+  }), [account, isLoading, mustChangePassword, completePasswordChange, signIn, signOut, refreshAccount]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

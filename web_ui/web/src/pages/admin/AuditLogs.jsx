@@ -1,6 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
-import { useAuth } from "../../context/AuthContext";
 import { getAuditLogs } from "../../api/auditlogsAPI";
 import { AdminSearchField, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 import setTitle from "../../components/pageTitle";
@@ -38,8 +36,6 @@ const phDate = (value) => {
 
 export default function AuditLogs() {
   setTitle('Audit Logs');
-  const { mustChangePassword, setMustChangePassword } = useAuth();
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,10 +44,6 @@ export default function AuditLogs() {
   const [targetTable, setTargetTable] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-
-  useEffect(() => {
-    setShowPasswordModal(mustChangePassword);
-  }, [mustChangePassword]);
 
   useEffect(() => {
     const load = async () => {
@@ -156,15 +148,6 @@ export default function AuditLogs() {
         )}
       </div>
 
-      {showPasswordModal && (
-        <ChangePasswordModal
-          onClose={() => setShowPasswordModal(false)}
-          onSuccess={() => {
-            setMustChangePassword(false);
-            setShowPasswordModal(false);
-          }}
-        />
-      )}
     </main>
   );
 }

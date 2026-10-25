@@ -1,7 +1,7 @@
 import ormocDriverMark from '../../assets/ormoc-driver-mark.png';
 
 export default function Navbar({ account, onLogout, activePage, items = [], onNavigate }) {
-  const officerName = [account?.first_name, account?.last_name].filter(Boolean).join(' ') || account?.username || 'Ticketing Officer';
+  const officerName = account?.display_name || [account?.first_name, account?.last_name].filter(Boolean).join(' ') || account?.username || 'Ticketing Officer';
 
   return (
     <aside className="flex h-full w-66 flex-col justify-between bg-[#A9E4FF] pt-4.5 pb-2.5">
@@ -21,7 +21,7 @@ export default function Navbar({ account, onLogout, activePage, items = [], onNa
               onClick={() => onNavigate?.(item.id)}
               className={`flex min-h-[43px] cursor-pointer items-center gap-[11px] rounded-md px-[11px] text-left text-sm transition-colors max-[760px]:w-[52px] max-[760px]:justify-center max-[760px]:overflow-hidden max-[760px]:px-0 max-[760px]:text-[0px] ${active ? "bg-[#00AEFF]/25 font-medium text-[#0070E8]" : 'bg-transparent font-normal text-[#234758] hover:bg-white/35'}`}
             >
-              {item.icon || (item.id === 'users' ? <UsersIcon /> : <DispatchIcon />)}{item.label}
+              {item.icon || (item.id === 'users' ? <UsersIcon /> : item.id === 'history' ? <HistoryIcon /> : item.id === 'dispatch-history' ? <DispatchRecordsIcon /> : <DispatchIcon />)}{item.label}
             </button>;
           })}
         </nav>
@@ -43,6 +43,14 @@ function DispatchIcon() {
 
 function UsersIcon() {
   return <svg className="h-[21px] w-[21px] shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M3.5 19c.4-3 2.2-4.5 5.5-4.5 1.1 0 2 .2 2.8.6M16 11a3 3 0 1 0 0-6m1.5 9c2.1.6 3.2 2.2 3.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>;
+}
+
+function HistoryIcon() {
+  return <svg className="h-[21px] w-[21px] shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6L4 8.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M4 4.5v4h4M12 7.5v4.8l3.2 1.8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>;
+}
+
+function DispatchRecordsIcon() {
+  return <svg className="h-[21px] w-[21px] shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3.8h7l4 4v12.4H7a2 2 0 0 1-2-2V5.8a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M14 4v4h4M8.5 12h7M8.5 15.5h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>;
 }
 
 function PersonIcon() {

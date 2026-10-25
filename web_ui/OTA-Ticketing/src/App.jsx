@@ -3,10 +3,13 @@ import LoginPage from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import DispatchPage from './pages/dispatch/DispatchPage';
 import UsersPage from './pages/users/UsersPage';
+import RequiredPasswordChangePage from './pages/auth/RequiredPasswordChangePage';
+import HistoryPage from './pages/history/HistoryPage';
+import DispatchHistoryPage from './pages/dispatch/DispatchHistoryPage';
 import { useAuth } from './context/AuthContext';
 
 export default function App() {
-  const { isLoading, account, signOut } = useAuth();
+  const { isLoading, account, signOut, mustChangePassword, completePasswordChange } = useAuth();
   const [route, setRoute] = useState(() => window.location.hash || '#login');
 
   useEffect(() => {
@@ -33,6 +36,9 @@ export default function App() {
         </main>
       );
     }
+    if (mustChangePassword) return <RequiredPasswordChangePage onComplete={completePasswordChange} onLogout={() => void signOut().then(() => goTo('#login'))} />;
+    if (route === '#history') return <HistoryPage />;
+    if (route === '#dispatch-history') return <DispatchHistoryPage />;
     if (route === '#users') return <UsersPage />;
     return <DispatchPage />;
   }

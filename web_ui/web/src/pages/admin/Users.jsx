@@ -1,6 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
-import { useAuth } from "../../context/AuthContext";
 import PageHeader from "../../components/ui/PageHeader";
 import AddUserModal from "../../components/modals/AddUserModal";
 import UserActionConfirmModal from "../../components/modals/UserActionConfirmModal";
@@ -17,8 +15,6 @@ import setTitle from "../../components/pageTitle";
 
 export default function Users() {
   setTitle('Users');
-  const { mustChangePassword, setMustChangePassword } = useAuth();
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isAddUserModalOpen, setShowAddUserModal] = useState(false)
 
   const [drivers, setDrivers] = useState([]);
@@ -36,10 +32,6 @@ export default function Users() {
     { value: "suspended", label: "Suspended" },
     { value: "disabled", label: "Disabled" },
   ]
-
-  useEffect(() => {
-    setShowPasswordModal(mustChangePassword);
-  }, [mustChangePassword]);
 
   const loadDrivers = async () => {
     setIsLoading(true);
@@ -198,16 +190,6 @@ export default function Users() {
             </table></div>
           )}
         </div>
-
-        {showPasswordModal && (
-          <ChangePasswordModal
-            onClose={() => setShowPasswordModal(false)}
-            onSuccess={() => {
-              setMustChangePassword(false);
-              setShowPasswordModal(false);
-            }}
-          />
-        )}
 
         <AddUserModal
           isOpen={isAddUserModalOpen}

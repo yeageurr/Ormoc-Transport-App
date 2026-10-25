@@ -47,6 +47,10 @@ class ChangePasswordRequest(BaseModel):
     return value
 
 
+class VerifyPasswordRequest(BaseModel):
+  password: str
+
+
 class ForgotPasswordRequest(BaseModel):
   email: EmailStr
 

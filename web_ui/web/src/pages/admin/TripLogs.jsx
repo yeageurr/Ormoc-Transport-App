@@ -1,7 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 import PageHeader from "../../components/ui/PageHeader";
-import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
-import { useAuth } from "../../context/AuthContext";
 import { getAllTrips } from "../../api/tripsAPI";
 import { AdminSearchField, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 import setTitle from "../../components/pageTitle";
@@ -20,18 +18,12 @@ function statusBadge(status, isComplete) {
 
 export default function TripLogs() {
   setTitle('Trip Logs');
-  const { mustChangePassword, setMustChangePassword } = useAuth();
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const [trips, setTrips] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-
-  useEffect(() => {
-    setShowPasswordModal(mustChangePassword);
-  }, [mustChangePassword]);
 
   useEffect(() => {
     const load = async () => {
@@ -129,15 +121,6 @@ export default function TripLogs() {
           </table></div>
         )}
       </div>
-      {showPasswordModal && (
-        <ChangePasswordModal
-          onClose={() => setShowPasswordModal(false)}
-          onSuccess={() => {
-            setMustChangePassword(false);
-            setShowPasswordModal(false);
-          }}
-        />
-      )}
     </main>
   );
 }

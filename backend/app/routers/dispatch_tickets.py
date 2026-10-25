@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
@@ -12,9 +13,150 @@ from app.models.account import Account
 from app.models.dispatch_ticket import DispatchTicket
 from app.models.dispatcher_assignment import DispatcherAssignment
 from app.models.queue_reservation import QueueReservation
+from app.models.route import Route
+from app.models.destinations import Destination
+from app.models.terminal import Terminal
+from app.models.user import User
+from app.models.vehicle import Vehicle
 
 router = APIRouter()
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
+
+
+@router.get("/records")
+def list_dispatch_records(
+  operating_date: date | None = None,
+  db: Session = Depends(get_db),
+  officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+):
+  """Return the daily departure register, excluding route open/close audit events."""
+  report_date = operating_date or datetime.now(PH_TIMEZONE).date()
+  ticket_rows = (
+    db.query(DispatchTicket, User, Vehicle, Route, Destination)
+    .join(User, User.user_id == DispatchTicket.driver_id)
+    .join(Vehicle, Vehicle.vehicle_id == DispatchTicket.vehicle_id)
+    .join(Route, Route.route_id == DispatchTicket.route_id)
+    .join(Destination, Destination.destination_id == Route.destination_id)
+    .filter(
+      DispatchTicket.operating_date == report_date,
+      DispatchTicket.used_at.is_not(None),
+      DispatchTicket.cancelled_at.is_(None),
+    )
+    .order_by(Route.route_id, DispatchTicket.used_at, DispatchTicket.created_at)
+    .all()
+  )
+  routes = db.query(Route, Destination, Terminal).join(
+    Destination, Destination.destination_id == Route.destination_id
+  ).join(Terminal, Terminal.terminal_id == Route.origin_id).filter(Route.is_active.is_(True)).order_by(Route.route_id).all()
+  assignments = (
+    db.query(DispatcherAssignment)
+    .filter(DispatcherAssignment.operating_date == report_date)
+    .order_by(DispatcherAssignment.created_at)
+    .all()
+  )
+  assignments_by_route = {}
+  for assignment in assignments:
+    assignments_by_route.setdefault(assignment.route_id, []).append(assignment)
+
+  report_routes = {}
+  for route, destination, terminal in routes:
+    report_routes[route.route_id] = {
+      "route_id": route.route_id,
+      "route_name": destination.name,
+      "terminal_name": terminal.terminal_name,
+      "opened_at": None,
+      "closed_at": None,
+      "tickets": [],
+    }
+
+  for ticket, driver, vehicle, route, destination in ticket_rows:
+    group = report_routes.setdefault(ticket.route_id, {
+      "route_id": route.route_id,
+      "route_name": destination.name,
+      "terminal_name": route.origin.terminal_name if route.origin else None,
+      "opened_at": None,
+      "closed_at": None,
+      "tickets": [],
+    })
+    route_assignments = assignments_by_route.get(ticket.route_id, [])
+    matching = [item for item in route_assignments if item.dispatcher_id == ticket.issued_by and item.created_at <= ticket.created_at]
+    assignment = matching[-1] if matching else (route_assignments[-1] if route_assignments else None)
+    if assignment:
+      group["opened_at"] = assignment.created_at
+      group["closed_at"] = assignment.closed_at
+    group["tickets"].append({
+      "ticket_id": str(ticket.id),
+      "reference_number": ticket.public_reference,
+      "queue_number": ticket.queue_number,
+      "route_id": ticket.route_id,
+      "route_name": destination.name,
+      "operating_date": ticket.operating_date,
+      "plate_number": vehicle.plate_number.upper(),
+      "driver_name": f"{driver.first_name} {driver.last_name}".strip(),
+      "driver_contact": driver.contact_number,
+      "issued_at": ticket.created_at,
+      "departure_at": ticket.used_at,
+    })
+
+  # Include operation times even when no ticket departed on this route.
+  for route_id, route_assignments in assignments_by_route.items():
+    group = report_routes.get(route_id)
+    if group and route_assignments:
+      assignment = route_assignments[-1]
+      group["opened_at"] = group["opened_at"] or assignment.created_at
+      group["closed_at"] = group["closed_at"] or assignment.closed_at
+
+  first_terminal = next((row[2] for row in routes), db.query(Terminal).order_by(Terminal.terminal_id).first())
+  return {
+    "operating_date": report_date,
+    "terminal": {
+      "name": first_terminal.terminal_name if first_terminal else "Terminal",
+      "address": first_terminal.address if first_terminal else "",
+    },
+    "routes": list(report_routes.values()),
+  }
+
+
+@router.get("/records/dates")
+def list_dispatch_record_dates(
+  db: Session = Depends(get_db),
+  officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+):
+  """List dates with completed departures and their route-operation time span."""
+  departure_dates = [row[0] for row in (
+    db.query(DispatchTicket.operating_date)
+    .filter(DispatchTicket.used_at.is_not(None), DispatchTicket.cancelled_at.is_(None))
+    .distinct()
+    .order_by(DispatchTicket.operating_date.desc())
+    .all()
+  )]
+  if not departure_dates:
+    return []
+  assignments = (
+    db.query(DispatcherAssignment)
+    .filter(DispatcherAssignment.operating_date.in_(departure_dates))
+    .order_by(DispatcherAssignment.operating_date, DispatcherAssignment.created_at)
+    .all()
+  )
+  span_by_date = {}
+  for assignment in assignments:
+    span = span_by_date.setdefault(assignment.operating_date, {"opened_at": assignment.created_at, "closed_at": None})
+    if assignment.created_at < span["opened_at"]:
+      span["opened_at"] = assignment.created_at
+    if assignment.closed_at and (span["closed_at"] is None or assignment.closed_at > span["closed_at"]):
+      span["closed_at"] = assignment.closed_at
+  ticket_counts = dict(
+    db.query(DispatchTicket.operating_date, func.count(DispatchTicket.id))
+    .filter(DispatchTicket.operating_date.in_(departure_dates), DispatchTicket.used_at.is_not(None), DispatchTicket.cancelled_at.is_(None))
+    .group_by(DispatchTicket.operating_date)
+    .all()
+  )
+  return [{
+    "operating_date": report_date,
+    "opened_at": span_by_date.get(report_date, {}).get("opened_at"),
+    "closed_at": span_by_date.get(report_date, {}).get("closed_at"),
+    "total_tickets": ticket_counts.get(report_date, 0),
+  } for report_date in departure_dates]
 
 
 @router.post("/{ticket_id}/consume")

@@ -326,11 +326,13 @@ def create_driver(
   log_action(
     db, ticketing_officer.account_id, AuditAction.CREATE, "users", driver.user_id,
     f"Created driver account for {payload.first_name} {payload.last_name} ({payload.contact_number})",
+    context={"account_id": account.account_id, "user_id": driver.user_id, "role": "driver"},
   )
   if created_vehicle is not None:
     log_action(
       db, ticketing_officer.account_id, AuditAction.CREATE, "vehicles", created_vehicle.vehicle_id,
       f"Created vehicle {created_vehicle.plate_number} for {payload.first_name} {payload.last_name}",
+      context={"account_id": account.account_id, "user_id": driver.user_id, "vehicle_id": created_vehicle.vehicle_id},
     )
   notify_ticketing_officer_user_created(ticketing_officer)
 
@@ -380,6 +382,7 @@ def create_dispatcher(
   log_action(
     db, ticketing_officer.account_id, AuditAction.CREATE, "accounts", account.account_id,
     f"Created dispatcher account for {payload.first_name} {payload.last_name} ({payload.contact_number})",
+    context={"account_id": account.account_id, "role": "dispatcher"},
   )
   notify_ticketing_officer_user_created(ticketing_officer)
   return {

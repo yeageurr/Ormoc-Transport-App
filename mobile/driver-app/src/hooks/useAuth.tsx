@@ -14,7 +14,9 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   fullName: string | null;
-  signIn: (fullName?: string | null) => void;
+  mustChangePassword: boolean;
+  signIn: (fullName?: string | null, mustChangePassword?: boolean) => void;
+  completePasswordChange: () => void;
   refreshUser: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -30,10 +32,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [fullName, setFullName] = useState<string | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const signOut = useCallback(async () => {
     await logoutDriverRequest();
     setFullName(null);
+    setMustChangePassword(false);
     setIsAuthenticated(false);
   }, []);
 
@@ -42,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const user = await getCurrentUser();
       const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
       setFullName(name || null);
+      setMustChangePassword(Boolean(user.must_change_password));
     } catch (error) {
       if (isSessionRevoked(error)) {
         await signOut();
@@ -66,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) {
           const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
           setFullName(name || null);
+          setMustChangePassword(Boolean(user.must_change_password));
         }
       } catch (error) {
         if (isSessionRevoked(error)) {
@@ -84,10 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [signOut]);
 
-  const signIn = (name?: string | null) => {
+  const signIn = (name?: string | null, requirePasswordChange = false) => {
     setFullName(name ?? null);
+    setMustChangePassword(requirePasswordChange);
     setIsAuthenticated(true);
   };
+
+  const completePasswordChange = () => setMustChangePassword(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -119,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated, refreshUser]);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, fullName, signIn, refreshUser, signOut }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, fullName, mustChangePassword, signIn, completePasswordChange, refreshUser, signOut }}>
       {children}
     </AuthContext.Provider>
   );

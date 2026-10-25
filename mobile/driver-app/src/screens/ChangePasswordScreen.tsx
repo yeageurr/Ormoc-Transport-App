@@ -5,12 +5,14 @@ import { Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, V
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { changePassword } from '@/api/profileAPI';
+import { useAuth } from '@/hooks/useAuth';
 
 const passwordRequirement = 'New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.';
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const { mustChangePassword, completePasswordChange } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -31,6 +33,7 @@ export default function ChangePasswordScreen() {
     : undefined;
 
   const leave = () => {
+    if (mustChangePassword) return;
     if (!dirty) {
       router.back();
       return;
@@ -48,8 +51,9 @@ export default function ChangePasswordScreen() {
     setSaving(true);
     try {
       await changePassword(current, next, confirm);
-      Alert.alert('Password updated', 'Please sign in again with your new password.', [
-        { text: 'OK', onPress: () => router.back() },
+      completePasswordChange();
+      Alert.alert('Password set', 'Your account is ready to use.', [
+        { text: 'Continue', onPress: () => router.replace('/tabs' as never) },
       ]);
     } catch (error: any) {
       const responseData = error?.response?.data;
@@ -75,11 +79,11 @@ export default function ChangePasswordScreen() {
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#D3DFEB" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Pressable style={styles.back} onPress={leave}>
+        {mustChangePassword ? <Text style={styles.title}>Set your password</Text> : <Pressable style={styles.back} onPress={leave}>
           <Ionicons name="arrow-back" size={21} color="#26383E" />
-          <Text style={styles.title}>Change Password</Text>
-        </Pressable>
-        <Text style={styles.subtitle}>For your security, choose a password you haven’t used before.</Text>
+          <Text style={styles.title}>Set your password</Text>
+        </Pressable>}
+        <Text style={styles.subtitle}>{mustChangePassword ? 'You must replace your temporary password before using the driver app.' : 'Choose a password you haven’t used before.'}</Text>
         <Text style={styles.requirement}>{passwordRequirement}</Text>
 
         <PasswordField label="Current password" value={current} onChangeText={(value) => { setCurrent(value); setCurrentTouched(true); }} error={currentError} />

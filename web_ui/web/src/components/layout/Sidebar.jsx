@@ -8,7 +8,6 @@ import {
   ClipboardList, 
   NotepadText, 
   History,
-  KeyRound,
   LogOut,
   UserCircle
 } from "lucide-react";
@@ -26,12 +25,7 @@ const mainLinks = [
   { to: "/audit-logs", label: "Audit Logs", icon: History },
 ];
 
-const accountLinks = [
-  { to: "/change-password", label: "Change password", icon: KeyRound },
-];
-
-
-export default function Sidebar({ onOpenChangePassword, onOpenLogout }) {
+export default function Sidebar({ onOpenLogout }) {
   const { account, logout } = useAuth();
   const navigate = useNavigate();
   const toHome = () =>  {
@@ -76,21 +70,6 @@ export default function Sidebar({ onOpenChangePassword, onOpenLogout }) {
           </nav>
         </div>
 
-        {/* Account Settings Group */}
-        <div>
-          <p className="text-[#9fcabd] text-[11px] font-semibold uppercase tracking-wider px-3 mb-2">
-            Account
-          </p>
-          <nav className="space-y-1">
-            <button
-              onClick={onOpenChangePassword}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[15px] font-regular text-[#9fcabd] hover:text-[#eafff5] transition-colors text-left"
-            >
-              <KeyRound className="w-4 h-4" />
-              <span>Change password</span>
-            </button>
-          </nav>
-        </div>
       </div>
 
       {/* User Footer Profile & Logout */}

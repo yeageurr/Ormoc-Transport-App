@@ -1,6 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import ChangePasswordModal from "../../components/modals/ChangePasswordModal";
-import { useAuth } from "../../context/AuthContext";
 import { getVehicles, getEligibleOwners, createVehicle, deleteVehicle } from "../../api/vehiclesAPI";
 import PageHeader from "../../components/ui/PageHeader";
 import Toast from "../../components/ui/Toast";
@@ -167,8 +165,6 @@ function AddVehicleModal({ onClose, onSuccess, onError }) {
 
 export default function Vehicles() {
   setTitle('Vehicles');
-  const { mustChangePassword, setMustChangePassword } = useAuth();
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
 
   const [vehicles, setVehicles] = useState([]);
@@ -179,10 +175,6 @@ export default function Vehicles() {
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [vehiclePendingDelete, setVehiclePendingDelete] = useState(null);
   const [deletingVehicleId, setDeletingVehicleId] = useState(null);
-
-  useEffect(() => {
-    setShowPasswordModal(mustChangePassword);
-  }, [mustChangePassword]);
 
   const loadVehicles = async () => {
     setIsLoading(true);
@@ -321,15 +313,6 @@ export default function Vehicles() {
           onConfirm={handleDeleteVehicle}
         />
 
-        {showPasswordModal && (
-          <ChangePasswordModal
-            onClose={() => setShowPasswordModal(false)}
-            onSuccess={() => {
-              setMustChangePassword(false);
-              setShowPasswordModal(false);
-            }}
-          />
-        )}
       </main>
     
   );
