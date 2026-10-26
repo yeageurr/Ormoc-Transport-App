@@ -100,7 +100,7 @@ export default function EntranceScreen() {
         accessibilityRole="button"
         accessibilityLabel="Tap to continue"
         onPress={continueToIntroduction}
-        style={[styles.continueTapArea, { bottom: Math.max(insets.bottom, 10) + 34 }]}>
+        style={[styles.continueTapArea, { bottom: Math.max(insets.bottom, 10) + 24 }]}>
         <Animated.Text style={[styles.continueText, guideAnimatedStyle]}>Tap to continue</Animated.Text>
       </Pressable>
       </Animated.View>
@@ -162,7 +162,8 @@ const styles = StyleSheet.create({
     color: '#208ED6',
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    lineHeight: 16,
+    lineHeight: 24,
+    includeFontPadding: true,
     textAlign: 'center',
   },
   continueTapArea: {
@@ -170,6 +171,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 12,
   },
 });
