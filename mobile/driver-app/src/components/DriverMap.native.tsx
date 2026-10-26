@@ -24,17 +24,21 @@ export default function DriverMap({
   routeGeometry = null,
   followDriver = false,
   isReturning = false,
+  historyPath = false,
 }: {
   fullScreen?: boolean;
   routeGeometry?: RouteGeometry | null;
   followDriver?: boolean;
   isReturning?: boolean;
+  historyPath?: boolean;
 }) {
   const location = useDriverLocation();
-  const centerCoordinate: [number, number] = location
-    ? [location.longitude, location.latitude]
-    : ORMOC_CENTER;
   const coordinates = routeGeometry?.coordinates ?? [];
+  const centerCoordinate: [number, number] = historyPath && coordinates.length
+    ? coordinates[0]
+    : location
+      ? [location.longitude, location.latitude]
+      : ORMOC_CENTER;
   const routeBounds = useMemo(() => {
     const routeCoordinates = routeGeometry?.coordinates ?? [];
     if (followDriver || routeCoordinates.length < 2) return null;
@@ -52,17 +56,17 @@ export default function DriverMap({
     return {
       ne: [limits.maxLongitude, limits.maxLatitude] as [number, number],
       sw: [limits.minLongitude, limits.minLatitude] as [number, number],
-      paddingTop: 125,
-      paddingRight: 35,
-      paddingBottom: 235,
-      paddingLeft: 35,
+      paddingTop: historyPath ? 55 : 125,
+      paddingRight: historyPath ? 30 : 35,
+      paddingBottom: historyPath ? 55 : 235,
+      paddingLeft: historyPath ? 30 : 35,
     };
-  }, [routeGeometry, followDriver]);
-  const startCoordinate = coordinates.length > 1
-    ? isReturning ? coordinates[coordinates.length - 1] : coordinates[0]
+  }, [routeGeometry, followDriver, historyPath]);
+  const startCoordinate = coordinates.length > (historyPath ? 0 : 1)
+    ? historyPath ? coordinates[0] : isReturning ? coordinates[coordinates.length - 1] : coordinates[0]
     : null;
   const destinationCoordinate = coordinates.length > 1
-    ? isReturning ? coordinates[0] : coordinates[coordinates.length - 1]
+    ? historyPath ? coordinates[coordinates.length - 1] : isReturning ? coordinates[0] : coordinates[coordinates.length - 1]
     : null;
 
   if (!mapboxToken) {
@@ -78,7 +82,7 @@ export default function DriverMap({
     <View style={[styles.container, fullScreen && styles.fullScreenContainer]}>
       <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street}>
         <Mapbox.Camera
-          key={followDriver ? 'follow-driver' : 'fit-route'}
+          key={historyPath ? 'fit-trip-history' : followDriver ? 'follow-driver' : 'fit-route'}
           {...(routeBounds ? { bounds: routeBounds, animationMode: 'easeTo' as const } : { centerCoordinate, zoomLevel: followDriver ? 16 : 12 })}
           animationDuration={500}
         />
@@ -86,7 +90,7 @@ export default function DriverMap({
           <Mapbox.ShapeSource id="assigned-route" shape={routeGeometry}>
             <Mapbox.LineLayer
               id="assigned-route-line"
-              style={{ lineColor: '#22D3EE', lineWidth: 8, lineOpacity: 0.95, lineJoin: 'round', lineCap: 'round' }}
+              style={{ lineColor: historyPath ? '#F2D65C' : '#22D3EE', lineWidth: historyPath ? 6 : 8, lineOpacity: 0.95, lineJoin: 'round', lineCap: 'round' }}
             />
           </Mapbox.ShapeSource>
         )}
@@ -94,11 +98,11 @@ export default function DriverMap({
           <Mapbox.PointAnnotation
             id="dispatch-start-pin"
             coordinate={startCoordinate}
-            title={isReturning ? 'Start: destination' : 'Start: terminal'}
+            title={historyPath ? 'Trip start' : isReturning ? 'Start: destination' : 'Start: terminal'}
             anchor={{ x: 0.5, y: 1 }}
           >
             <View style={styles.pin} collapsable={false}>
-              <Ionicons name="location-sharp" size={34} color="#15966F" />
+              <Ionicons name="location-sharp" size={34} color={historyPath ? '#15966F' : '#15966F'} />
             </View>
           </Mapbox.PointAnnotation>
         )}
@@ -106,7 +110,7 @@ export default function DriverMap({
           <Mapbox.PointAnnotation
             id="dispatch-destination-pin"
             coordinate={destinationCoordinate}
-            title={isReturning ? 'Destination: terminal' : 'Destination: route end'}
+            title={historyPath ? 'Trip end' : isReturning ? 'Destination: terminal' : 'Destination: route end'}
             anchor={{ x: 0.5, y: 1 }}
           >
             <View style={styles.pin} collapsable={false}>
@@ -114,7 +118,7 @@ export default function DriverMap({
             </View>
           </Mapbox.PointAnnotation>
         )}
-        {location && (
+        {!historyPath && location && (
           <Mapbox.ShapeSource
             id="driver-current-location"
             shape={{

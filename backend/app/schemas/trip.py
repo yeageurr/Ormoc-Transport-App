@@ -31,6 +31,7 @@ class TripResponse(BaseModel):
   time_arrived: datetime | None = None
   trip_duration_minutes: float | None = None
   average_speed_km: float | None = None
+  distance_traveled_km: float | None = None
   is_complete: bool
 
 

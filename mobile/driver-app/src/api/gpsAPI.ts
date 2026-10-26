@@ -1,6 +1,15 @@
 // src/api/gpsAPI.ts
 import { authClient } from './authAPI';
 
+export interface TripGpsLog {
+  gps_log_id: number;
+  trip_id: number;
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+  speed_kmh: number;
+}
+
 export interface GpsPing {
   latitude: number;
   longitude: number;
@@ -26,6 +35,26 @@ export async function updateCurrentLocation(ping: {
     longitude: ping.longitude,
     speed_kmh: ping.speedKph ?? 0,
   });
+}
+
+/** Persists a location sample against an active trip for its trip history. */
+export async function logTripGpsPing(tripId: number, ping: {
+  latitude: number;
+  longitude: number;
+  speedKph?: number | null;
+}): Promise<void> {
+  await authClient.post('/gps', {
+    trip_id: tripId,
+    latitude: ping.latitude,
+    longitude: ping.longitude,
+    speed_kmh: Math.max(0, ping.speedKph ?? 0),
+  });
+}
+
+/** Returns the ordered location samples saved for a driver's trip. */
+export async function getTripGpsLogs(tripId: number): Promise<TripGpsLog[]> {
+  const { data } = await authClient.get<TripGpsLog[]>(`/gps/trip/${tripId}`);
+  return data;
 }
 
 /** Sends an idle vehicle's position so the backend can detect terminal loading. */

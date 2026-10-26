@@ -153,6 +153,12 @@ def get_trip_path(
       detail = "Trip not found"
     )
 
+  if current_account.role == AccountRole.DRIVER:
+    driver = get_driver_profile(db, current_account)
+    trip_driver_id = trip.driver_id if trip.dispatch_id is None else trip.dispatch_log.driver_id
+    if trip_driver_id != driver.user_id:
+      raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
   return (
     db.query(GpsLog)
     .filter(GpsLog.trip_id == trip_id)

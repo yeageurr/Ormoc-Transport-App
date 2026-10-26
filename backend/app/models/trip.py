@@ -43,6 +43,7 @@ class Trip(Base):
   # not a timestamp — kept as Numeric here since that matches what the column name says.
   trip_duration_minutes: Mapped[float | None] = mapped_column(Numeric(6, 2))
   average_speed_km: Mapped[float | None] = mapped_column(Numeric(6, 2))
+  distance_traveled_km: Mapped[float | None] = mapped_column(Numeric(8, 3))
   is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
   # Relationships

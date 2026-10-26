@@ -13,6 +13,7 @@ export interface Trip {
   time_arrived: string | null;
   trip_duration_minutes: number | null;
   average_speed_km: number | null;
+  distance_traveled_km: number | null;
   is_complete: boolean;
 }
 

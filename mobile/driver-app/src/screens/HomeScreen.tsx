@@ -108,8 +108,7 @@ export default function HomeScreen() {
     [trips],
   );
   const averageSpeed = average(todayTrips.map((trip) => trip.average_speed_km));
-  const distanceToday = todayTrips.reduce((total, trip) => total + (trip.route_distance_km ?? 0), 0);
-  const hasActiveTrip = trips.some((trip) => !trip.is_complete);
+  const distanceToday = todayTrips.reduce((total, trip) => total + (trip.distance_traveled_km ?? 0), 0);
   const queueStatusLabel = currentReservation
     ? currentReservation.queue_status === 'loading'
       ? 'Now Loading'
@@ -166,25 +165,10 @@ export default function HomeScreen() {
         <View style={styles.dashboardBody}>
           <View style={styles.quickActions}>
             <QuickAction
-              label="My Tickets"
-              icon="ticket"
-              color="#F20D18"
-              onPress={() => router.push('/tabs/my-tickets')}
-            />
-            <QuickAction
               label="Start Trip"
               icon="navigate"
               color="#078A17"
               onPress={() => router.navigate('/tabs/record-trip')}
-            />
-            <QuickAction
-              label={currentReservation ? 'View Ticket' : 'Make a Reservation'}
-              icon="reader"
-              color={currentReservation || hasActiveTrip ? '#858585' : '#FF6500'}
-              disabled={!currentReservation && hasActiveTrip}
-              onPress={() => currentReservation
-                ? router.push('/tabs/my-tickets')
-                : router.push('/tabs/make-reservation')}
             />
           </View>
 
@@ -228,14 +212,13 @@ export default function HomeScreen() {
   );
 }
 
-function QuickAction({ label, icon, color, onPress, disabled = false }: { label: string; icon: IconName; color: string; onPress: () => void; disabled?: boolean }) {
+function QuickAction({ label, icon, color, onPress }: { label: string; icon: IconName; color: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [styles.quickAction, pressed && styles.pressed, disabled && styles.quickActionDisabled]}
+      style={({ pressed }) => [styles.quickAction, pressed && styles.pressed]}
     >
       <View style={[styles.quickActionIcon, { backgroundColor: color }]}>
         <Ionicons name={icon} size={21} color="#FFFFFF" />
@@ -333,7 +316,6 @@ const styles = StyleSheet.create({
   quickAction: { flex: 1, alignItems: 'center', paddingHorizontal: 2 },
   quickActionIcon: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 4 },
   quickActionLabel: { marginTop: 4, color: '#111111', fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  quickActionDisabled: { opacity: 0.7 },
   pressed: { opacity: 0.7 },
   metricsRow: { flexDirection: 'row', alignItems: 'center', minHeight: 61, marginTop: 0, marginBottom: 12 },
   metric: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },

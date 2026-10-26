@@ -7,6 +7,7 @@ export default function DriverMap({ fullScreen = false }: {
   routeGeometry?: RouteGeometry | null;
   followDriver?: boolean;
   isReturning?: boolean;
+  historyPath?: boolean;
 }) {
   return (
     <View style={[styles.card, fullScreen && styles.fullScreenCard]}>

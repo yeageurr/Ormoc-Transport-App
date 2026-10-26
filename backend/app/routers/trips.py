@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.core.permissions import get_current_account, get_driver_profile, require_role
+from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
 from app.enums import AccountRole, TripStatus, VehicleActivityStatus, VehicleCondition
 from app.models.account import Account
@@ -28,6 +28,26 @@ from app.schemas.trip import (
 
 router = APIRouter()
 PH = ZoneInfo("Asia/Manila")
+
+
+def _gps_distance_km(points: list[GpsLog]) -> float:
+  """Sum plausible GPS segments, ignoring small stationary-position drift."""
+  from math import asin, cos, radians, sin, sqrt
+
+  distance_km = 0.0
+  ordered = sorted(points, key=lambda point: point.recorded_at)
+  for previous, current in zip(ordered, ordered[1:]):
+    lat1, lon1 = radians(float(previous.latitude)), radians(float(previous.longitude))
+    lat2, lon2 = radians(float(current.latitude)), radians(float(current.longitude))
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    haversine = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    segment_km = 6371.0088 * 2 * asin(sqrt(min(1.0, haversine)))
+    elapsed_seconds = max(1.0, (current.recorded_at - previous.recorded_at).total_seconds())
+    # Ignore sub-10m GPS drift while stationary and impossible jumps caused by
+    # poor fixes. Real trip distance is measured from the accepted GPS trail.
+    if segment_km >= 0.01 and segment_km / elapsed_seconds * 3600 <= 150:
+      distance_km += segment_km
+  return round(distance_km, 3)
 
 
 def _driver_for_trip(trip: Trip) -> User | None:
@@ -142,6 +162,13 @@ def end_trip(
 
   avg_speed = db.query(func.avg(GpsLog.speed_kmh)).filter(GpsLog.trip_id == trip_id).scalar()
   trip.average_speed_km = round(avg_speed, 2) if avg_speed is not None else None
+  gps_points = (
+    db.query(GpsLog)
+    .filter(GpsLog.trip_id == trip_id)
+    .order_by(GpsLog.recorded_at.asc())
+    .all()
+  )
+  trip.distance_traveled_km = _gps_distance_km(gps_points)
   trip.is_complete = True
 
   vehicle = _vehicle_for_trip(trip)
@@ -181,6 +208,7 @@ def list_my_trips(
       time_arrived=trip.time_arrived,
       trip_duration_minutes=trip.trip_duration_minutes,
       average_speed_km=trip.average_speed_km,
+      distance_traveled_km=trip.distance_traveled_km,
       is_complete=trip.is_complete,
       vehicle_plate=_vehicle_for_trip(trip).plate_number if _vehicle_for_trip(trip) else None,
       route_label=_route_label(trip, terminal_name),
@@ -231,11 +259,16 @@ def get_my_daily_summary(
 def get_trip(
   trip_id: int,
   db: Session = Depends(get_db),
-  current_account: Account = Depends(get_current_account),
+  current_account: Account = Depends(require_role(AccountRole.TICKETING_OFFICER, AccountRole.DRIVER)),
 ):
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
   if trip is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+  if current_account.role == AccountRole.DRIVER:
+    driver = get_driver_profile(db, current_account)
+    trip_driver = _driver_for_trip(trip)
+    if trip_driver is None or trip_driver.user_id != driver.user_id:
+      raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
   return trip
 
 

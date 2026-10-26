@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { getTripGpsLogs, type TripGpsLog } from '@/api/gpsAPI';
+import type { RouteGeometry } from '@/api/dispatchAPI';
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
+import DriverMap from '@/components/DriverMap';
 import { NotificationBell } from '@/components/NotificationCenter';
 
 function getManilaDateKey(date: Date) {
@@ -85,6 +88,37 @@ function formatDuration(minutes: number | null) {
   return `${rounded} min${rounded === 1 ? '' : 's'}`;
 }
 
+function formatOverlayDate(value: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Manila', day: '2-digit', month: 'long', year: 'numeric',
+  }).format(new Date(value));
+}
+
+function formatOverlayTime(value: string) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date(value));
+}
+
+function measureGpsPathKm(points: TripGpsLog[]) {
+  const toRadians = (degrees: number) => degrees * Math.PI / 180;
+  let distanceKm = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const latitudeDelta = toRadians(current.latitude - previous.latitude);
+    const longitudeDelta = toRadians(current.longitude - previous.longitude);
+    const latitude1 = toRadians(previous.latitude);
+    const latitude2 = toRadians(current.latitude);
+    const haversine = Math.sin(latitudeDelta / 2) ** 2
+      + Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(longitudeDelta / 2) ** 2;
+    const segmentKm = 6371.0088 * 2 * Math.asin(Math.sqrt(Math.min(1, haversine)));
+    const elapsedSeconds = Math.max(1, (new Date(current.recorded_at).getTime() - new Date(previous.recorded_at).getTime()) / 1000);
+    if (segmentKm >= 0.01 && segmentKm / elapsedSeconds * 3600 <= 150) distanceKm += segmentKm;
+  }
+  return distanceKm;
+}
+
 export default function TripLogsScreen() {
   const [trips, setTrips] = useState<DriverTrip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +126,11 @@ export default function TripLogsScreen() {
   const [error, setError] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedTrip, setSelectedTrip] = useState<DriverTrip | null>(null);
+  const [selectedTripPath, setSelectedTripPath] = useState<TripGpsLog[]>([]);
+  const [pathLoading, setPathLoading] = useState(false);
+  const [pathError, setPathError] = useState(false);
+  const pathRequestId = useRef(0);
   const [visibleMonth, setVisibleMonth] = useState<{ year: number; month: number }>(
     () => getManilaDateParts(new Date()),
   );
@@ -115,6 +154,39 @@ export default function TripLogsScreen() {
     await load(false);
     setRefreshing(false);
   }, [load]);
+
+  const openTrip = useCallback(async (trip: DriverTrip) => {
+    const requestId = ++pathRequestId.current;
+    setSelectedTrip(trip);
+    setSelectedTripPath([]);
+    setPathError(false);
+    setPathLoading(true);
+    try {
+      const path = await getTripGpsLogs(trip.trip_id);
+      if (pathRequestId.current === requestId) setSelectedTripPath(path);
+    } catch {
+      if (pathRequestId.current === requestId) setPathError(true);
+    } finally {
+      if (pathRequestId.current === requestId) setPathLoading(false);
+    }
+  }, []);
+
+  const closeTrip = useCallback(() => {
+    pathRequestId.current += 1;
+    setSelectedTrip(null);
+    setSelectedTripPath([]);
+    setPathError(false);
+    setPathLoading(false);
+  }, []);
+
+  const historyGeometry = useMemo<RouteGeometry | null>(() => {
+    if (selectedTripPath.length < 2) return null;
+    return {
+      type: 'LineString',
+      coordinates: selectedTripPath.map((point) => [point.longitude, point.latitude]),
+    };
+  }, [selectedTripPath]);
+  const historyDistanceKm = selectedTrip?.distance_traveled_km ?? measureGpsPathKm(selectedTripPath);
 
   const { today, yesterday } = getRelativeDateKeys();
   const groups = useMemo(() => {
@@ -201,7 +273,7 @@ export default function TripLogsScreen() {
                 <Text style={styles.groupTitle}>{group.title}</Text>
                 <Text style={styles.groupDate}>{group.title === 'Today' ? `${group.items.length} trips` : group.title === 'Yesterday' ? `${group.items.length} trips` : ''}</Text>
               </View>
-              {group.items.map((trip) => <TripLogRow key={trip.trip_id} trip={trip} />)}
+              {group.items.map((trip) => <TripLogRow key={trip.trip_id} trip={trip} onPress={() => void openTrip(trip)} />)}
             </View>
           ))
         ) : (
@@ -262,16 +334,84 @@ export default function TripLogsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={selectedTrip !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeTrip}
+      >
+        {selectedTrip && (
+          <View style={styles.historyOverlay}>
+            <Pressable accessibilityLabel="Close trip route overview" onPress={closeTrip} style={styles.historyBackdrop} />
+            <View style={styles.historyCard}>
+              <View style={styles.historyMap}>
+                {!pathLoading && historyGeometry && (
+                  <DriverMap fullScreen routeGeometry={historyGeometry} historyPath />
+                )}
+                {!pathLoading && !historyGeometry && (
+                  <View style={styles.mapEmptyState}>
+                    <Ionicons name="map-outline" size={34} color="#7B8A8E" />
+                    <Text style={styles.mapEmptyText}>
+                      {pathError ? 'Couldn’t load this trip’s GPS route.' : selectedTripPath.length === 1 ? 'Only one GPS point was saved for this trip.' : 'No GPS route was saved for this trip.'}
+                    </Text>
+                    {pathError && <Pressable onPress={() => void openTrip(selectedTrip)}><Text style={styles.mapRetry}>Try again</Text></Pressable>}
+                  </View>
+                )}
+                {pathLoading && <View style={styles.mapLoading}><ActivityIndicator size="large" color="#008F83" /></View>}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close trip route overview"
+                  onPress={closeTrip}
+                  style={styles.closeHistoryButton}
+                >
+                  <Ionicons name="close" size={22} color="#153D3C" />
+                </Pressable>
+              </View>
+              <View style={styles.historyDetails}>
+                <Text style={styles.historyTitle}>Trip History</Text>
+                <Text style={styles.historyDate}>{formatOverlayDate(selectedTrip.time_departed)} - {formatOverlayTime(selectedTrip.time_departed)}</Text>
+                <View style={styles.historySummaryCard}>
+                  <View style={styles.historySummaryTop}>
+                    <Text style={styles.historyRoute} numberOfLines={1}>{selectedTrip.route_label || 'Route unavailable'}</Text>
+                    <View style={styles.historyPlateBadge}>
+                      <Ionicons name="car-sport-outline" size={12} color="#31484B" />
+                      <Text style={styles.historyPlate}>{selectedTrip.vehicle_plate || `Trip #${selectedTrip.trip_id}`}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.historyMetrics}>
+                    <HistoryMetric icon="time" value={formatDuration(selectedTrip.trip_duration_minutes)} label="Trip Duration" />
+                    <HistoryMetric icon="map" value={`${historyDistanceKm.toFixed(1)} km`} label="Distance Traveled" />
+                    <HistoryMetric icon="navigate" value={selectedTrip.status === 'returning' ? 'Returning' : 'Outgoing'} label="Direction" />
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function TripLogRow({ trip }: { trip: DriverTrip }) {
+function HistoryMetric({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
+  return (
+    <View style={styles.historyMetric}>
+      <View style={styles.historyMetricValue}>
+        <Ionicons name={icon} size={13} color="#22383B" />
+        <Text style={styles.historyMetricText} numberOfLines={1}>{value}</Text>
+      </View>
+      <Text style={styles.historyMetricLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function TripLogRow({ trip, onPress }: { trip: DriverTrip; onPress: () => void }) {
   const isReturning = trip.status === 'returning';
   const directionColor = isReturning ? '#49B67D' : '#5CA0DE';
 
   return (
-    <View style={styles.tripRow}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`View ${isReturning ? 'returning' : 'outgoing'} trip route from ${formatTime(trip.time_departed)}`} onPress={onPress} style={({ pressed }) => [styles.tripRow, pressed && styles.tripRowPressed]}>
       <View style={styles.tripLeft}>
         <View style={styles.vehicleLine}>
           <Ionicons name="car-sport-outline" size={12} color="#677780" />
@@ -293,7 +433,8 @@ function TripLogRow({ trip }: { trip: DriverTrip }) {
           {formatDuration(trip.trip_duration_minutes)} · {trip.average_speed_km === null ? '— km/h' : `${Math.round(trip.average_speed_km)} km/h`}
         </Text>
       </View>
-    </View>
+      <Ionicons name="chevron-forward" size={17} color="#89969B" />
+    </Pressable>
   );
 }
 
@@ -311,6 +452,7 @@ const styles = StyleSheet.create({
   groupTitle: { color: '#66757D', fontSize: 10, fontWeight: '700' },
   groupDate: { color: '#7A878E', fontSize: 8 },
   tripRow: { minHeight: 57, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginHorizontal: 2, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#B7C1C8', paddingVertical: 6 },
+  tripRowPressed: { backgroundColor: '#F1F7F6' },
   tripLeft: { flex: 1, minWidth: 0 },
   vehicleLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2, paddingLeft: 3 },
   plate: { color: '#79868C', fontSize: 8, fontWeight: '600' },
@@ -345,4 +487,26 @@ const styles = StyleSheet.create({
   allDatesButton: { minHeight: 34, alignItems: 'center', justifyContent: 'center', marginTop: 5, borderRadius: 6, backgroundColor: '#EAF3F2' },
   allDatesText: { color: '#008F83', fontSize: 11, fontWeight: '700' },
   calendarGuide: { marginTop: 9, color: '#78868B', fontSize: 10, fontStyle: 'italic', textAlign: 'center' },
+  historyOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 13, paddingVertical: 20 },
+  historyBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.55)' },
+  historyCard: { width: '100%', height: '82%', maxHeight: 680, overflow: 'hidden', borderRadius: 12, backgroundColor: '#075E56', elevation: 15 },
+  historyMap: { flex: 1, minHeight: 150, overflow: 'hidden', backgroundColor: '#E9E6E1' },
+  closeHistoryButton: { position: 'absolute', top: 10, right: 10, width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.94)' },
+  mapLoading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E9E6E1' },
+  mapEmptyState: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 32, backgroundColor: '#E9E6E1' },
+  mapEmptyText: { color: '#607176', fontSize: 13, textAlign: 'center' },
+  mapRetry: { color: '#008F83', fontSize: 13, fontWeight: '700' },
+  historyDetails: { paddingHorizontal: 10, paddingTop: 9, paddingBottom: 12, backgroundColor: '#075E56' },
+  historyTitle: { color: '#FFFFFF', fontSize: 19, lineHeight: 23, fontWeight: '700' },
+  historyDate: { color: '#E2F1EE', fontSize: 10, lineHeight: 15 },
+  historySummaryCard: { marginTop: 13, borderRadius: 6, paddingHorizontal: 16, paddingTop: 15, paddingBottom: 13, backgroundColor: '#E7EFED' },
+  historySummaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  historyRoute: { flex: 1, color: '#182326', fontSize: 14, fontWeight: '600' },
+  historyPlateBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 4, paddingHorizontal: 7, paddingVertical: 4, backgroundColor: '#F4C8C6' },
+  historyPlate: { color: '#293A3D', fontSize: 8, fontWeight: '600' },
+  historyMetrics: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 5, marginTop: 16 },
+  historyMetric: { flex: 1, alignItems: 'center', minWidth: 0 },
+  historyMetricValue: { minHeight: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 14, paddingHorizontal: 8, backgroundColor: '#D4DFE9' },
+  historyMetricText: { color: '#26383B', fontSize: 10, fontWeight: '600' },
+  historyMetricLabel: { marginTop: 3, color: '#526165', fontSize: 8, fontStyle: 'italic', textAlign: 'center' },
 });

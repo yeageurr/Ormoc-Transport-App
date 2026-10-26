@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getDriverRoutes, getMyDriverVehicle, type DriverRoute, type DriverVehicleStatus } from '@/api/routesAPI';
 import { endTrip, getTripLogs, startTrip, type DriverTrip, type Trip } from '@/api/tripsAPI';
+import { logTripGpsPing } from '@/api/gpsAPI';
 import DriverMap from '@/components/DriverMap';
 import { useDriverLocation } from '@/hooks/useDriverLocation';
 
@@ -210,7 +211,47 @@ export default function RecordTripScreen() {
     if (!activeTrip) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
-  }, [activeTrip]);
+  }, [activeTrip?.trip_id]);
+  useEffect(() => {
+    if (!activeTrip) return;
+    const tripId = activeTrip.trip_id;
+    let mounted = true;
+    let subscription: Location.LocationSubscription | null = null;
+    let lastSentAt = 0;
+
+    const savePosition = (position: Location.LocationObject) => {
+      if (!mounted || Date.now() - lastSentAt < 4500) return;
+      lastSentAt = Date.now();
+      void logTripGpsPing(tripId, {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        speedKph: position.coords.speed == null ? 0 : Math.max(0, position.coords.speed * 3.6),
+      }).catch(() => {
+        // Location tracking continues if the network is temporarily unavailable.
+      });
+    };
+
+    const startTripGps = async () => {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (!mounted || permission.status !== 'granted' || !await Location.hasServicesEnabledAsync()) return;
+      try {
+        savePosition(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }));
+        if (!mounted) return;
+        subscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
+          savePosition,
+        );
+      } catch {
+        // The driver can finish the trip even if GPS hardware is unavailable.
+      }
+    };
+
+    void startTripGps();
+    return () => {
+      mounted = false;
+      subscription?.remove();
+    };
+  }, [activeTrip?.trip_id]);
   useEffect(() => {
     if (!location) return;
     const previous = lastGeocodeRef.current;
@@ -439,7 +480,7 @@ export default function RecordTripScreen() {
               />
               <SummaryMetric
                 label="Distance"
-                value={completedTripSummary?.route_distance_km == null ? '— km' : `${Number(completedTripSummary.route_distance_km).toFixed(1)} km`}
+                value={completedTripSummary?.distance_traveled_km == null ? '0.0 km' : `${Number(completedTripSummary.distance_traveled_km).toFixed(1)} km`}
                 icon="map-outline"
               />
             </View>
