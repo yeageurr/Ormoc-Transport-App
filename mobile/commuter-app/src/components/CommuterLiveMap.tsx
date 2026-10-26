@@ -8,14 +8,15 @@ type Props = {
   vehicles: CommuterVehicle[];
   selectedRouteId: number | null;
   selectedVehicleId: number | null;
+  approachingVehicleIds: ReadonlySet<number>;
   onMapLoaded?: () => void;
   onSelectRoute: (routeId: number) => void;
   onSelectVehicle: (vehicleId: number) => void;
 };
 
-export default function CommuterLiveMap({ vehicles, onSelectVehicle, onMapLoaded }: Props) {
+export default function CommuterLiveMap({ vehicles, approachingVehicleIds, onSelectVehicle, onMapLoaded }: Props) {
   useEffect(() => { onMapLoaded?.(); }, [onMapLoaded]);
-  return <View style={styles.map}><View style={styles.water} /><View style={[styles.road, styles.roadOne]} /><View style={[styles.road, styles.roadTwo]} /><View style={[styles.road, styles.roadThree]} /><View style={[styles.road, styles.roadFour]}><Text style={styles.mapNote}>Open the Android app for the interactive live map.</Text></View>{vehicles.slice(0, 12).map((vehicle, index) => <Pressable key={vehicle.vehicle_id} onPress={() => onSelectVehicle(vehicle.vehicle_id)} style={[styles.marker, { top: `${28 + (index * 17) % 58}%`, left: `${18 + (index * 23) % 68}%` }]}><Text style={styles.markerText}>▰</Text></Pressable>)}</View>;
+  return <View style={styles.map}><View style={styles.water} /><View style={[styles.road, styles.roadOne]} /><View style={[styles.road, styles.roadTwo]} /><View style={[styles.road, styles.roadThree]} /><View style={[styles.road, styles.roadFour]}><Text style={styles.mapNote}>Open the Android app for the interactive live map.</Text></View>{vehicles.slice(0, 12).map((vehicle, index) => <Pressable key={vehicle.vehicle_id} onPress={() => onSelectVehicle(vehicle.vehicle_id)} style={[styles.marker, approachingVehicleIds.has(vehicle.vehicle_id) && styles.approachingMarker, { top: `${28 + (index * 17) % 58}%`, left: `${18 + (index * 23) % 68}%` }]}><Text style={styles.markerText}>▰</Text></Pressable>)}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -28,5 +29,6 @@ const styles = StyleSheet.create({
   roadFour: { width: '75%', left: '34%', top: '36%', transform: [{ rotate: '71deg' }] },
   mapNote: { position: 'absolute', top: 40, left: -45, width: 190, color: '#6E7F85', fontSize: 10, textAlign: 'center', transform: [{ rotate: '-71deg' }] },
   marker: { position: 'absolute', width: 34, height: 34, borderRadius: 18, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: '#05A9E8', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  approachingMarker: { borderColor: '#D9FFF0', backgroundColor: '#0A9D74' },
   markerText: { color: '#FFFFFF', fontSize: 17 },
 });

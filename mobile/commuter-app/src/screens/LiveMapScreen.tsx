@@ -11,6 +11,97 @@ import { Ionicons } from '@expo/vector-icons';
 
 const SKY = '#A9E4FF';
 
+function formatCity(city?: string) {
+  if (city && /^ormoc(?: city)?$/i.test(city)) return 'Ormoc City';
+  return city;
+}
+
+function isPlusCode(value: string) {
+  const leadingPart = value.split(',')[0].trim();
+  return /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}$/i.test(leadingPart);
+}
+
+function distanceMeters(
+  first: { latitude: number; longitude: number },
+  second: { latitude: number; longitude: number },
+) {
+  const radians = (degrees: number) => degrees * (Math.PI / 180);
+  const earthRadiusMeters = 6_371_000;
+  const latitudeDelta = radians(second.latitude - first.latitude);
+  const longitudeDelta = radians(second.longitude - first.longitude);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(radians(first.latitude)) * Math.cos(radians(second.latitude))
+      * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadiusMeters * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+type CommuterPosition = { latitude: number; longitude: number; accuracy: number | null };
+type VehicleDistanceSample = { distanceMeters: number; fixTimestamp: number };
+
+const APPROACH_RADIUS_METERS = 500;
+const APPROACH_MIN_CLOSING_DISTANCE_METERS = 20;
+const APPROACH_MIN_SPEED_KMH = 2;
+const LIVE_POSITION_MAX_AGE_MS = 30_000;
+
+async function resolveLocationAddress(latitude: number, longitude: number) {
+  const token = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  if (token) {
+    try {
+      const query = new URLSearchParams({
+        longitude: String(longitude),
+        latitude: String(latitude),
+        types: 'address,street,neighborhood,locality,district,place',
+        country: 'ph',
+        limit: '1',
+        access_token: token,
+      });
+      const response = await fetch(`https://api.mapbox.com/search/geocode/v6/reverse?${query.toString()}`);
+      if (response.ok) {
+        const data = await response.json() as {
+          features?: Array<{
+            properties?: {
+              name?: string;
+              feature_type?: string;
+              context?: {
+                neighborhood?: { name?: string };
+                locality?: { name?: string };
+                district?: { name?: string };
+                place?: { name?: string };
+              };
+            };
+          }>;
+        };
+        const properties = data.features?.[0]?.properties;
+        const city = formatCity(
+          properties?.context?.place?.name
+            || (properties?.feature_type === 'place' ? properties.name : undefined),
+        );
+        const locality = properties?.context?.locality?.name;
+        const barangay = [locality, properties?.context?.neighborhood?.name, properties?.context?.district?.name]
+          .find((part) => part && part !== city && !isPlusCode(part))
+          || (properties?.feature_type === 'locality' && properties.name !== city ? properties.name : undefined);
+        if (barangay && city) return `Barangay ${barangay}, ${city}`;
+        if (barangay) return `Barangay ${barangay}`;
+        if (city) return `Barangay unavailable, ${city}`;
+      }
+    } catch {
+      // Fall back to the device geocoder if Mapbox is temporarily unavailable.
+    }
+  }
+
+  try {
+    const results = await Location.reverseGeocodeAsync({ latitude, longitude });
+    const address = results[0];
+    if (!address) return '';
+    const city = formatCity(address.city?.trim());
+    const barangay = address.district?.trim();
+    if (barangay && !isPlusCode(barangay)) return `Barangay ${barangay}${city ? `, ${city}` : ''}`;
+    return city && !isPlusCode(city) ? `Barangay unavailable, ${city}` : '';
+  } catch {
+    return '';
+  }
+}
+
 export default function LiveMapScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
@@ -22,10 +113,13 @@ export default function LiveMapScreen() {
   const [loading, setLoading] = useState(true);
   const [routesLoaded, setRoutesLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
-  const [currentLocation, setCurrentLocation] = useState('Getting your current location…');
+  const [currentLocation, setCurrentLocation] = useState('Finding your current location…');
+  const [approachingVehicleIds, setApproachingVehicleIds] = useState<Set<number>>(() => new Set());
   const [error, setError] = useState('');
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const routeSheetTranslateY = useRef(new Animated.Value(0)).current;
+  const commuterPositionRef = useRef<CommuterPosition | null>(null);
+  const vehicleDistanceSamplesRef = useRef(new Map<number, VehicleDistanceSample>());
   const mapLoading = loading || !routesLoaded || !mapReady;
 
   const handleMapLoaded = useCallback(() => setMapReady(true), []);
@@ -53,7 +147,42 @@ export default function LiveMapScreen() {
   const loadVehicles = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
     try {
-      setVehicles(await getLiveCommuterVehicles());
+      const response = await getLiveCommuterVehicles();
+      const newestByVehicle = new Map<number, CommuterVehicle>();
+      for (const vehicle of response) {
+        const previous = newestByVehicle.get(vehicle.vehicle_id);
+        if (!previous || Date.parse(vehicle.recorded_at) > Date.parse(previous.recorded_at)) {
+          newestByVehicle.set(vehicle.vehicle_id, vehicle);
+        }
+      }
+      const latestVehicles = [...newestByVehicle.values()];
+      const now = Date.now();
+      const commuterPosition = commuterPositionRef.current;
+      const nextApproachingIds = new Set<number>();
+      const latestSamples = new Map<number, VehicleDistanceSample>();
+
+      for (const vehicle of latestVehicles) {
+        const fixTimestamp = Date.parse(vehicle.recorded_at);
+        const isFresh = Number.isFinite(fixTimestamp) && now - fixTimestamp <= LIVE_POSITION_MAX_AGE_MS;
+        if (!commuterPosition || !isFresh || commuterPosition.accuracy == null || commuterPosition.accuracy > 100) continue;
+
+        const distance = distanceMeters(commuterPosition, { latitude: vehicle.latitude, longitude: vehicle.longitude });
+        const previous = vehicleDistanceSamplesRef.current.get(vehicle.vehicle_id);
+        if (
+          distance <= APPROACH_RADIUS_METERS
+          && vehicle.speed_kmh >= APPROACH_MIN_SPEED_KMH
+          && previous
+          && fixTimestamp > previous.fixTimestamp
+          && previous.distanceMeters - distance >= APPROACH_MIN_CLOSING_DISTANCE_METERS
+        ) {
+          nextApproachingIds.add(vehicle.vehicle_id);
+        }
+        latestSamples.set(vehicle.vehicle_id, { distanceMeters: distance, fixTimestamp });
+      }
+
+      vehicleDistanceSamplesRef.current = latestSamples;
+      setApproachingVehicleIds(nextApproachingIds);
+      setVehicles(latestVehicles);
       setError('');
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not load live vehicles.');
@@ -72,48 +201,45 @@ export default function LiveMapScreen() {
   useEffect(() => {
     let isActive = true;
     let locationSubscription: Location.LocationSubscription | undefined;
-    let lastGeocodedAt = 0;
-    let lastResolvedAddress = '';
+    let lastGeocodeAt = 0;
+    let geocodeRequestId = 0;
 
-    const updateAddress = async (location: Location.LocationObject) => {
-      const { latitude, longitude } = location.coords;
-      const coordinateFallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-      const now = Date.now();
-      if (now - lastGeocodedAt < 10_000) {
-        if (!lastResolvedAddress && isActive) setCurrentLocation(coordinateFallback);
-        return;
-      }
-      lastGeocodedAt = now;
-
-      try {
-        const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (!isActive) return;
-        const street = [address?.streetNumber, address?.street].filter(Boolean).join(' ');
-        const locality = address?.district || address?.subregion;
-        const parts = [street || address?.name, locality, address?.city].filter(Boolean);
-        const uniqueParts = parts.filter((part, index) => parts.indexOf(part) === index);
-        lastResolvedAddress = uniqueParts.join(', ') || coordinateFallback;
-        setCurrentLocation(lastResolvedAddress);
-      } catch {
-        if (isActive) setCurrentLocation(coordinateFallback);
-      }
+    const updateAddress = (location: Location.LocationObject) => {
+      commuterPositionRef.current = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        accuracy: location.coords.accuracy,
+      };
+      if (!isActive || Date.now() - lastGeocodeAt < 30_000) return;
+      lastGeocodeAt = Date.now();
+      const requestId = ++geocodeRequestId;
+      setCurrentLocation('Finding nearby address…');
+      void resolveLocationAddress(location.coords.latitude, location.coords.longitude).then((address) => {
+        if (isActive && requestId === geocodeRequestId) {
+          setCurrentLocation(address || 'Address unavailable');
+        }
+      });
     };
 
     const startLocationUpdates = async () => {
       try {
-        const permission = await Location.requestForegroundPermissionsAsync();
+        let permission = await Location.getForegroundPermissionsAsync();
+        if (permission.status !== 'granted' && permission.canAskAgain) {
+          permission = await Location.requestForegroundPermissionsAsync();
+        }
         if (!isActive) return;
         if (permission.status !== 'granted') {
           setCurrentLocation('Allow location access to show your position');
           return;
         }
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (isActive) void updateAddress(initialLocation);
+        if (!await Location.hasServicesEnabledAsync()) {
+          setCurrentLocation('Turn on location services');
+          return;
+        }
+        updateAddress(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
         locationSubscription = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.Balanced, timeInterval: 5_000, distanceInterval: 10 },
-          (location) => { void updateAddress(location); }
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 10_000, distanceInterval: 10 },
+          updateAddress,
         );
       } catch {
         if (isActive) setCurrentLocation('Current location unavailable');
@@ -230,6 +356,7 @@ export default function LiveMapScreen() {
         vehicles={vehicles}
         selectedRouteId={selectedRouteId}
         selectedVehicleId={selectedVehicleId}
+        approachingVehicleIds={approachingVehicleIds}
         onSelectRoute={(routeId) => { setSelectedRouteId(routeId); setSelectedVehicleId(null); }}
         onSelectVehicle={chooseVehicle}
         onMapLoaded={handleMapLoaded}
@@ -239,6 +366,15 @@ export default function LiveMapScreen() {
         <Text style={styles.locationCaption}><Text style={styles.locationPin}>⌖</Text>  Your current location</Text>
         <Text numberOfLines={1} style={styles.locationName}>{currentLocation}</Text>
       </View>
+
+      {approachingVehicleIds.size > 0 && (
+        <View style={[styles.approachingNotice, { top: insets.top + 64 }]} accessibilityLiveRegion="polite">
+          <View style={styles.approachingNoticeDot} />
+          <Text style={styles.approachingNoticeText}>
+            {approachingVehicleIds.size === 1 ? 'A vehicle is approaching nearby' : `${approachingVehicleIds.size} vehicles are approaching nearby`}
+          </Text>
+        </View>
+      )}
 
       <Pressable style={[styles.routesButton, { bottom: Math.max(insets.bottom, 12) + 14 }]} onPress={() => setRoutePickerOpen(true)} accessibilityRole="button" accessibilityLabel="Search routes">
         <View style={styles.routesButtonContent}>
@@ -333,6 +469,9 @@ const styles = StyleSheet.create({
   locationCaption: { color: '#17343D', fontFamily: 'Poppins_400Regular', fontSize: 11 },
   locationPin: { color: '#00A9C7', fontSize: 14 },
   locationName: { color: '#111111', fontFamily: 'Poppins_500Medium', fontSize: 13 },
+  approachingNotice: { position: 'absolute', left: 16, right: 16, minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 12, borderWidth: 1, borderColor: '#B9E7D6', borderRadius: 20, backgroundColor: '#F2FFF9', elevation: 4 },
+  approachingNoticeDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0A9D74' },
+  approachingNoticeText: { color: '#17634E', fontFamily: 'Poppins_500Medium', fontSize: 11 },
   routesButton: { position: 'absolute', left: 16, right: 16, height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15, borderWidth: 1, borderColor: '#D4E4EB', borderRadius: 12, backgroundColor: '#FFFFFF', elevation: 4 },
   routesButtonContent: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   routesButtonLabel: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },

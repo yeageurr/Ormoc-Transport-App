@@ -1,6 +1,6 @@
 import Mapbox from '@rnmapbox/maps';
-import { useEffect, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CommuterRoute, CommuterVehicle } from '@/api/publicAPI';
 
@@ -14,12 +14,13 @@ type Props = {
   vehicles: CommuterVehicle[];
   selectedRouteId: number | null;
   selectedVehicleId: number | null;
+  approachingVehicleIds: ReadonlySet<number>;
   onMapLoaded?: () => void;
   onSelectRoute: (routeId: number) => void;
   onSelectVehicle: (vehicleId: number) => void;
 };
 
-export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, selectedVehicleId, onSelectRoute, onSelectVehicle, onMapLoaded }: Props) {
+export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, selectedVehicleId, approachingVehicleIds, onSelectRoute, onSelectVehicle, onMapLoaded }: Props) {
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.vehicle_id === selectedVehicleId) ?? null;
   const coordinates = selectedRoute?.route_geometry?.coordinates ?? [];
@@ -67,9 +68,12 @@ export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, sel
       })}
       {vehicles.map((vehicle) => (
         <Mapbox.MarkerView key={`vehicle-${vehicle.vehicle_id}`} id={`vehicle-${vehicle.vehicle_id}`} coordinate={[vehicle.longitude, vehicle.latitude]} anchor={{ x: 0.5, y: 0.5 }}>
-          <Pressable onPress={() => onSelectVehicle(vehicle.vehicle_id)} style={[styles.vehicleMarker, selectedVehicleId === vehicle.vehicle_id && styles.vehicleMarkerSelected]} accessibilityLabel={`Select vehicle ${vehicle.plate_number}`}>
-            <View style={styles.busGlyph}><View style={styles.busWindow} /><View style={styles.busWheelOne} /><View style={styles.busWheelTwo} /></View>
-          </Pressable>
+          <VehicleMarker
+            plateNumber={vehicle.plate_number}
+            selected={selectedVehicleId === vehicle.vehicle_id}
+            approaching={approachingVehicleIds.has(vehicle.vehicle_id)}
+            onPress={() => onSelectVehicle(vehicle.vehicle_id)}
+          />
         </Mapbox.MarkerView>
       ))}
       {routes.map((route) => {
@@ -80,9 +84,45 @@ export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, sel
   );
 }
 
+function VehicleMarker({ plateNumber, selected, approaching, onPress }: { plateNumber: string; selected: boolean; approaching: boolean; onPress: () => void }) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!approaching) {
+      pulse.stopAnimation();
+      pulse.setValue(0);
+      return;
+    }
+
+    const wave = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 1300, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: true }),
+    ]));
+    wave.start();
+    return () => wave.stop();
+  }, [approaching, pulse]);
+
+  const waveStyle = {
+    opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.68, 0] }),
+    transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.65, 2.6] }) }],
+  };
+
+  return (
+    <View style={styles.markerTouchArea}>
+      {approaching && <Animated.View pointerEvents="none" style={[styles.approachingWave, waveStyle]} />}
+      <Pressable onPress={onPress} style={[styles.vehicleMarker, selected && styles.vehicleMarkerSelected, approaching && styles.vehicleMarkerApproaching]} accessibilityLabel={`${plateNumber}${approaching ? ', approaching nearby' : ''}`}>
+        <View style={styles.busGlyph}><View style={styles.busWindow} /><View style={styles.busWheelOne} /><View style={styles.busWheelTwo} /></View>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  markerTouchArea: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  approachingWave: { position: 'absolute', width: 25, height: 25, borderRadius: 13, backgroundColor: '#0A9D74' },
   vehicleMarker: { width: 34, height: 34, borderRadius: 18, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: '#05A9E8', alignItems: 'center', justifyContent: 'center', elevation: 4 },
   vehicleMarkerSelected: { width: 42, height: 42, borderRadius: 22, backgroundColor: '#007FB8' },
+  vehicleMarkerApproaching: { borderColor: '#D9FFF0', backgroundColor: '#0A9D74' },
   terminalPin: { width: 28, height: 32, alignItems: 'center', justifyContent: 'center' },
   terminalDot: { width: 15, height: 15, borderRadius: 8, borderWidth: 3, borderColor: '#FFFFFF', backgroundColor: '#0A9D74', elevation: 3 },
   busGlyph: { width: 18, height: 13, borderRadius: 3, backgroundColor: '#FFFFFF', position: 'relative' },
