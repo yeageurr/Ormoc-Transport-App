@@ -87,7 +87,7 @@ def start_trip(
   if route is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected route not found or inactive")
 
-  vehicle = driver.vehicle
+  vehicle = driver.active_vehicle
   if vehicle is None:
     raise HTTPException(
       status_code=status.HTTP_409_CONFLICT,

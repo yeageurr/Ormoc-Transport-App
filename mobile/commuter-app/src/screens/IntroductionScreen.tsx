@@ -270,6 +270,6 @@ const styles = StyleSheet.create({
   stepNumber: { width: 23, height: 23, borderRadius: '100%', borderWidth: 2, borderColor: '#269DD9', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   stepNumberText: { color: COLORS.blue, fontFamily: 'Poppins_600SemiBold', fontSize: 13, lineHeight: 12 },
   stepText: { flex: 1, color: '#007DC3', fontFamily: 'Poppins_500Medium', fontSize: 15,  },
-  continueTapArea: { position: 'absolute', left: 0, right: 0, alignItems: 'center', paddingVertical: 6 },
-  continueText: { color: '#208ED6', fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 16 },
+  continueTapArea: { position: 'absolute', left: 0, right: 0, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
+  continueText: { color: '#208ED6', fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 28, includeFontPadding: false, textAlign: 'center' },
 });

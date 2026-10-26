@@ -14,9 +14,13 @@ export const getDriver = async (userId) => {
 
 // Admin: create a new driver account (Add User)
 export const createDriver = async (payload) => {
-  // payload: { first_name, last_name, contact_number, email, license_num,
-  //            license_expiry, password? }
+  // Include exactly one of `vehicle` (new) or `vehicle_id` (borrow existing).
   const response = await axiosClient.post("/accounts/drivers", payload);
+  return response.data;
+};
+
+export const getBorrowableVehicles = async () => {
+  const response = await axiosClient.get("/vehicles/borrowable");
   return response.data;
 };
 

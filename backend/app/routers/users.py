@@ -4,6 +4,7 @@ import hmac
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -26,7 +27,10 @@ router = APIRouter()
 def get_my_profile(db: Session = Depends(get_db), current_account: Account = Depends(get_current_account), ):
   profile_row = (
     db.query(User, Vehicle.plate_number.label("vehicle_plate_number"))
-    .outerjoin(Vehicle, Vehicle.owner_id == User.user_id)
+    .outerjoin(Vehicle, or_(
+      Vehicle.borrower_id == User.user_id,
+      and_(Vehicle.owner_id == User.user_id, Vehicle.borrower_id.is_(None)),
+    ))
     .filter(User.account_id == current_account.account_id)
     .order_by(Vehicle.vehicle_id.asc())
     .first()

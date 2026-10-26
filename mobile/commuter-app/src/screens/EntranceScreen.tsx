@@ -162,8 +162,8 @@ const styles = StyleSheet.create({
     color: '#208ED6',
     fontFamily: 'Poppins_400Regular',
     fontSize: 13,
-    lineHeight: 24,
-    includeFontPadding: true,
+    lineHeight: 28,
+    includeFontPadding: false,
     textAlign: 'center',
   },
   continueTapArea: {
@@ -171,6 +171,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    minHeight: 56,
+    paddingVertical: 14,
   },
 });

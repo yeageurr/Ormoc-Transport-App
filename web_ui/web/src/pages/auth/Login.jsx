@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Eye, EyeClosed, User, Key } from 'lucide-react';
 import setTitle from "../../components/pageTitle";
+import ormocDriverMark from "../../../../OTA-Ticketing/src/assets/ormoc-driver-mark.png";
 
 export default function Login() {
   setTitle('Admin Login');
@@ -54,27 +55,25 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-screen h-screen bg-[#042F2E] flex items-center justify-center relative"> {/* body wrapper */}
+    <div className="relative flex min-h-screen w-screen items-center justify-center bg-[#A9E4FF] px-4"> {/* body wrapper */}
 
       <div className="w-[457px] h-max flex flex-col items-right justify-between"> {/* form wrapper */}
         <div className="flex flex-col items-center mb-8"> {/* Web Title */}
-          <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-3">
-            <span className="text-2xl">🙂</span>
-          </div>
-          <h1 className="text-[#eafff5] font-[family-name:var(--poppins-font)] font-semibold text-2xl">Ormoc Transport App</h1>
+          <img className="mb-3 h-20 w-20 object-contain" src={ormocDriverMark} alt="Ormoc City transport logo" />
+          <h1 className="text-center text-2xl font-semibold text-[#173b4e]">Ormoc Transport App</h1>
         </div>
 
-        <div className="flex flex-col items-start justify-center w-full h-max bg-[#134E4A] rounded-[10px] px-[46px] py-[23px] gap-y-[40px]">
+        <div className="flex h-max w-full flex-col items-start justify-center gap-y-8 rounded-xl border border-[#d4e4eb] bg-[#f5fbff] px-8 py-7 shadow-[0_12px_35px_rgba(10,44,63,0.12)] max-sm:px-5">
           <div className="w-full h-max flex flex-col items-start justify-center">
-            <h2 className="text-[#eafff5] text-xl font-[family-name: var(--poppins-font)] font-semibold mb-1">Admin Login</h2>
+            <h2 className="mb-1 text-xl font-semibold text-[#173b4e]">Admin Login</h2>
 
             {/* Horizontal line */}
-            <div className="w-[60px] h-[2px] bg-[var(--labels)]"></div>
+            <div className="h-[2px] w-[60px] bg-[#168dff]"></div>
           </div>
 
           <form onSubmit={handleSubmit} className="w-full flex flex-col gap-[11px]">
             <div>
-              <label className="block text-[var(--labels)] text-[12px] mb-1.5">Username or Email</label>
+              <label className="mb-1.5 block text-[12px] text-[#405f6d]">Username or Email</label>
               <div className="relative">
                 <input
                   type="text"
@@ -82,24 +81,24 @@ export default function Login() {
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   autoComplete="username"
-                  className="w-full bg-[var(--btn-fg)] border border-[var(--stroke-color)] rounded-[var(--input-radius)] px-10 py-3 text-[#eafff5] text-sm outline-none focus:border-[var(--stroke-color-focus)] transition-colors"
+                  className="w-full rounded-md border border-[#becbd1] bg-white px-10 py-2.5 text-sm text-[#203f4f] outline-none transition-colors placeholder:text-[#718792] focus:border-[#168dff]"
                   placeholder="Enter your username"
                 />
 
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer">
                   <User 
                     size={"18px"}
-                    color={"#22D3EE"}
+                    color={"#0879ac"}
                   />
                 </div>
               </div>
             </div>
               
             <div>
-              <label className="block text-[var(--labels)] text-xs mb-1.5">Password</label>
+              <label className="mb-1.5 block text-xs text-[#405f6d]">Password</label>
               <div className="relative">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer">
-                  <Key size={"18px"} color={"#22D3EE"}/>
+                  <Key size={"18px"} color={"#0879ac"}/>
                 </div>
                 <input
                   type={isHidden ? "password" : "text"}
@@ -107,7 +106,7 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoComplete="current-password"
-                  className="w-full bg-[var(--btn-fg)] border border-[var(--stroke-color)] rounded-[var(--input-radius)] px-10 py-3 text-[#eafff5] text-sm outline-none focus:border-[var(--stroke-color-focus)] transition-colors"
+                  className="w-full rounded-md border border-[#becbd1] bg-white px-10 py-2.5 text-sm text-[#203f4f] outline-none transition-colors placeholder:text-[#718792] focus:border-[#168dff]"
                   placeholder="Enter your password"
                 />
 
@@ -115,13 +114,13 @@ export default function Login() {
                   {isHidden ? 
                       <EyeClosed
                         size={"18px"} 
-                        color={"#22D3EE"}
+                        color={"#52636b"}
                         onClick={() => setVisibility(!isHidden)}
                       />
                     :
                       <Eye 
                         size={"18px"} 
-                        color={"#22D3EE"}
+                        color={"#52636b"}
                         onClick={() => setVisibility(!isHidden)}
                       />
                   }
@@ -130,7 +129,7 @@ export default function Login() {
             </div>
             <Link
               to="/forgot-password"
-              className="text-right text-[var(--labels)] w-full text-xs hover:underline"
+              className="w-full text-right text-xs text-[#0879ac] hover:underline"
             >
               Forgot Password?
             </Link>
@@ -138,7 +137,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-[46px] flex items-center justify-center bg-[var(--labels)] text-[var(--btn-fg)] font-semibold rounded-[5px] mt-2 hover:bg-[#40c2d6] transition-bg"
+              className="mt-2 flex h-[35px] w-full items-center justify-center rounded-md border-0 bg-[#168dff] font-semibold text-white transition-colors hover:bg-[#0876db] disabled:opacity-60"
             >
               {isSubmitting ? "Signing in..." : "Sign In"}
             </button>
@@ -146,7 +145,7 @@ export default function Login() {
         </div>
       </div>
       {error && (
-        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-[#3A1B14] text-[#D98B72] text-sm rounded-xl px-4 py-3 shadow-lg transition-all duration-300 ease-in-out ${
+        <div className={`fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md border border-[#f3c9c9] bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-lg transition-all duration-300 ease-in-out ${
             isVisible
               ? "translate-y-0 opacity-100"
               : "-translate-y-16 opacity-0"

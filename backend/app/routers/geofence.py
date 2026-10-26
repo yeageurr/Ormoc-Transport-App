@@ -48,7 +48,7 @@ def geofence_ping(
   if active_trip:
     return {"currently_inside": False, "status_changed": False, "event": "trip_in_progress"}
 
-  vehicle = driver.vehicle
+  vehicle = driver.active_vehicle
   if vehicle is None:
     raise HTTPException(
       status_code = status.HTTP_404_NOT_FOUND, 

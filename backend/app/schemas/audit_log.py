@@ -20,6 +20,7 @@ class AuditActorSummary(BaseModel):
   account_id: int
   account_code: str
   role: str | None = None
+  display_name: str | None = None
 
 
 class AuditLogResponse(BaseModel):

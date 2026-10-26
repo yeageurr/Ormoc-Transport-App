@@ -33,8 +33,22 @@ class User(Base):
 
   # Relationships
   account: Mapped["Account"] = relationship(back_populates="user")
-  vehicle: Mapped["Vehicle"] = relationship(back_populates="owner", uselist=False)
+  vehicle: Mapped["Vehicle"] = relationship(
+    back_populates="owner", foreign_keys="Vehicle.owner_id", uselist=False
+  )
+  borrowed_vehicle: Mapped["Vehicle | None"] = relationship(
+    back_populates="borrower", foreign_keys="Vehicle.borrower_id", uselist=False
+  )
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="driver")
   incidents: Mapped[list["Incident"]] = relationship(back_populates="reported_by_user")
   direct_trips: Mapped[list["Trip"]] = relationship(back_populates="driver", foreign_keys="Trip.driver_id")
   queue_reservations: Mapped[list["QueueReservation"]] = relationship(back_populates="driver")
+
+  @property
+  def active_vehicle(self):
+    """Return this driver's current vehicle, respecting any active borrower."""
+    if self.borrowed_vehicle is not None:
+      return self.borrowed_vehicle
+    if self.vehicle is not None and self.vehicle.borrower_id is None:
+      return self.vehicle
+    return None

@@ -7,34 +7,37 @@
 @tailwind utilities;
 
 :root {
-  /* Color Values */
-  --main-bg: #042F2E;
-  --wrapper-bg: #134E4A;
-  --chart-data-bg: #007e75;
-  --button-bg: #22D3EE;
-  --stroke-color: rgba(120, 237, 255, .2);
-  --stroke-color-focus: rgb(7, 220, 253);;
-  --btn-fg: #042F2E;
-  --placeholder-fg: #5EEAD4;
-  --labels: #22D3EE; /* the same as nav button bd left if active or fg */
-  --main-text: #FFFFFF;
-  --data-fg: #F0FDFA;
-  --livemap-routes-shadow: 0px 0px 25px rgba(121, 237, 255, ) ;
-
-  /* Nav Bar */
-  --button-fg-main: #7FC9D3;
-  --button-active-bg: rgba(33, 119, 113, .25);
+  --main-bg: #A9E4FF;
+  --wrapper-bg: #A9E4FF;
+  --chart-data-bg: #168DFF;
+  --button-bg: #168DFF;
+  --stroke-color: #BECBD1;
+  --stroke-color-focus: #168DFF;
+  --btn-fg: #FFFFFF;
+  --placeholder-fg: #52636B;
+  --labels: #0070E8;
+  --main-text: #18364A;
+  --data-fg: #29485A;
+  --button-fg-main: #234758;
+  --button-active-bg: rgba(0, 174, 255, .18);
   --button-border-active: 1.5px;
   --table-corner-radius: 7px;
-
-  /* Measurements */
-  --btn-stroke-w: .5px;
-  --corner-radius-btn: 3px;
+  --btn-stroke-w: 1px;
+  --corner-radius-btn: 6px;
   --input-radius: 8px;
   --btn-stroke-alpha: 50%;
-  --button-active-alpha: 25%; 
+  --button-active-alpha: 25%;
+}
 
-  /* 
-    users table stroke color: rgba(120, 237, 255, .5)
-  */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: #18364A;
+  background: #A9E4FF;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }

@@ -36,7 +36,7 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
   vehicle = (
     (active_trip.vehicle if active_trip.dispatch_id is None else active_trip.dispatch_log.vehicle)
     if active_trip
-    else driver.vehicle
+    else driver.active_vehicle
   )
 
   if vehicle is None:

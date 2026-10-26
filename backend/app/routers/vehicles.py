@@ -18,7 +18,7 @@ from app.models.terminal import Terminal
 from app.schemas.vehicle import VehicleCreate, VehicleUpdate, VehicleResponse
 from app.schemas.user import UserResponse
 from app.core.permissions import require_role
-from app.enums import AccountRole, AccountStatus
+from app.enums import AccountRole, AccountStatus, VehicleActivityStatus
 from app.services.audit_service import log_action
 from app.enums import AuditAction
 
@@ -209,6 +209,26 @@ def list_vehicles(
   return db.query(Vehicle).all()
 
 
+@router.get("/borrowable", response_model=list[VehicleResponse])
+def list_borrowable_vehicles(
+  db: Session = Depends(get_db),
+  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+):
+  """Vehicles with an active owner and no current borrower."""
+  return (
+    db.query(Vehicle)
+    .join(User, Vehicle.owner_id == User.user_id)
+    .join(Account, User.account_id == Account.account_id)
+    .filter(
+      Vehicle.borrower_id.is_(None),
+      Vehicle.activity_status == VehicleActivityStatus.ACTIVE,
+      Account.status == AccountStatus.ACTIVE,
+    )
+    .order_by(Vehicle.plate_number.asc())
+    .all()
+  )
+
+
 @router.get("/driver/mine", response_model=VehicleResponse)
 def get_my_vehicle(
   db: Session = Depends(get_db),
@@ -218,7 +238,12 @@ def get_my_vehicle(
   user = db.query(User).filter(User.account_id == driver_account.account_id).first()
   if user is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver profile not found")
-  vehicle = db.query(Vehicle).filter(Vehicle.owner_id == user.user_id).first()
+  vehicle = db.query(Vehicle).filter(
+    or_(
+      Vehicle.borrower_id == user.user_id,
+      and_(Vehicle.owner_id == user.user_id, Vehicle.borrower_id.is_(None)),
+    )
+  ).first()
   if vehicle is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No vehicle is assigned to your account")
   return vehicle

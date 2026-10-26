@@ -295,7 +295,11 @@ async def create_driver_reservation(
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == request.vehicle_id).first()
   if vehicle is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
-  if vehicle.owner_id != driver.user_id:
+  if vehicle.borrower_id is not None:
+    vehicle_is_assigned_to_driver = vehicle.borrower_id == driver.user_id
+  else:
+    vehicle_is_assigned_to_driver = vehicle.owner_id == driver.user_id
+  if not vehicle_is_assigned_to_driver:
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This vehicle is not assigned to your account")
 
   reservation = QueueReservation(

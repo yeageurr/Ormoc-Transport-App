@@ -1,7 +1,7 @@
 from datetime import datetime
 import re
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 
 from app.enums import AccountStatus, AccountRole
 from app.schemas.vehicle import VehicleBase
@@ -39,6 +39,7 @@ class UserBase(BaseModel):
 class DriverCreate(UserBase):
   password: str | None = None
   vehicle: VehicleBase | None = None
+  vehicle_id: int | None = None
 
   @field_validator("contact_number")
   @classmethod
@@ -46,6 +47,12 @@ class DriverCreate(UserBase):
     if not re.fullmatch(r"\d{11}", value):
       raise ValueError("Contact number must be exactly 11 digits")
     return value
+
+  @model_validator(mode="after")
+  def validate_vehicle_choice(self):
+    if (self.vehicle is None) == (self.vehicle_id is None):
+      raise ValueError("Choose exactly one: create a new vehicle or pick an existing vehicle")
+    return self
 
 
 class DispatcherCreate(BaseModel):

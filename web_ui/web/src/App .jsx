@@ -7,14 +7,8 @@ import AdminLayout from "./components/layout/AdminLayout";
 import Login from "./pages/auth/Login";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
-import Dashboard from "./pages/admin/Dashboard";
 import Users from "./pages/admin/Users"
-import Vehicles from './pages/admin/Vehicles';
-import IncidentLogs from "./pages/admin/IncidentLogs";
-import TripLogs from "./pages/admin/TripLogs";
-import DispatchLogs from "./pages/admin/DispatchLog";
 import AuditLogs from "./pages/admin/AuditLogs";
-import LiveMap from "./pages/admin/LiveMap";
 
 
 function App() {
@@ -30,22 +24,15 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedRoute requiredRole="admin">
+              <ProtectedRoute requiredRole="ticketing_officer">
                 <AdminLayout />
               </ProtectedRoute>
               }
             >
-            {/* Hitting / or redirecting to /dashboard loads your Dashboard component */}
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            
-            <Route path="live-map" element={<LiveMap />} />
+            <Route index element={<Navigate to="/users" replace />} />
             <Route path="users" element={<Users />} />
-            <Route path="vehicles" element={<Vehicles />} />
-            <Route path="incidents" element={<IncidentLogs />} />
-            <Route path="trips" element={<TripLogs />} />
-            <Route path="dispatch" element={<DispatchLogs />} />
             <Route path="audit-logs" element={<AuditLogs />} />
+            <Route path="*" element={<Navigate to="/users" replace />} />
           </Route>
         </Routes>
       </BrowserRouter>

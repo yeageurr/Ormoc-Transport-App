@@ -46,16 +46,16 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4 z-50">
-      <div className="bg-[#0a2420] rounded-2xl p-6 w-full max-w-sm">
-        <h3 className="text-[#eafff5] text-lg font-semibold mb-1">Change your password</h3>
-        <p className="text-[#9fcabd] text-sm mb-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0c1f2a]/45 px-4">
+      <div className="w-full max-w-sm rounded-xl border border-[#d4e4eb] bg-white p-6 shadow-[0_18px_55px_rgba(10,44,63,0.2)]">
+        <h3 className="mb-1 text-lg font-semibold text-[#173b4e]">Change your password</h3>
+        <p className="mb-5 text-sm text-[#647c87]">
           For your security, please set a new password before continuing. {PASSWORD_REQUIREMENT}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-[#9fcabd] text-xs mb-1.5">Current password</label>
+            <label className="mb-1.5 block text-xs text-[#405f6d]">Current password</label>
             <input
               type={
                 isText ? "text" : "password"
@@ -63,12 +63,12 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors"
+              className="w-full rounded-md border border-[#becbd1] bg-white px-3 py-2 text-sm text-[#203f4f] outline-none transition-colors focus:border-[#168dff]"
             />
           </div>
 
           <div>
-            <label className="block text-[#9fcabd] text-xs mb-1.5">New password</label>
+            <label className="mb-1.5 block text-xs text-[#405f6d]">New password</label>
             <input
               type={
                 isText ? "text" : "password"
@@ -79,12 +79,12 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
               pattern={PASSWORD_PATTERN.source}
               title={PASSWORD_REQUIREMENT}
               required
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors"
+              className="w-full rounded-md border border-[#becbd1] bg-white px-3 py-2 text-sm text-[#203f4f] outline-none transition-colors focus:border-[#168dff]"
             />
           </div>
 
           <div>
-            <label className="block text-[#9fcabd] text-xs mb-1.5">Confirm new password</label>
+            <label className="mb-1.5 block text-xs text-[#405f6d]">Confirm new password</label>
             <div className="relative">
               <input
                 type={
@@ -93,19 +93,19 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-[#eafff5] text-sm outline-none focus:border-[#1D9E75] transition-colors"
+                className="w-full rounded-md border border-[#becbd1] bg-white px-3 py-2 pr-10 text-sm text-[#203f4f] outline-none transition-colors focus:border-[#168dff]"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer">
                 {isText ? 
                   <Eye
                     size={"18px"} 
-                    color={"var(--placeholder-fg)"}
+                    color={"#52636b"}
                     onClick={() => setType(!isText)}
                   />
                   :
                   <EyeClosed
                     size={"18px"} 
-                    color={"var(--placeholder-fg)"}
+                    color={"#52636b"}
                     onClick={() => setType(!isText)}
                   />
                 }
@@ -115,21 +115,21 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
 
           {/* Real-time feedback indicators */}
           {passwordsMatch && (
-            <div className="text-[#5DCAA5] text-xs flex items-center gap-1.5 pt-1">
+            <div className="flex items-center gap-1.5 pt-1 text-xs text-[#008b43]">
               <CheckCheck className="w-4 h-4" />
               <span>Passwords match</span>
             </div>
           )}
 
           {passwordsMismatch && (
-            <div className="text-[#D98B72] text-xs flex items-center gap-1.5 pt-1">
+            <div className="flex items-center gap-1.5 pt-1 text-xs text-rose-700">
               <CircleX className="w-4 h-4" />
               <span>Passwords do not match</span>
             </div>
           )}
 
           {error && (
-            <div className="text-[#D98B72] text-xs flex items-center gap-1.5 pt-1" role="alert">
+            <div className="flex items-center gap-1.5 pt-1 text-xs text-rose-700" role="alert">
               <CircleX className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -140,7 +140,7 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 bg-transparent border border-white/15 text-[#9fcabd] font-medium rounded-xl py-2.5 text-sm transition-colors hover:bg-white/5"
+                className="h-[35px] flex-1 rounded-md border-0 bg-[#edf4f7] text-sm font-medium text-[#34515f] transition-colors hover:bg-[#dcecf2]"
               >
                 Later
               </button>
@@ -148,7 +148,7 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
             <button
               type="submit"
               disabled={isSubmitting || !passwordsMatch}
-              className="flex-1 bg-[#1D9E75] text-[#04342C] font-semibold rounded-xl py-2.5 text-sm disabled:opacity-40 transition-opacity"
+              className="h-[35px] flex-1 rounded-md border-0 bg-[#168dff] text-sm font-semibold text-white transition-colors hover:bg-[#0876db] disabled:opacity-40"
             >
               {isSubmitting ? "Saving..." : "Change Password"}
             </button>

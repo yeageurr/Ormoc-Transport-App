@@ -1,69 +1,50 @@
-import { useNavigate, NavLink } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Map, 
-  Users, 
-  Bus, 
-  //TriangleAlert, 
-  ClipboardList, 
-  NotepadText, 
+import { NavLink } from "react-router-dom";
+import {
+  Users,
   History,
   LogOut,
   UserCircle
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import ormocDriverMark from "../../../../OTA-Ticketing/src/assets/ormoc-driver-mark.png";
 
 
 const mainLinks = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/live-map", label: "Live Map", icon: Map },
-  { to: "/users", label: "Users", icon: Users },
-  { to: "/vehicles", label: "Vehicles", icon: Bus },
-  //{ to: "/incidents", label: "Incident Logs", icon: TriangleAlert },
-  { to: "/trips", label: "Trip Logs", icon: ClipboardList },
-  { to: "/dispatch", label: "Dispatch Log", icon: NotepadText },
-  { to: "/audit-logs", label: "Audit Logs", icon: History },
+  { to: "/users", label: "Driver Accounts", icon: Users },
+  { to: "/audit-logs", label: "Audit Trail", icon: History },
 ];
 
 export default function Sidebar({ onOpenLogout }) {
-  const { account, logout } = useAuth();
-  const navigate = useNavigate();
-  const toHome = () =>  {
-    navigate("/dashboard")
-  }
-
-
+  const { account } = useAuth();
   return (
-    <aside className="w-[275px] h-full bg-[var(--wrapper-bg)] border-r border-[#0d2e26] flex flex-col justify-between min-h-screen p-4 select-none">
+    <aside className="flex h-full w-[264px] shrink-0 flex-col justify-between bg-[#A9E4FF] px-2.5 pb-2.5 pt-4 select-none max-[760px]:w-[72px]">
       <div>
-        {/* App Logo / Brand Header */}
-        <NavLink key={"/dashboard"} to={"/dashboard"} className="flex items-center gap-3 p-3.5 rounded-2xl mb-6">
-          
-          <div>
-            <h1 className="text-[#eafff5] text-[23px] font-bold tracking-tight">Ormoc Transport App</h1>
-            <p className="text-[#9fcabd] font-semibold text-[13px]">Admin Portal</p>
+        <NavLink to="/users" className="mx-0 mb-7 mt-4 flex h-24 items-center justify-center gap-3.5 rounded-lg">
+          <img className="h-max w-[62px] object-contain max-[760px]:h-[52px] max-[760px]:w-[52px]" src={ormocDriverMark} alt="Ormoc City transport logo" />
+          <div className="max-[760px]:hidden">
+            <strong className="block text-[28px] leading-[1.05] text-[#091c26]">OTA</strong>
+            <span className="mt-[5px] block text-sm text-[#0b2533]">Admin Portal</span>
           </div>
         </NavLink>
 
-        {/* Main Navigation Group */}
-        <div className="mb-10">
-          <p className="text-[#9fcabd] text-[11px] font-semibold uppercase tracking-wider px-3 mb-2">
-            Main
+        <div className="mb-7">
+          <p className="mb-2.5 px-2.5 text-[10px] font-semibold tracking-[.11em] text-[#365d6c] max-[760px]:hidden">
+            ACCOUNT MANAGEMENT
           </p>
-          <nav className="space-y-1">
+          <nav aria-label="Main navigation" className="flex flex-col gap-1">
             {mainLinks.map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-r-[2px] text-[15px] font-regular transition-colors ${
+                  `flex min-h-[43px] items-center gap-[11px] rounded-md px-[11px] text-left text-sm transition-colors max-[760px]:w-[52px] max-[760px]:justify-center max-[760px]:overflow-hidden max-[760px]:px-0 max-[760px]:text-[0px] ${
                     isActive
-                      ? "bg-[var(--button-active-bg)] text-[#eafff5] font-semibold border-l-[3px] border-[var(--labels)]"
-                      : "text-[#9fcabd] hover:text-[#eafff5]"
+                      ? "bg-[#00AEFF]/25 font-medium text-[#0070E8]"
+                      : "bg-transparent font-normal text-[#234758] hover:bg-white/35"
                   }`
                 }
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="h-[21px] w-[21px] shrink-0" />
                 <span>{label}</span>
               </NavLink>
             ))}
@@ -73,26 +54,26 @@ export default function Sidebar({ onOpenLogout }) {
       </div>
 
       {/* User Footer Profile & Logout */}
-      <div className="pt-4 border-t border-[#b0ffeb]">
-        <div className="flex items-center gap-3 px-3 mb-3">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#5DCAA5] font-bold text-xs">
+      <div className="mt-auto w-full border-t border-[#6db4cf] px-[9px] pt-3 max-[760px]:px-0">
+        <div className="mb-[15px] flex items-center gap-[10px] max-[760px]:justify-center">
+          <div className="grid h-[31px] w-[31px] shrink-0 place-items-center rounded-full bg-[#a6e3fa] text-[#0879ac]">
             <UserCircle />
           </div>
-          <div className="overflow-hidden">
-            <p className="text-[#eafff5] text-[15px] font-semibold truncate">
-              {account?.name || "Administrator"}
+          <div className="overflow-hidden max-[760px]:hidden">
+            <p className="truncate text-xs font-semibold text-[#071e27]">
+              {account?.display_name || account?.name || "Ticketing Officer"}
             </p>
-            <p className="text-[#9fcabd] text-[13px] font-medium truncate">
-              {account?.role ? account.role.replace(/_/g, " ") : "Terminal Administrator"}
+            <p className="truncate text-[10px] text-[#3e6370]">
+              Ticketing Officer
             </p>
           </div>
         </div>
 
         <button
           onClick={onOpenLogout}
-          className="w-full flex items-center px-3 gap-2 bg-[#195E5A] text-[#5DCAA5] hover:text-[#eafff5] py-2 rounded-[5px] text-[15px] font-medium font-inter  transition-colors"
+          className="h-[34px] w-full cursor-pointer rounded-md border-0 bg-white text-xs font-semibold text-[#142a34] transition-colors hover:bg-[#f3faff] max-[760px]:hidden"
         >
-          <LogOut className="w-3.5 h-3.5" />
+          <LogOut className="mr-2 inline h-3.5 w-3.5" />
           <span>Log out</span>
         </button>
       </div>

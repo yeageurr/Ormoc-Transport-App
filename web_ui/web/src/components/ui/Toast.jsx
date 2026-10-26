@@ -21,7 +21,7 @@ export default function Toast({ toast, onDismiss }) {
   const Icon = isSuccess ? CheckCircle2 : XCircle;
 
   return (
-    <div role="status" className={`fixed top-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-3 text-sm shadow-lg transition-all duration-300 ease-in-out ${isVisible ? "translate-y-0 opacity-100" : "-translate-y-16 opacity-0"} ${isSuccess ? "bg-[#0F6E56] text-[#D5FFF1]" : "bg-[#3A1B14] text-[#D98B72]"}`}>
+    <div role="status" className={`fixed top-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-md border border-[#d4e4eb] px-4 py-3 text-sm shadow-lg transition-all duration-300 ease-in-out ${isVisible ? "translate-y-0 opacity-100" : "-translate-y-16 opacity-0"} ${isSuccess ? "bg-[#e9faf2] text-[#008b43]" : "bg-rose-50 text-rose-700"}`}>
       <Icon className="h-4 w-4 shrink-0" />
       <span>{toast.message}</span>
     </div>

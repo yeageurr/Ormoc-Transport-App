@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import PageHeader from "../../components/ui/PageHeader";
 import AddUserModal from "../../components/modals/AddUserModal";
 import UserActionConfirmModal from "../../components/modals/UserActionConfirmModal";
 import Toast from "../../components/ui/Toast";
@@ -9,12 +8,12 @@ import {
   reactivateDriver,
   deleteDriver,
 } from "../../api/usersAPI";
-import { Power, RotateCcw, Trash2 } from 'lucide-react';
+import { Power, RotateCcw, Trash2, Users as UsersIcon } from 'lucide-react';
 import { AdminSearchField, adminCreateButtonClassName, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 import setTitle from "../../components/pageTitle";
 
 export default function Users() {
-  setTitle('Users');
+  setTitle('Driver Accounts');
   const [isAddUserModalOpen, setShowAddUserModal] = useState(false)
 
   const [drivers, setDrivers] = useState([]);
@@ -30,7 +29,7 @@ export default function Users() {
     { value: "all", label: "All Status" },
     { value: "active", label: "Active" },
     { value: "suspended", label: "Suspended" },
-    { value: "disabled", label: "Disabled" },
+    { value: "disabled", label: "Deactivated" },
   ]
 
   const loadDrivers = async () => {
@@ -52,7 +51,7 @@ export default function Users() {
 
   const filteredDrivers = useMemo(() => {
     return drivers.filter((driver) => {
-      const fullName = `${driver.first_name} ${driver.last_name}`.toLowerCase();
+      const fullName = `${driver.first_name} ${driver.last_name} ${driver.driver_id ?? ""} ${driver.contact_number ?? ""} ${driver.vehicle_plate_number ?? ""}`.toLowerCase();
       const matchesSearch = fullName.includes(search.toLowerCase());
       const status = driver.account?.status;
       const matchesStatus = statusFilter === "all" || status === statusFilter;
@@ -76,7 +75,7 @@ export default function Users() {
         await deleteDriver(driver.user_id);
       }
       await loadDrivers();
-      const verb = type === "reactivate" ? "reactivated" : type === "suspend" ? "suspended" : "disabled";
+      const verb = type === "reactivate" ? "reactivated" : type === "suspend" ? "suspended" : "deactivated";
       showToast("success", `${driver.first_name} ${driver.last_name} has been ${verb}.`);
     } catch (err) {
       await loadDrivers();
@@ -88,26 +87,23 @@ export default function Users() {
   };
 
   const statusBadge = (status) => {
-    const styles = {
-      active: "bg-[#0F6E56] text-[#9FE1CB]",
-      suspended: "bg-[#4A1B0C] text-[#F0997B]",
-      disabled: "bg-white/10 text-[#9fcabd]",
-    };
+    const styles = { active: "text-[#008b43]", suspended: "text-[#c17b00]", disabled: "text-[#c1363b]" };
     return (
-      <span className={`text-xs font-medium px-3 py-1 rounded-full capitalize ${styles[status] || styles.disabled}`}>
-        {status}
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold capitalize ${styles[status] || styles.disabled}`}>
+        <span className="h-[5px] w-[5px] rounded-full bg-current" />{status === "disabled" ? "Deactivated" : status}
       </span>
     );
   };
 
   return (
-      <>
+      <div className="flex min-h-0 flex-1 flex-col">
         <Toast toast={toast} onDismiss={() => setToast(null)} />
-        <PageHeader title={"Users"}/>
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-3 px-[5px]">
+          <h1 className="m-0 text-[22px] font-bold text-[#244659]">Driver Accounts</h1>
+        </div>
 
-        <div className="flex items-center justify-between h-11 gap-3 mb-4">
-          <AdminSearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..." />
-          
+        <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2 px-[5px]">
+          <AdminSearchField value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search drivers, phone, plate..." />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -123,62 +119,70 @@ export default function Users() {
               </option>
             ))}
           </select>
-          <button 
+          <button
             className={adminCreateButtonClassName}
             onClick={() => {setShowAddUserModal(true)}}
           >
-            + Add user
+            Add Driver + Vehicle
           </button>
         </div>
 
         {error && (
-          <div className="bg-[#3A1B14] text-[#D98B72] text-sm rounded-xl px-4 py-3 mb-4">
+          <div className="mb-3 shrink-0 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">
             {error}
           </div>
         )}
 
-        <div className="bg-[#0a2420] rounded-[var(--table-corner-radius)] overflow-hidden border border-[#78EDFF]/25">
-          <div className="bg-white/5 px-5 py-2 text-[#5DCAA5] text-xs">
-            {filteredDrivers.length} users
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[5px] border border-[#a8d5e8] bg-white px-[10px] py-[7px]">
+          <div className="shrink-0 border-b border-[#e3edf1] px-[9px] py-2 text-[10px] text-[#647c87]">
+            {filteredDrivers.length} drivers
           </div>
 
           {isLoading ? (
-            <p className="text-[#9fcabd] text-sm p-5">Loading users...</p>
+            <p className="p-5 text-sm text-[#718792]">Loading drivers…</p>
           ) : filteredDrivers.length === 0 ? (
-            <p className="text-[#9fcabd] text-sm p-5">No users found.</p>
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 py-10 text-center text-[#718792]">
+              <UsersIcon size={44} strokeWidth={1.3} />
+              <p className="m-0 text-xl font-semibold">No drivers found</p>
+              <p className="m-0 text-xs">Try another search or status filter.</p>
+            </div>
           ) : (
-            <div className="max-h-[560px] overflow-auto"><table className="w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-[#0a2420]">
-                <tr className="text-[#9fcabd] text-xs text-left">
-                  <th className="px-5 py-3 font-medium">Name</th>
-                  <th className="px-5 py-3 font-medium">Email</th>
-                  <th className="px-5 py-3 font-medium">Contact #</th>
-                  <th className="px-5 py-3 font-medium">Status</th>
-                  <th className="px-5 py-3 font-medium">Actions</th>
+            <div className="min-h-0 flex-1 overflow-auto"><table className="w-full min-w-[800px] border-collapse text-left text-[11px] text-[#29485a]">
+              <thead className="sticky top-0 z-10 bg-white">
+                <tr>
+                  <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Name</th>
+                  <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Driver ID</th>
+                  <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Vehicle Plate</th>
+                  <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Email</th>
+                  <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Contact #</th>
+                  <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Status</th>
+                  <th className="border-b border-[#9daeb7] px-[9px] py-[10px] font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDrivers.map((driver) => (
-                  <tr key={driver.user_id} className="group border-t border-white/5">
-                    <td className="px-5 py-3 text-[#eafff5]">
+                  <tr key={driver.user_id} className="h-[42px] border-b border-[#9daeb7] last:border-b-0 hover:bg-[#f5fbff]">
+                    <td className="px-[9px] py-0 font-medium text-[#29485a]">
                       {driver.first_name} {driver.last_name}
                     </td>
-                    <td className="px-5 py-3 text-[#9fcabd]">{driver.email || "—"}</td>
-                    <td className="px-5 py-3 text-[#9fcabd]">{driver.contact_number}</td>
-                    <td className="px-5 py-3">{statusBadge(driver.account?.status)}</td>
-                    <td className="px-5 py-3">
+                    <td className="px-[9px] py-0">{driver.driver_id || "—"}</td>
+                    <td className="px-[9px] py-0 font-semibold">{driver.vehicle_plate_number?.toUpperCase() || "—"}</td>
+                    <td className="px-[9px] py-0">{driver.email || "—"}</td>
+                    <td className="px-[9px] py-0">{driver.contact_number}</td>
+                    <td className="px-[9px] py-0">{statusBadge(driver.account?.status)}</td>
+                    <td className="px-[9px] py-0">
                       <div className="flex items-center gap-2">
                         <button
                           title={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
                           aria-label={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
-                          className="rounded-lg p-1.5 text-[#F0B55B] hover:bg-white/10 disabled:opacity-40"
+                          className="rounded p-1.5 text-[#b57600] transition-colors hover:bg-[#fff4d9] disabled:opacity-40"
                           disabled={actioningId === driver.user_id}
                           onClick={() => setPendingAction({ type: driver.account?.status === "active" ? "suspend" : "reactivate", driver })}
                         >{driver.account?.status === "active" ? <Power size={15} /> : <RotateCcw size={15} />}</button>
                         <button
-                          title="Disable User"
-                          aria-label="Disable User"
-                          className="rounded-lg p-1.5 text-[#D98B72] hover:bg-white/10 disabled:opacity-40"
+                          title="Deactivate User"
+                          aria-label="Deactivate User"
+                          className="rounded p-1.5 text-[#c1363b] transition-colors hover:bg-[#fff0f0] disabled:opacity-40"
                           disabled={actioningId === driver.user_id || driver.account?.status === "disabled"}
                           onClick={() => setPendingAction({ type: "delete", driver })}
                         ><Trash2 size={15} /></button>
@@ -208,6 +212,6 @@ export default function Users() {
           onClose={() => !actioningId && setPendingAction(null)}
           onConfirm={handleConfirmedAction}
         />
-      </>
+      </div>
   );
 }

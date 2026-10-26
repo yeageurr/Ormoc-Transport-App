@@ -37,7 +37,9 @@ class Vehicle(Base):
   updated_on: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now())
 
   # Relationships
-  owner: Mapped["User"] = relationship(back_populates="vehicle")
+  borrower_id: Mapped[int | None] = mapped_column(ForeignKey("users.user_id"), nullable=True, unique=True)
+  borrower: Mapped["User | None"] = relationship(foreign_keys=[borrower_id], back_populates="borrowed_vehicle")
+  owner: Mapped["User"] = relationship(foreign_keys=[owner_id], back_populates="vehicle")
   geofence_events: Mapped[list["GeofenceEvent"]] = relationship(back_populates="vehicle")
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="vehicle")
   direct_trips: Mapped[list["Trip"]] = relationship(back_populates="vehicle", foreign_keys="Trip.vehicle_id")

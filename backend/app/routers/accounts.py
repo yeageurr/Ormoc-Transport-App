@@ -22,7 +22,7 @@ from app.schemas.user import DriverCreate, DispatcherCreate, DriverAdminUpdate, 
 from app.core.security import hash_password
 from app.core.permissions import require_role
 from app.services.account_service import generate_account_code, generate_driver_id
-from app.enums import AccountRole, AccountStatus, TripStatus
+from app.enums import AccountRole, AccountStatus, TripStatus, VehicleActivityStatus
 from app.services.account_activity_email import notify_ticketing_officer_user_created, notify_driver_profile_updated
 
 router = APIRouter()
@@ -134,7 +134,7 @@ def list_portal_users(
         "license_num": user.license_num,
         "license_expiry": user.license_expiry,
       }
-      row["vehicle"] = _vehicle_summary(user.vehicle)
+      row["vehicle"] = _vehicle_summary(user.active_vehicle)
       active_trip = (
         db.query(Trip)
         .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
@@ -280,6 +280,18 @@ def create_driver(
     if db.query(Vehicle).filter(Vehicle.body_number == payload.vehicle.body_number).first():
       raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Body number already registered")
 
+  borrowed_vehicle = None
+  if payload.vehicle_id is not None:
+    borrowed_vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == payload.vehicle_id).with_for_update().first()
+    if borrowed_vehicle is None:
+      raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected vehicle not found")
+    if borrowed_vehicle.borrower_id is not None:
+      raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected vehicle is already borrowed")
+    if borrowed_vehicle.owner.account.status != AccountStatus.ACTIVE:
+      raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Vehicle owner account is not active")
+    if borrowed_vehicle.activity_status != VehicleActivityStatus.ACTIVE:
+      raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Selected vehicle is not currently available")
+
   temp_password = payload.password or generate_temp_password(payload.contact_number)
 
   account = Account(
@@ -318,6 +330,8 @@ def create_driver(
       is_registered=True,
     )
     db.add(created_vehicle)
+  elif borrowed_vehicle is not None:
+    borrowed_vehicle.borrower_id = driver.user_id
   db.commit()
   db.refresh(driver)
 
@@ -333,6 +347,12 @@ def create_driver(
       db, ticketing_officer.account_id, AuditAction.CREATE, "vehicles", created_vehicle.vehicle_id,
       f"Created vehicle {created_vehicle.plate_number} for {payload.first_name} {payload.last_name}",
       context={"account_id": account.account_id, "user_id": driver.user_id, "vehicle_id": created_vehicle.vehicle_id},
+    )
+  elif borrowed_vehicle is not None:
+    log_action(
+      db, ticketing_officer.account_id, AuditAction.UPDATE, "vehicles", borrowed_vehicle.vehicle_id,
+      f"Assigned borrowed vehicle {borrowed_vehicle.plate_number} to {payload.first_name} {payload.last_name}",
+      context={"account_id": account.account_id, "user_id": driver.user_id, "vehicle_id": borrowed_vehicle.vehicle_id, "owner_id": borrowed_vehicle.owner_id},
     )
   notify_ticketing_officer_user_created(ticketing_officer)
 
@@ -408,13 +428,20 @@ def list_drivers(
   db: Session = Depends(get_db),
   ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
-  return (
+  drivers = (
     db.query(User)
     .join(Account)
     .filter(Account.role == AccountRole.DRIVER)
-    .options(joinedload(User.account))
+    .options(joinedload(User.account), joinedload(User.vehicle), joinedload(User.borrowed_vehicle))
     .all()
   )
+  return [
+    {
+      **UserResponse.model_validate(driver).model_dump(),
+      "vehicle_plate_number": driver.active_vehicle.plate_number.upper() if driver.active_vehicle else None,
+    }
+    for driver in drivers
+  ]
 
 
 @router.patch("/drivers/{user_id}/suspend")

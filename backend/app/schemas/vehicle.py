@@ -45,6 +45,7 @@ class VehicleResponse(VehicleBase):
 
   vehicle_id: int
   owner_id: int
+  borrower_id: int | None = None
   owner: VehicleOwnerSummary | None = None
   condition: VehicleCondition
   activity_status: VehicleActivityStatus
