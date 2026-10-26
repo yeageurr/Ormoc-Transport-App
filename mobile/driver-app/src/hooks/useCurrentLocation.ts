@@ -9,7 +9,7 @@ export interface DriverLocation {
   speedKph: number | null;
 }
 
-/** Sends foreground location fixes for a dispatched driver to the admin map. */
+/** Sends foreground location fixes for the driver's linked vehicle. */
 export function useCurrentLocation() {
   const [location, setLocation] = useState<DriverLocation | null>(null);
 

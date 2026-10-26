@@ -14,6 +14,7 @@ if TYPE_CHECKING:
   from app.models.user import User
   from app.models.vehicle import Vehicle
   from app.models.dispatch_ticket import DispatchTicket
+  from app.models.route import Route
 
 
 class Trip(Base):
@@ -31,6 +32,7 @@ class Trip(Base):
   dispatch_id: Mapped[int | None] = mapped_column(ForeignKey("dispatch_logs.dispatch_id"), nullable=True)
   driver_id: Mapped[int | None] = mapped_column(ForeignKey("users.user_id"), nullable=True)
   vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.vehicle_id"), nullable=True)
+  route_id: Mapped[int | None] = mapped_column(ForeignKey("routes.route_id"), nullable=True, index=True)
   dispatch_ticket_id: Mapped[UUID | None] = mapped_column(ForeignKey("dispatch_tickets.id"), nullable=True)
   status: Mapped[TripStatus] = mapped_column(
       Enum(TripStatus, name="trip_status"), nullable=False, default=TripStatus.OUTGOING
@@ -45,6 +47,7 @@ class Trip(Base):
 
   # Relationships
   dispatch_log: Mapped["DispatchLog | None"] = relationship(back_populates="trips")
+  route: Mapped["Route | None"] = relationship(back_populates="trips")
   driver: Mapped["User | None"] = relationship(back_populates="direct_trips")
   vehicle: Mapped["Vehicle | None"] = relationship(back_populates="direct_trips")
   dispatch_ticket: Mapped["DispatchTicket | None"] = relationship(back_populates="trip")

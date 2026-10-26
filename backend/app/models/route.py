@@ -10,6 +10,7 @@ if TYPE_CHECKING:
   from app.models.dispatch_log import DispatchLog
   from app.models.notification import BroadcastNotification
   from app.models.queue_reservation import QueueReservation
+  from app.models.trip import Trip
 
 
 class Route(Base):
@@ -33,3 +34,4 @@ class Route(Base):
   dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="route")
   broadcast_notifications: Mapped[list["BroadcastNotification"]] = relationship(back_populates="route")
   queue_reservations: Mapped[list["QueueReservation"]] = relationship(back_populates="route")
+  trips: Mapped[list["Trip"]] = relationship(back_populates="route")

@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -29,13 +28,13 @@ def geofence_ping(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Driver app calls this periodically while NOT on an active trip
-  (separate from /gps, which only logs during on-route trips). This is
-  what actually detects terminal entry and drives the active -> loading
-  transition, before Start Trip becomes relevant."""
+  """Detect terminal entry for the driver's linked vehicle before a trip.
 
-  now = datetime.now(ZoneInfo("Asia/Manila"))
-  day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+  The app calls this periodically while the driver is not on an active trip.
+  The geofence controls the vehicle's active -> loading transition, which is
+  still required before an outgoing trip can start.
+  """
+
   driver = get_driver_profile(db, current_driver)
   active_trip = (
     db.query(Trip)
@@ -49,17 +48,7 @@ def geofence_ping(
   if active_trip:
     return {"currently_inside": False, "status_changed": False, "event": "trip_in_progress"}
 
-  dispatch = (
-    db.query(DispatchLog)
-    .filter(
-      DispatchLog.driver_id == driver.user_id,
-      DispatchLog.effective_on >= day_start,
-      DispatchLog.effective_on < day_start + timedelta(days=1),
-    )
-    .order_by(DispatchLog.effective_on.desc())
-    .first()
-  )
-  vehicle = dispatch.vehicle if dispatch and dispatch.vehicle else driver.vehicle
+  vehicle = driver.vehicle
   if vehicle is None:
     raise HTTPException(
       status_code = status.HTTP_404_NOT_FOUND, 

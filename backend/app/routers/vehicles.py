@@ -117,8 +117,9 @@ def get_live_vehicle_overview(
     if active_trip and active_trip.dispatch_id is None:
       if active_trip.driver:
         driver_name = f"{active_trip.driver.first_name} {active_trip.driver.last_name}"
-      route_id = None
-      route_label = terminal_name if active_trip.status.value == "returning" else None
+      route = active_trip.route
+      route_id = route.route_id if route else None
+      route_label = route.destination.name if route and route.destination else terminal_name
 
     if current_location:
       if driver_name is None:

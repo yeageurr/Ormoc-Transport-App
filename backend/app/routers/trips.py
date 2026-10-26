@@ -15,6 +15,7 @@ from app.models.incident_log import Incident
 from app.models.terminal import Terminal
 from app.models.trip import Trip
 from app.models.user import User
+from app.models.route import Route
 from app.models.vehicle import Vehicle
 from app.schemas.trip import (
   AdminTripResponse,
@@ -41,30 +42,17 @@ def _vehicle_for_trip(trip: Trip) -> Vehicle | None:
   return trip.vehicle
 
 
+def _route_for_trip(trip: Trip) -> Route | None:
+  return trip.route or (trip.dispatch_log.route if trip.dispatch_log else None)
+
+
 def _route_label(trip: Trip, terminal_name: str) -> str | None:
-  dispatch = trip.dispatch_log
-  if dispatch and dispatch.route:
-    origin = dispatch.route.origin.terminal_name if dispatch.route.origin else terminal_name
-    destination = dispatch.route.destination.name if dispatch.route.destination else "Assigned route"
-    return f"{origin} → {destination}"
-  if trip.status == TripStatus.RETURNING:
-    return terminal_name
-  return None
-
-
-def _current_dispatch_for_driver(db: Session, driver_id: int, now: datetime) -> DispatchLog | None:
-  day_start = now.astimezone(PH).replace(hour=0, minute=0, second=0, microsecond=0)
-  day_end = day_start + timedelta(days=1)
-  return (
-    db.query(DispatchLog)
-    .filter(
-      DispatchLog.driver_id == driver_id,
-      DispatchLog.effective_on >= day_start,
-      DispatchLog.effective_on < day_end,
-    )
-    .order_by(DispatchLog.effective_on.desc())
-    .first()
-  )
+  route = _route_for_trip(trip)
+  if route is None:
+    return terminal_name if trip.status == TripStatus.RETURNING else None
+  origin = route.origin.terminal_name if route.origin else terminal_name
+  destination = route.destination.name if route.destination else "Assigned route"
+  return f"{origin} → {destination}"
 
 
 @router.post("/start", response_model=TripResponse, status_code=status.HTTP_201_CREATED)
@@ -73,32 +61,18 @@ def start_trip(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Start one leg. Outgoing uses its immutable dispatch; returning stores
-  driver and vehicle directly and does not require a dispatch assignment."""
+  """Start a route-based trip leg without creating a dispatch record."""
   driver = get_driver_profile(db, current_driver)
-  dispatch: DispatchLog | None = None
+  route = db.query(Route).filter(Route.route_id == payload.route_id, Route.is_active.is_(True)).first()
+  if route is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected route not found or inactive")
 
-  if payload.status == TripStatus.OUTGOING:
-    dispatch = db.query(DispatchLog).filter(DispatchLog.dispatch_id == payload.dispatch_id).first()
-    if dispatch is None:
-      raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dispatch entry not found")
-    if dispatch.driver_id != driver.user_id:
-      raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This dispatch is not assigned to you")
-    vehicle = dispatch.vehicle
-    if vehicle is None:
-      raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="The dispatch has no assigned vehicle")
-  else:
-    # A return leg may use today's scheduled vehicle when one exists, but the
-    # resulting trip record remains non-dispatched. Without an assignment,
-    # fall back to the driver's owned vehicle until borrowed-vehicle selection
-    # is implemented.
-    dispatch = _current_dispatch_for_driver(db, driver.user_id, datetime.now(PH))
-    vehicle = dispatch.vehicle if dispatch and dispatch.vehicle else driver.vehicle
-    if vehicle is None:
-      raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="No vehicle is available for this returning trip. Assign or select a vehicle first.",
-      )
+  vehicle = driver.vehicle
+  if vehicle is None:
+    raise HTTPException(
+      status_code=status.HTTP_409_CONFLICT,
+      detail="No vehicle is linked to your driver account. Contact the ticketing officer.",
+    )
 
   if vehicle.condition == VehicleCondition.UNDER_MAINTENANCE:
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This vehicle is under maintenance")
@@ -127,11 +101,11 @@ def start_trip(
       ),
     )
 
-  is_dispatched = payload.status == TripStatus.OUTGOING
   trip = Trip(
-    dispatch_id=dispatch.dispatch_id if is_dispatched and dispatch else None,
-    driver_id=None if is_dispatched else driver.user_id,
-    vehicle_id=None if is_dispatched else vehicle.vehicle_id,
+    dispatch_id=None,
+    driver_id=driver.user_id,
+    vehicle_id=vehicle.vehicle_id,
+    route_id=route.route_id,
     status=payload.status,
     time_departed=datetime.now(timezone.utc),
     is_complete=False,
@@ -198,6 +172,7 @@ def list_my_trips(
     DriverTripResponse(
       trip_id=trip.trip_id,
       dispatch_id=trip.dispatch_id,
+      route_id=trip.route_id or (trip.dispatch_log.route_id if trip.dispatch_log else None),
       driver_id=trip.driver_id,
       vehicle_id=trip.vehicle_id,
       dispatch_ticket_id=str(trip.dispatch_ticket_id) if trip.dispatch_ticket_id else None,
@@ -210,8 +185,8 @@ def list_my_trips(
       vehicle_plate=_vehicle_for_trip(trip).plate_number if _vehicle_for_trip(trip) else None,
       route_label=_route_label(trip, terminal_name),
       route_distance_km=(
-        float(trip.dispatch_log.route.distance)
-        if trip.dispatch_log and trip.dispatch_log.route and trip.dispatch_log.route.distance is not None
+        float(_route_for_trip(trip).distance)
+        if _route_for_trip(trip) and _route_for_trip(trip).distance is not None
         else None
       ),
     )
@@ -279,6 +254,7 @@ def list_all_trips(
       trip_id=trip.trip_id,
       dispatch_id=trip.dispatch_id,
       status=trip.status,
+      route_id=trip.route_id or (trip.dispatch_log.route_id if trip.dispatch_log else None),
       time_departed=trip.time_departed,
       time_arrived=trip.time_arrived,
       trip_duration_minutes=trip.trip_duration_minutes,

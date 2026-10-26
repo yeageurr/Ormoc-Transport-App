@@ -1,12 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
+import { getDriverRoutes, getMyDriverVehicle, type DriverRoute, type DriverVehicleStatus } from '@/api/routesAPI';
 import { endTrip, getTripLogs, startTrip, type DriverTrip, type Trip } from '@/api/tripsAPI';
 import DriverMap from '@/components/DriverMap';
 import { useDriverLocation } from '@/hooks/useDriverLocation';
@@ -106,7 +105,10 @@ async function resolveLocationAddress(latitude: number, longitude: number) {
 }
 
 export default function RecordTripScreen() {
-  const [dispatch, setDispatch] = useState<CurrentDispatch | null>(null);
+  const [routes, setRoutes] = useState<DriverRoute[]>([]);
+  const [vehicle, setVehicle] = useState<DriverVehicleStatus | null>(null);
+  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
+  const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -115,10 +117,6 @@ export default function RecordTripScreen() {
   const [tripLogs, setTripLogs] = useState<DriverTrip[]>([]);
   const [finishOpen, setFinishOpen] = useState(false);
   const [completedTripSummary, setCompletedTripSummary] = useState<DriverTrip | null>(null);
-  const [scanTicketOpen, setScanTicketOpen] = useState(false);
-  const [scanActionMessage, setScanActionMessage] = useState<string | null>(null);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -126,12 +124,10 @@ export default function RecordTripScreen() {
   const [sheetHeight, setSheetHeight] = useState(302);
   const [sheetCollapsed, setSheetCollapsed] = useState(false);
   const location = useDriverLocation();
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const lastGeocodeRef = useRef<{ latitude: number; longitude: number; at: number } | null>(null);
   const geocodeRequestRef = useRef(0);
-  const scanLockedRef = useRef(false);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const gestureStartY = useRef(0);
   const collapsedOffset = Math.max(0, sheetHeight - 76);
@@ -184,36 +180,22 @@ export default function RecordTripScreen() {
     if (showLoading) setIsLoading(true);
     setMessage(null);
     try {
-      const currentDispatch = await getCurrentDispatch();
-      setDispatch(currentDispatch);
-      const trips: DriverTrip[] = await getTripLogs();
+      const [trips, availableRoutes, ownVehicle] = await Promise.all([
+        getTripLogs(),
+        getDriverRoutes(),
+        getMyDriverVehicle(),
+      ]);
       setTripLogs(trips);
+      setRoutes(availableRoutes);
+      setVehicle(ownVehicle);
       const inProgressTrip = trips.find((trip) => !trip.is_complete);
       setActiveTrip(inProgressTrip ?? null);
+      setSelectedRouteId((current) => current ?? inProgressTrip?.route_id ?? null);
     } catch {
       setMessage('Unable to refresh your trip. Check your connection and try again.');
     } finally {
       if (showLoading) setIsLoading(false);
     }
-  }, []);
-
-  const openCameraScanner = useCallback(async () => {
-    setScanActionMessage(null);
-    setCameraError(null);
-    const permission = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
-    if (!permission.granted) {
-      setScanActionMessage('Camera permission is needed to scan the ticket. Enable it in your device settings and try again.');
-      return;
-    }
-    scanLockedRef.current = false;
-    setScanTicketOpen(false);
-    setCameraOpen(true);
-  }, [cameraPermission, requestCameraPermission]);
-
-  const handleTicketQrScanned = useCallback(() => {
-    if (scanLockedRef.current) return;
-    scanLockedRef.current = true;
-    setCameraError('QR detected. Live ticket verification is not connected yet.');
   }, []);
 
   useEffect(() => { void loadDispatch(); }, [loadDispatch]);
@@ -244,11 +226,11 @@ export default function RecordTripScreen() {
   }, [location]);
 
   const handleStart = useCallback(async () => {
-    if (isStarting || (selectedDirection === 'outgoing' && !dispatch)) return;
+    if (isStarting || selectedRouteId == null) return;
     setIsStarting(true);
     setMessage(null);
     try {
-      setActiveTrip(await startTrip(selectedDirection === 'outgoing' ? dispatch?.dispatch_id ?? null : null, selectedDirection));
+      setActiveTrip(await startTrip(selectedRouteId, selectedDirection));
       setNow(Date.now());
     } catch (error: any) {
       setMessage(
@@ -259,7 +241,19 @@ export default function RecordTripScreen() {
     } finally {
       setIsStarting(false);
     }
-  }, [dispatch, isStarting, selectedDirection]);
+  }, [isStarting, selectedDirection, selectedRouteId]);
+
+  const tripDirection = activeTrip?.status ?? selectedDirection;
+  const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
+  const routeLabel = selectedRoute?.destination?.name
+    ? `Ormoc City Terminal ↔ ${selectedRoute.destination.name}`
+    : 'Select a route';
+  const isReady = vehicle?.activity_status === 'loading';
+  const canStart = selectedRouteId != null && vehicle != null && (selectedDirection === 'returning' || isReady);
+  const averageDuration = selectedRoute?.average_travel_duration ?? null;
+  const routeDistance = selectedRoute?.distance ?? null;
+  const averageDurationText = averageDuration == null ? '— min' : `${Math.round(averageDuration)} min`;
+  const routeDistanceText = routeDistance == null ? '— km' : `${Number(routeDistance).toFixed(1)} km`;
 
   const handleFinish = useCallback(async () => {
     if (!activeTrip) return;
@@ -269,9 +263,10 @@ export default function RecordTripScreen() {
       const existingTrip = tripLogs.find((trip) => trip.trip_id === finished.trip_id);
       const completedTrip: DriverTrip = {
         ...finished,
-        vehicle_plate: existingTrip?.vehicle_plate ?? dispatch?.vehicle_plate ?? null,
-        route_label: existingTrip?.route_label ?? (finished.status === 'returning' ? 'Ormoc City Terminal' : dispatch?.route_label ?? null),
-        route_distance_km: existingTrip?.route_distance_km ?? (finished.status === 'returning' ? null : dispatch?.route_distance_km ?? null),
+        vehicle_plate: existingTrip?.vehicle_plate ?? vehicle?.plate_number ?? null,
+        route_id: finished.route_id ?? selectedRouteId,
+        route_label: existingTrip?.route_label ?? routeLabel,
+        route_distance_km: existingTrip?.route_distance_km ?? routeDistance,
       };
       setTripLogs((logs) => [completedTrip, ...logs.filter((trip) => trip.trip_id !== finished.trip_id)]);
       setActiveTrip(null);
@@ -283,25 +278,14 @@ export default function RecordTripScreen() {
     } finally {
       setIsFinishing(false);
     }
-  }, [activeTrip, dispatch, tripLogs]);
-
-  const tripDirection = activeTrip?.status ?? selectedDirection;
-  const routeLabel = tripDirection === 'returning'
-    ? 'Ormoc City Terminal'
-    : dispatch?.route_label || 'Route not assigned';
-  const isReady = dispatch?.vehicle_activity_status === 'loading';
-  const canStart = selectedDirection === 'returning' || (Boolean(dispatch) && isReady);
-  const averageDuration = tripDirection === 'returning' ? null : dispatch?.average_travel_duration_minutes;
-  const routeDistance = tripDirection === 'returning' ? null : dispatch?.route_distance_km;
-  const averageDurationText = averageDuration == null ? '— min' : `${Math.round(averageDuration)} min`;
-  const routeDistanceText = routeDistance == null ? '— km' : `${Number(routeDistance).toFixed(1)} km`;
+  }, [activeTrip, routeDistance, routeLabel, selectedRouteId, tripLogs, vehicle]);
 
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="dark-content" backgroundColor="#DCE8F0" />
       <DriverMap
         fullScreen
-        routeGeometry={dispatch?.route_geometry}
+        routeGeometry={selectedRoute?.route_geometry}
         followDriver={Boolean(activeTrip)}
         isReturning={tripDirection === 'returning'}
       />
@@ -369,7 +353,10 @@ export default function RecordTripScreen() {
             <Text style={styles.sheetTitle}>Heads up!</Text>
             <Text style={styles.sheetSubtitle}>{selectedDirection === 'returning' ? 'Returning trips can start from your current location.' : isReady ? 'Your vehicle is ready at the terminal.' : 'Wait at the terminal until your vehicle is ready.'}</Text>
             <View style={styles.routeCard}>
-              <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
+              <Pressable disabled={Boolean(activeTrip)} onPress={() => setRoutePickerOpen(true)} accessibilityRole="button" style={styles.routeSelectButton}>
+                <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
+                {!activeTrip && <Ionicons name="chevron-down" size={16} color="#315B61" />}
+              </Pressable>
               {!activeTrip && (
                 <Pressable onPress={() => setDirectionPickerOpen(true)} style={styles.directionBadge} accessibilityRole="button" accessibilityLabel={`Trip direction: ${selectedDirection}. Change direction`}>
                   <Ionicons name={selectedDirection === 'returning' ? 'return-down-back' : 'navigate'} size={13} color="#315B61" />
@@ -394,10 +381,10 @@ export default function RecordTripScreen() {
                 <Ionicons name="arrow-back" size={21} color="#193B3D" />
               </Pressable>
               <Pressable
-                onPress={() => selectedDirection === 'outgoing' ? setScanTicketOpen(true) : void handleStart()}
+                onPress={() => void handleStart()}
                 disabled={isLoading || isStarting || !canStart}
                 style={[styles.startButton, (!canStart || isStarting) && styles.disabledButton]}>
-                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{selectedDirection === 'outgoing' && !dispatch ? 'Dispatch required' : selectedDirection === 'outgoing' && !isReady ? 'Waiting for terminal' : 'Start Trip'}</Text>}
+                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{selectedRouteId == null ? 'Select a route' : !vehicle ? 'Vehicle unavailable' : selectedDirection === 'outgoing' && !isReady ? 'Waiting for terminal' : 'Start Trip'}</Text>}
               </Pressable>
             </View>
           </>
@@ -467,66 +454,36 @@ export default function RecordTripScreen() {
           </View>
         </View>
       </Modal>
-      <Modal transparent visible={scanTicketOpen} animationType="fade" onRequestClose={() => setScanTicketOpen(false)}>
-        <Pressable style={styles.scanBackdrop} onPress={() => setScanTicketOpen(false)}>
-          <Pressable style={styles.scanPrompt} onPress={(event) => event.stopPropagation()}>
-            <Text style={styles.scanTitle}>Scan Your Dispatch Ticket</Text>
-            <View style={styles.scanIllustration}>
-              <View style={[styles.scanCorner, styles.scanCornerTopLeft]} />
-              <View style={[styles.scanCorner, styles.scanCornerTopRight]} />
-              <View style={[styles.scanCorner, styles.scanCornerBottomLeft]} />
-              <View style={[styles.scanCorner, styles.scanCornerBottomRight]} />
-              <View style={styles.scanLine} />
-              <View style={styles.scanTarget} />
-            </View>
-            <Text style={styles.scanHint}>Scan Dispatcher’s QR Code to Get Your Dispatch Ticket</Text>
-            <Pressable
-              onPress={() => void openCameraScanner()}
-              style={styles.scanButton}>
-              <Text style={styles.scanButtonText}>{cameraPermission?.granted ? 'Scan Ticket QR Code' : 'Allow Camera & Scan'}</Text>
-            </Pressable>
-            {scanActionMessage ? <Text style={styles.scanActionMessage}>{scanActionMessage}</Text> : null}
-            <Pressable onPress={() => { setScanTicketOpen(false); setScanActionMessage(null); }} style={styles.scanCancelButton}>
-              <Text style={styles.scanCancelText}>Cancel</Text>
-            </Pressable>
+      <Modal transparent visible={routePickerOpen && !activeTrip} animationType="fade" onRequestClose={() => setRoutePickerOpen(false)}>
+        <Pressable style={styles.directionBackdrop} onPress={() => setRoutePickerOpen(false)}>
+          <Pressable style={styles.directionPicker} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.directionPickerTitle}>Choose your route</Text>
+            {routes.map((route) => (
+              <Pressable key={route.route_id} style={styles.directionOption} onPress={() => { setSelectedRouteId(route.route_id); setRoutePickerOpen(false); }}>
+                <View style={styles.directionOptionCopy}>
+                  <Text style={styles.directionOptionTitle}>{route.destination?.name ?? `Route ${route.route_id}`}</Text>
+                  <Text style={styles.directionOptionHint}>{Number(route.distance).toFixed(1)} km · {route.average_travel_duration == null ? 'duration unavailable' : `${Math.round(route.average_travel_duration)} min average`}</Text>
+                </View>
+                {selectedRouteId === route.route_id && <Ionicons name="checkmark-circle" size={20} color="#147A68" />}
+              </Pressable>
+            ))}
+            {!routes.length && <Text style={styles.directionOptionHint}>No active routes are available.</Text>}
           </Pressable>
         </Pressable>
       </Modal>
-      <Modal visible={cameraOpen} animationType="slide" onRequestClose={() => setCameraOpen(false)}>
-        <View style={styles.cameraScreen}>
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={handleTicketQrScanned}
-          />
-          <SafeAreaView style={styles.cameraHeader} edges={['top']}>
-            <Pressable accessibilityLabel="Close QR scanner" onPress={() => setCameraOpen(false)} style={styles.cameraCloseButton}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </Pressable>
-            <Text style={styles.cameraTitle}>Scan dispatch ticket</Text>
-            <View style={styles.cameraCloseButton} />
-          </SafeAreaView>
-          <View pointerEvents="none" style={styles.cameraTargetArea}>
-            <View style={styles.cameraFrame} />
-          </View>
-          <View style={styles.cameraFooter}>
-            <Text style={styles.cameraFooterText}>{cameraError || 'Point at a dispatch ticket QR code'}</Text>
-          </View>
-        </View>
-      </Modal>
+
       <Modal transparent visible={directionPickerOpen && !activeTrip} animationType="fade" onRequestClose={() => setDirectionPickerOpen(false)}>
         <Pressable style={styles.directionBackdrop} onPress={() => setDirectionPickerOpen(false)}>
           <Pressable style={styles.directionPicker} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.directionPickerTitle}>Choose trip direction</Text>
             <Pressable style={styles.directionOption} onPress={() => { setSelectedDirection('outgoing'); setDirectionPickerOpen(false); }}>
               <Ionicons name="navigate" size={19} color="#147A68" />
-              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Outgoing</Text><Text style={styles.directionOptionHint}>Terminal to your assigned route. Start at the terminal.</Text></View>
+              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Outgoing</Text><Text style={styles.directionOptionHint}>Travel from the terminal along your selected route.</Text></View>
               {selectedDirection === 'outgoing' && <Ionicons name="checkmark-circle" size={20} color="#147A68" />}
             </Pressable>
             <Pressable style={styles.directionOption} onPress={() => { setSelectedDirection('returning'); setDirectionPickerOpen(false); }}>
               <Ionicons name="return-down-back" size={19} color="#147A68" />
-              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Returning</Text><Text style={styles.directionOptionHint}>Travel to the terminal from your current location. No dispatch assignment is required.</Text></View>
+              <View style={styles.directionOptionCopy}><Text style={styles.directionOptionTitle}>Returning</Text><Text style={styles.directionOptionHint}>Travel back to the terminal along your selected route.</Text></View>
               {selectedDirection === 'returning' && <Ionicons name="checkmark-circle" size={20} color="#147A68" />}
             </Pressable>
           </Pressable>
@@ -588,6 +545,7 @@ const styles = StyleSheet.create({
 
   sheetTitle: { color: '#F4FFFC', fontFamily: 'Poppins_500Medium', fontSize: 18, fontWeight: '700' },
   sheetSubtitle: { marginTop: 2, marginBottom: 9, color: '#ffffff', fontFamily: 'Poppins_400Regular', fontSize: 10 },
+  routeSelectButton: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   routeCard: { height: 125, borderRadius: 5, paddingHorizontal: 13, paddingTop: 8, paddingBottom: 8, backgroundColor: '#F2F7F5', alignItems: 'center', justifyContent: 'center' },
   directionRow: { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginTop: 2 },
   directionText: { color: '#315B61', fontSize: 9, fontWeight: '600' },

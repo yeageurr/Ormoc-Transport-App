@@ -1,22 +1,14 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 
 from app.enums import TripStatus
 
 
 class TripStart(BaseModel):
   """Driver starts one route leg in the selected direction."""
-  dispatch_id: int | None = None
+  route_id: int
   status: TripStatus
-
-  @model_validator(mode="after")
-  def validate_dispatch_for_direction(self):
-    if self.status == TripStatus.OUTGOING and self.dispatch_id is None:
-      raise ValueError("Outgoing trips require a dispatch assignment")
-    if self.status == TripStatus.RETURNING and self.dispatch_id is not None:
-      raise ValueError("Returning trips must be recorded without a dispatch assignment")
-    return self
 
 
 class TripEnd(BaseModel):
@@ -30,6 +22,7 @@ class TripResponse(BaseModel):
 
   trip_id: int
   dispatch_id: int | None = None
+  route_id: int | None = None
   driver_id: int | None = None
   vehicle_id: int | None = None
   dispatch_ticket_id: UUID | None = None
@@ -67,6 +60,7 @@ class AdminTripResponse(BaseModel):
   trip_id: int
   dispatch_id: int | None
   status: TripStatus
+  route_id: int | None = None
   time_departed: datetime
   time_arrived: datetime | None = None
   trip_duration_minutes: float | None = None

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,11 +21,8 @@ router = APIRouter()
 
 @router.post("/current")
 async def update_current_location( payload: CurrentLocationPing, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)), ):
-  """Store and broadcast the latest foreground fix for today's dispatch."""
-  now = datetime.now(ZoneInfo("Asia/Manila"))
+  """Store and broadcast the latest foreground fix for the driver's vehicle."""
   driver = get_driver_profile(db, current_driver)
-
-  day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
   active_trip = (
     db.query(Trip)
@@ -36,21 +33,10 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
     )
     .first()
   )
-  dispatch = (
-    db.query(DispatchLog)
-    .filter(
-      DispatchLog.driver_id == driver.user_id,
-      DispatchLog.effective_on >= day_start,
-      DispatchLog.effective_on < day_start + timedelta(days=1),
-    )
-    .order_by(DispatchLog.effective_on.desc())
-    .first()
-  )
-
   vehicle = (
     (active_trip.vehicle if active_trip.dispatch_id is None else active_trip.dispatch_log.vehicle)
     if active_trip
-    else (dispatch.vehicle if dispatch else driver.vehicle)
+    else driver.vehicle
   )
 
   if vehicle is None:
@@ -68,7 +54,7 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
     db.add(location)
 
   location.vehicle_id = vehicle.vehicle_id
-  location.dispatch_id = active_trip.dispatch_id if active_trip else (dispatch.dispatch_id if dispatch else None)
+  location.dispatch_id = active_trip.dispatch_id if active_trip else None
   location.latitude = payload.latitude
   location.longitude = payload.longitude
   location.speed_kmh = payload.speed_kmh

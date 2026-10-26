@@ -10,6 +10,7 @@ from app.enums import VehicleActivityStatus
 from app.models.dispatch_log import DispatchLog
 from app.models.driver_location import DriverLocation
 from app.models.route import Route
+from app.models.trip import Trip
 from app.models.vehicle import Vehicle
 
 router = APIRouter()
@@ -91,7 +92,16 @@ def list_public_live_vehicles(db: Session = Depends(get_db)):
       .order_by(DispatchLog.effective_on.desc())
       .first()
     )
-    route = dispatch.route if dispatch else None
+    active_trip = (
+      db.query(Trip)
+      .filter(
+        Trip.vehicle_id == vehicle.vehicle_id,
+        Trip.is_complete.is_(False),
+      )
+      .order_by(Trip.time_departed.desc())
+      .first()
+    )
+    route = active_trip.route if active_trip and active_trip.route else (dispatch.route if dispatch else None)
     results.append(CommuterVehicleResponse(
       vehicle_id=vehicle.vehicle_id,
       plate_number=vehicle.plate_number,
