@@ -35,7 +35,13 @@
         }
       ],
       "@rnmapbox/maps",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow OTA Commuters to use your location to show your current position on the live map."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

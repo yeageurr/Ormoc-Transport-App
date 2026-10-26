@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CommuterRoute, CommuterVehicle } from '@/api/publicAPI';
@@ -7,11 +8,13 @@ type Props = {
   vehicles: CommuterVehicle[];
   selectedRouteId: number | null;
   selectedVehicleId: number | null;
+  onMapLoaded?: () => void;
   onSelectRoute: (routeId: number) => void;
   onSelectVehicle: (vehicleId: number) => void;
 };
 
-export default function CommuterLiveMap({ vehicles, onSelectVehicle }: Props) {
+export default function CommuterLiveMap({ vehicles, onSelectVehicle, onMapLoaded }: Props) {
+  useEffect(() => { onMapLoaded?.(); }, [onMapLoaded]);
   return <View style={styles.map}><View style={styles.water} /><View style={[styles.road, styles.roadOne]} /><View style={[styles.road, styles.roadTwo]} /><View style={[styles.road, styles.roadThree]} /><View style={[styles.road, styles.roadFour]}><Text style={styles.mapNote}>Open the Android app for the interactive live map.</Text></View>{vehicles.slice(0, 12).map((vehicle, index) => <Pressable key={vehicle.vehicle_id} onPress={() => onSelectVehicle(vehicle.vehicle_id)} style={[styles.marker, { top: `${28 + (index * 17) % 58}%`, left: `${18 + (index * 23) % 68}%` }]}><Text style={styles.markerText}>▰</Text></Pressable>)}</View>;
 }
 

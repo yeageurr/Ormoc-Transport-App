@@ -1,5 +1,5 @@
 import Mapbox from '@rnmapbox/maps';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { CommuterRoute, CommuterVehicle } from '@/api/publicAPI';
@@ -14,11 +14,12 @@ type Props = {
   vehicles: CommuterVehicle[];
   selectedRouteId: number | null;
   selectedVehicleId: number | null;
+  onMapLoaded?: () => void;
   onSelectRoute: (routeId: number) => void;
   onSelectVehicle: (vehicleId: number) => void;
 };
 
-export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, selectedVehicleId, onSelectRoute, onSelectVehicle }: Props) {
+export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, selectedVehicleId, onSelectRoute, onSelectVehicle, onMapLoaded }: Props) {
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.vehicle_id === selectedVehicleId) ?? null;
   const coordinates = selectedRoute?.route_geometry?.coordinates ?? [];
@@ -36,12 +37,16 @@ export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, sel
       ? coordinates[Math.floor(coordinates.length / 2)]
       : ORMOC_CENTER;
 
+  useEffect(() => {
+    if (!mapboxToken) onMapLoaded?.();
+  }, [onMapLoaded]);
+
   if (!mapboxToken) {
     return <View style={styles.unavailable}><Text style={styles.mapGlyph}>⌖</Text><Text style={styles.unavailableTitle}>Map token required</Text><Text style={styles.unavailableCopy}>Add EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN to the commuter app environment.</Text></View>;
   }
 
   return (
-    <Mapbox.MapView style={StyleSheet.absoluteFill} styleURL={Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled>
+    <Mapbox.MapView style={StyleSheet.absoluteFill} styleURL={Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled onDidFinishLoadingMap={onMapLoaded}>
       <Mapbox.Camera
         key={`${selectedRouteId ?? 'all'}-${selectedVehicleId ?? 'none'}`}
         {...(selectedVehicle ? { centerCoordinate: center, zoomLevel: 15 } : bounds ? { bounds, animationMode: 'easeTo' as const } : { centerCoordinate: center, zoomLevel: 12 })}

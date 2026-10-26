@@ -229,7 +229,7 @@ export default function IntroductionScreen() {
         accessibilityRole="button"
         accessibilityLabel="Tap to continue to the live map"
         onPress={continueToMap}
-        style={[styles.continueTapArea, { bottom: Math.max(insets.bottom, 10) + 34 }]}>
+        style={[styles.continueTapArea, { bottom: Math.max(insets.bottom, 20) + 44 }]}>
         <Animated.Text style={[styles.continueText, guideAnimatedStyle]}>Tap to continue</Animated.Text>
       </Pressable>
     </View>
@@ -270,6 +270,6 @@ const styles = StyleSheet.create({
   stepNumber: { width: 23, height: 23, borderRadius: '100%', borderWidth: 2, borderColor: '#269DD9', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   stepNumberText: { color: COLORS.blue, fontFamily: 'Poppins_600SemiBold', fontSize: 13, lineHeight: 12 },
   stepText: { flex: 1, color: '#007DC3', fontFamily: 'Poppins_500Medium', fontSize: 15,  },
-  continueTapArea: { position: 'absolute', left: 0, right: 0, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
-  continueText: { color: '#208ED6', fontFamily: 'Poppins_400Regular', fontSize: 13, lineHeight: 28, includeFontPadding: false, textAlign: 'center' },
+  continueTapArea: { position: 'absolute', left: 0, right: 0, minHeight: 60, alignItems: 'center', justifyContent: 'center', paddingVertical: 16 },
+  continueText: { color: '#208ED6', fontFamily: 'Poppins_400Regular', fontSize: 13, includeFontPadding: true, textAlign: 'center', paddingVertical: 3 },
 });

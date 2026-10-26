@@ -1,4 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -6,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getCommuterRoutes, getLiveCommuterVehicles, type CommuterRoute, type CommuterVehicle } from '@/api/publicAPI';
 import CommuterLiveMap from '@/components/CommuterLiveMap';
+import { Ionicons } from '@expo/vector-icons';
 
 const SKY = '#A9E4FF';
 
@@ -18,8 +20,15 @@ export default function LiveMapScreen() {
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [routesLoaded, setRoutesLoaded] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState('Getting your current location…');
   const [error, setError] = useState('');
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
+  const routeSheetTranslateY = useRef(new Animated.Value(0)).current;
+  const mapLoading = loading || !routesLoaded || !mapReady;
+
+  const handleMapLoaded = useCallback(() => setMapReady(true), []);
 
   useEffect(() => {
     const backSubscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -31,10 +40,13 @@ export default function LiveMapScreen() {
   }, []);
 
   const loadRoutes = useCallback(async () => {
+    setRoutesLoaded(false);
     try {
       setRoutes(await getCommuterRoutes());
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not load routes.');
+    } finally {
+      setRoutesLoaded(true);
     }
   }, []);
 
@@ -56,6 +68,64 @@ export default function LiveMapScreen() {
     const refresh = setInterval(() => void loadVehicles(), 10_000);
     return () => clearInterval(refresh);
   }, [loadRoutes, loadVehicles]);
+
+  useEffect(() => {
+    let isActive = true;
+    let locationSubscription: Location.LocationSubscription | undefined;
+    let lastGeocodedAt = 0;
+    let lastResolvedAddress = '';
+
+    const updateAddress = async (location: Location.LocationObject) => {
+      const { latitude, longitude } = location.coords;
+      const coordinateFallback = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      const now = Date.now();
+      if (now - lastGeocodedAt < 10_000) {
+        if (!lastResolvedAddress && isActive) setCurrentLocation(coordinateFallback);
+        return;
+      }
+      lastGeocodedAt = now;
+
+      try {
+        const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (!isActive) return;
+        const street = [address?.streetNumber, address?.street].filter(Boolean).join(' ');
+        const locality = address?.district || address?.subregion;
+        const parts = [street || address?.name, locality, address?.city].filter(Boolean);
+        const uniqueParts = parts.filter((part, index) => parts.indexOf(part) === index);
+        lastResolvedAddress = uniqueParts.join(', ') || coordinateFallback;
+        setCurrentLocation(lastResolvedAddress);
+      } catch {
+        if (isActive) setCurrentLocation(coordinateFallback);
+      }
+    };
+
+    const startLocationUpdates = async () => {
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync();
+        if (!isActive) return;
+        if (permission.status !== 'granted') {
+          setCurrentLocation('Allow location access to show your position');
+          return;
+        }
+        const initialLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (isActive) void updateAddress(initialLocation);
+        locationSubscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 5_000, distanceInterval: 10 },
+          (location) => { void updateAddress(location); }
+        );
+      } catch {
+        if (isActive) setCurrentLocation('Current location unavailable');
+      }
+    };
+
+    void startLocationUpdates();
+    return () => {
+      isActive = false;
+      locationSubscription?.remove();
+    };
+  }, []);
 
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.vehicle_id === selectedVehicleId) ?? null;
@@ -100,6 +170,45 @@ export default function LiveMapScreen() {
     },
   }), [closeInfoSheet, screenHeight, sheetTranslateY]);
 
+  const routeSheetPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponderCapture: (_, gesture) => gesture.dy > 2 && gesture.dy > Math.abs(gesture.dx),
+    onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 2 && gesture.dy > Math.abs(gesture.dx),
+    onPanResponderTerminationRequest: () => false,
+    onShouldBlockNativeResponder: () => true,
+    onPanResponderMove: (_, gesture) => {
+      routeSheetTranslateY.setValue(Math.max(0, gesture.dy));
+    },
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dy > 100 || gesture.vy > 1.1) {
+        Animated.timing(routeSheetTranslateY, {
+          toValue: screenHeight,
+          duration: 200,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished) {
+            setRoutePickerOpen(false);
+            routeSheetTranslateY.setValue(0);
+          }
+        });
+        return;
+      }
+      Animated.spring(routeSheetTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        speed: 22,
+        bounciness: 4,
+      }).start();
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(routeSheetTranslateY, { toValue: 0, useNativeDriver: true }).start();
+    },
+  }), [routeSheetTranslateY, screenHeight]);
+
+  useEffect(() => {
+    if (routePickerOpen) routeSheetTranslateY.setValue(0);
+  }, [routePickerOpen, routeSheetTranslateY]);
+
   const chooseRoute = (route: CommuterRoute) => {
     setSelectedRouteId(route.route_id);
     setSelectedVehicleId(null);
@@ -123,19 +232,34 @@ export default function LiveMapScreen() {
         selectedVehicleId={selectedVehicleId}
         onSelectRoute={(routeId) => { setSelectedRouteId(routeId); setSelectedVehicleId(null); }}
         onSelectVehicle={chooseVehicle}
+        onMapLoaded={handleMapLoaded}
       />
 
       <View style={[styles.locationHeader, { paddingTop: insets.top + 7 }]}>
-        <Text style={styles.locationCaption}><Text style={styles.locationPin}>⌖</Text>  Your location</Text>
-        <Text style={styles.locationName}>Ormoc City Public Terminal</Text>
+        <Text style={styles.locationCaption}><Text style={styles.locationPin}>⌖</Text>  Your current location</Text>
+        <Text numberOfLines={1} style={styles.locationName}>{currentLocation}</Text>
       </View>
 
-      <Pressable style={[styles.routesButton, { top: insets.top + 64 }]} onPress={() => setRoutePickerOpen(true)} accessibilityRole="button">
-        <Text style={styles.routesButtonIcon}>⌕</Text><Text style={styles.routesButtonText}>{selectedRoute?.destination_name ?? 'Routes'}</Text>
+      <Pressable style={[styles.routesButton, { bottom: Math.max(insets.bottom, 12) + 14 }]} onPress={() => setRoutePickerOpen(true)} accessibilityRole="button" accessibilityLabel="Search routes">
+        <View style={styles.routesButtonContent}>
+          <View style={styles.routesButtonLabel}>
+            <Ionicons name="search-outline" size={21} color="#087D99" />
+            <Text numberOfLines={1} style={styles.routesButtonText}>{selectedRoute?.destination_name ?? 'Routes'}</Text>
+          </View>
+          <Ionicons name="chevron-down" size={19} color="#607681" />
+        </View>
       </Pressable>
 
       {error ? <View style={[styles.errorBanner, { top: insets.top + 112 }]}><Text style={styles.errorText}>{error}</Text><Pressable onPress={() => { void loadRoutes(); void loadVehicles(true); }}><Text style={styles.retryText}>Retry</Text></Pressable></View> : null}
-      {loading && <View style={styles.loadingPill}><ActivityIndicator color="#008DC8" size="small" /><Text style={styles.loadingText}>Loading live map…</Text></View>}
+      {mapLoading && <View style={styles.mapLoadingScreen} accessibilityRole="progressbar" accessibilityLabel="Loading map">
+        <View style={styles.loadingMessage}>
+          <View style={styles.loadingSpinner}>
+            <ActivityIndicator size={54} color="#203F4F" />
+          </View>
+          <Text style={styles.loadingTitle}>Loading Maps, please wait.</Text>
+          <Text style={styles.loadingCaption}>This won't take long...</Text>
+        </View>
+      </View>}
 
       {(selectedRoute || selectedVehicle) && (
         <Animated.View style={[styles.sheetWrapper, { transform: [{ translateY: sheetTranslateY }] }]}>
@@ -161,10 +285,13 @@ export default function LiveMapScreen() {
       <Modal visible={routePickerOpen} transparent animationType="slide" onRequestClose={() => setRoutePickerOpen(false)}>
         <View style={styles.modalBackdrop}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setRoutePickerOpen(false)} accessibilityLabel="Close route selector" />
-          <View style={[styles.routeSheet, { paddingBottom: Math.max(insets.bottom, 14) + 12 }]}>
-            <View style={styles.routeSheetHandle} />
+          <Animated.View {...routeSheetPanResponder.panHandlers} style={[styles.routeSheet, { paddingBottom: Math.max(insets.bottom, 14) + 12, transform: [{ translateY: routeSheetTranslateY }] }]}>
+            <View style={styles.routeSheetDragArea}><View style={styles.routeSheetHandle} /></View>
             <View style={styles.routeSheetHeading}><View><Text style={styles.routeSheetTitle}>Choose your route</Text><Text style={styles.routeSheetSubtitle}>Select a route to see vehicles on the map.</Text></View><Pressable onPress={() => setRoutePickerOpen(false)} style={styles.closeButton}><Text style={styles.closeText}>×</Text></Pressable></View>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.routeList}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.routeList}
+            >
               {routes.map((route) => {
                 const count = vehicles.filter((vehicle) => vehicle.route_id === route.route_id).length;
                 const active = route.route_id === selectedRouteId;
@@ -175,7 +302,7 @@ export default function LiveMapScreen() {
               })}
               {!routes.length && <Text style={styles.noRoutes}>{loading ? 'Loading routes…' : 'No active routes are available.'}</Text>}
             </ScrollView>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </View>
@@ -206,14 +333,18 @@ const styles = StyleSheet.create({
   locationCaption: { color: '#17343D', fontFamily: 'Poppins_400Regular', fontSize: 11 },
   locationPin: { color: '#00A9C7', fontSize: 14 },
   locationName: { color: '#111111', fontFamily: 'Poppins_500Medium', fontSize: 13 },
-  routesButton: { position: 'absolute', right: 12, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 7, maxWidth: 190, paddingHorizontal: 13, borderRadius: 22, backgroundColor: '#FFFFFF', elevation: 4 },
-  routesButtonIcon: { color: '#087D99', fontSize: 22, lineHeight: 24 },
-  routesButtonText: { color: '#18333E', fontFamily: 'Poppins_500Medium', fontSize: 11 },
+  routesButton: { position: 'absolute', left: 16, right: 16, height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15, borderWidth: 1, borderColor: '#D4E4EB', borderRadius: 12, backgroundColor: '#FFFFFF', elevation: 4 },
+  routesButtonContent: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  routesButtonLabel: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  routesButtonText: { flexShrink: 1, color: '#607681', fontFamily: 'Poppins_400Regular', fontSize: 15 },
   errorBanner: { position: 'absolute', left: 12, right: 12, borderRadius: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#FFF3E8', elevation: 3 },
   errorText: { flex: 1, color: '#8E4E00', fontSize: 11 },
   retryText: { marginLeft: 10, color: '#087BA2', fontSize: 11, fontWeight: '600' },
-  loadingPill: { position: 'absolute', top: 118, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#FFFFFF', elevation: 2 },
-  loadingText: { color: '#34515D', fontSize: 10 },
+  mapLoadingScreen: { ...StyleSheet.absoluteFill, zIndex: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: SKY },
+  loadingMessage: { alignItems: 'center' },
+  loadingSpinner: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' },
+  loadingTitle: { marginTop: 5, color: '#23485A', fontFamily: 'Poppins_600SemiBold', fontStyle: 'italic', fontSize: 18 },
+  loadingCaption: { marginTop: 12, color: '#183B4C', fontFamily: 'Poppins_400Regular_Italic', fontSize: 11 },
   sheetWrapper: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   bottomSheet: { paddingTop: 8, paddingHorizontal: 14, borderTopLeftRadius: 17, borderTopRightRadius: 17 },
   sheetHandle: { alignItems: 'center', justifyContent: 'center', height: 40, marginTop: -8, marginBottom: -2 },
@@ -243,7 +374,8 @@ const styles = StyleSheet.create({
   colorSwatch: { width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: '#888888', marginBottom: 2 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(9, 33, 45, 0.34)' },
   routeSheet: { maxHeight: '76%', paddingTop: 8, paddingHorizontal: 18, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: '#F8FCFE' },
-  routeSheetHandle: { alignSelf: 'center', width: 52, height: 5, marginBottom: 15, borderRadius: 4, backgroundColor: '#9FB2B9' },
+  routeSheetDragArea: { alignSelf: 'center', width: '100%', height: 28, alignItems: 'center', justifyContent: 'center' },
+  routeSheetHandle: { width: 52, height: 5, borderRadius: 4, backgroundColor: '#9FB2B9' },
   routeSheetHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   routeSheetTitle: { color: '#183B4C', fontFamily: 'Poppins_600SemiBold', fontSize: 17 },
   routeSheetSubtitle: { marginTop: 2, color: '#607681', fontFamily: 'Poppins_400Regular', fontSize: 10 },
