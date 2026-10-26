@@ -77,6 +77,9 @@ export async function completePasswordReset(
     new_password: newPassword,
     confirm_password: confirmPassword,
   });
+  // A password reset invalidates any previously saved mobile session. The
+  // backend clears its cookie, but native requests authenticate via SecureStore.
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
 /** Reads the stored JWT, if any (e.g. for an app-launch auth check). */

@@ -17,7 +17,7 @@ interface AuthContextValue {
   mustChangePassword: boolean;
   signIn: (fullName?: string | null, mustChangePassword?: boolean) => void;
   completePasswordChange: () => void;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<boolean>;
   signOut: () => Promise<void>;
 }
 
@@ -45,8 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const user = await getCurrentUser();
       const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+      console.info('[AUTH_DIAGNOSTIC] Refreshed password-change flag', user.must_change_password);
       setFullName(name || null);
-      setMustChangePassword(Boolean(user.must_change_password));
+      const requiresPasswordChange = Boolean(user.must_change_password);
+      setMustChangePassword(requiresPasswordChange);
+      return requiresPasswordChange;
     } catch (error) {
       if (isSessionRevoked(error)) {
         await signOut();
@@ -70,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const user = await getCurrentUser();
         if (mounted) {
           const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+          console.info('[AUTH_DIAGNOSTIC] Restored-session password-change flag', user.must_change_password);
           setFullName(name || null);
           setMustChangePassword(Boolean(user.must_change_password));
         }

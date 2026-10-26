@@ -12,7 +12,7 @@ const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
-  const { mustChangePassword, completePasswordChange } = useAuth();
+  const { mustChangePassword, completePasswordChange, refreshUser } = useAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -32,15 +32,23 @@ export default function ChangePasswordScreen() {
     ? !confirm ? 'Confirm your new password.' : next !== confirm ? 'Passwords do not match.' : undefined
     : undefined;
 
+  const returnToProfile = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/tabs/profile' as never);
+    }
+  };
+
   const leave = () => {
     if (mustChangePassword) return;
     if (!dirty) {
-      router.back();
+      returnToProfile();
       return;
     }
     Alert.alert('Exit Change Password?', 'Your unsaved changes will be discarded.', [
       { text: 'Continue editing', style: 'cancel' },
-      { text: 'Exit', style: 'destructive', onPress: () => router.back() },
+      { text: 'Exit', style: 'destructive', onPress: returnToProfile },
     ]);
   };
 
@@ -63,6 +71,26 @@ export default function ChangePasswordScreen() {
       );
     } catch (error: any) {
       const responseData = error?.response?.data;
+      const detail = responseData?.detail || responseData?.error?.message;
+      if (
+        isRequiredChange
+        && error?.response?.status === 403
+        && typeof detail === 'string'
+        && detail.toLowerCase().includes('password changes are unavailable')
+      ) {
+        try {
+          const stillRequiresPasswordChange = await refreshUser();
+          if (!stillRequiresPasswordChange) {
+            completePasswordChange();
+            Alert.alert('Password already set', 'Your password has already been updated. You can continue to the driver app.', [
+              { text: 'Continue', onPress: () => router.replace('/tabs' as never) },
+            ], { cancelable: false });
+            return;
+          }
+        } catch {
+          // Keep the original server error if the account state cannot be refreshed.
+        }
+      }
       const validationErrors = responseData?.error?.details;
       const validationMessage = Array.isArray(validationErrors)
         ? validationErrors.map((item: { field?: string; message?: string }) =>
@@ -72,7 +100,7 @@ export default function ChangePasswordScreen() {
       Alert.alert(
         'Unable to update password',
         validationMessage
-          || responseData?.detail
+          || detail
           || responseData?.error?.message
           || 'Please check your current password and try again.',
       );

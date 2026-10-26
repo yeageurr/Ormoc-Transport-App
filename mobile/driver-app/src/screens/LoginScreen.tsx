@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { loginDriver } from '@/api/authAPI';
+import { getCurrentUser, loginDriver } from '@/api/authAPI';
 import { useAuth } from '@/hooks/useAuth';
 
 const riseIn = (delay: number) => FadeInDown.duration(460).delay(delay);
@@ -43,8 +43,20 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const response = await loginDriver(username.trim(), password);
-      signIn(response.user.first_name, response.must_change_password);
-      if (response.must_change_password) router.replace('/change-password' as never);
+      // Read the persisted account state with the newly saved token. The login
+      // response is a fallback if this follow-up request hits a transient error.
+      const account = await getCurrentUser().catch(() => response.user);
+      const requiresPasswordChange = Boolean(
+        account.must_change_password ?? response.must_change_password,
+      );
+      console.info('[AUTH_DIAGNOSTIC] Login password-change flags', {
+        responseFlag: response.must_change_password,
+        userFlag: response.user.must_change_password,
+        currentAccountFlag: account.must_change_password,
+        requiresPasswordChange,
+      });
+      signIn(account.first_name, requiresPasswordChange);
+      router.replace((requiresPasswordChange ? '/change-password' : '/tabs') as never);
     } catch (loginError) {
       if (axios.isAxiosError(loginError)) {
         const detail = loginError.response?.data?.error?.message || loginError.response?.data?.detail;
