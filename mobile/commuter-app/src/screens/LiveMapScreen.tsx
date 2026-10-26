@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, BackHandler, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, BackHandler, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getCommuterRoutes, getLiveCommuterVehicles, type CommuterRoute, type CommuterVehicle } from '@/api/publicAPI';
@@ -11,6 +11,7 @@ const SKY = '#A9E4FF';
 
 export default function LiveMapScreen() {
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const [routes, setRoutes] = useState<CommuterRoute[]>([]);
   const [vehicles, setVehicles] = useState<CommuterVehicle[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
@@ -18,6 +19,7 @@ export default function LiveMapScreen() {
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const sheetTranslateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const backSubscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -61,6 +63,42 @@ export default function LiveMapScreen() {
     () => vehicles.filter((vehicle) => vehicle.route_id === selectedRouteId),
     [vehicles, selectedRouteId]
   );
+  const closeInfoSheet = useCallback(() => {
+    setSelectedVehicleId(null);
+    setSelectedRouteId(null);
+  }, []);
+  const sheetHandlePanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 3 && gesture.dy > Math.abs(gesture.dx),
+    onPanResponderMove: (_, gesture) => {
+      sheetTranslateY.setValue(Math.max(0, gesture.dy));
+    },
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dy > 90 || gesture.vy > 1.1) {
+        Animated.timing(sheetTranslateY, {
+          toValue: screenHeight,
+          duration: 180,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished) {
+            closeInfoSheet();
+            sheetTranslateY.setValue(0);
+          }
+        });
+        return;
+      }
+      if (Math.abs(gesture.dy) < 8) {
+        closeInfoSheet();
+        return;
+      }
+      Animated.spring(sheetTranslateY, {
+        toValue: 0,
+        useNativeDriver: true,
+        speed: 22,
+        bounciness: 4,
+      }).start();
+    },
+  }), [closeInfoSheet, screenHeight, sheetTranslateY]);
 
   const chooseRoute = (route: CommuterRoute) => {
     setSelectedRouteId(route.route_id);
@@ -100,14 +138,24 @@ export default function LiveMapScreen() {
       {loading && <View style={styles.loadingPill}><ActivityIndicator color="#008DC8" size="small" /><Text style={styles.loadingText}>Loading live map…</Text></View>}
 
       {(selectedRoute || selectedVehicle) && (
-        <LinearGradient colors={['#A8E7FF', '#02A8EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
-          <Pressable accessibilityRole="button" onPress={() => { setSelectedVehicleId(null); setSelectedRouteId(null); }} style={styles.sheetHandle}><View style={styles.handle} /></Pressable>
+        <Animated.View style={[styles.sheetWrapper, { transform: [{ translateY: sheetTranslateY }] }]}>
+          <LinearGradient colors={['#A8E7FF', '#02A8EA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bottomSheet, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
+          <View
+            {...sheetHandlePanResponder.panHandlers}
+            accessible
+            accessibilityRole="button"
+            accessibilityLabel="Swipe down or tap to close route details"
+            style={styles.sheetHandle}
+          >
+            <View pointerEvents="none" style={styles.handle} />
+          </View>
           {selectedVehicle ? (
             <VehicleCard vehicle={selectedVehicle} route={routes.find((route) => route.route_id === selectedVehicle.route_id) ?? selectedRoute} onClose={() => setSelectedVehicleId(null)} />
           ) : selectedRoute ? (
             <RouteCard route={selectedRoute} vehicleCount={routeVehicles.length} onPress={() => setRoutePickerOpen(true)} />
           ) : null}
-        </LinearGradient>
+          </LinearGradient>
+        </Animated.View>
       )}
 
       <Modal visible={routePickerOpen} transparent animationType="slide" onRequestClose={() => setRoutePickerOpen(false)}>
@@ -166,8 +214,9 @@ const styles = StyleSheet.create({
   retryText: { marginLeft: 10, color: '#087BA2', fontSize: 11, fontWeight: '600' },
   loadingPill: { position: 'absolute', top: 118, left: 12, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#FFFFFF', elevation: 2 },
   loadingText: { color: '#34515D', fontSize: 10 },
-  bottomSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 8, paddingHorizontal: 14, borderTopLeftRadius: 17, borderTopRightRadius: 17 },
-  sheetHandle: { alignItems: 'center', justifyContent: 'center', height: 22 },
+  sheetWrapper: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  bottomSheet: { paddingTop: 8, paddingHorizontal: 14, borderTopLeftRadius: 17, borderTopRightRadius: 17 },
+  sheetHandle: { alignItems: 'center', justifyContent: 'center', height: 40, marginTop: -8, marginBottom: -2 },
   handle: { width: 68, height: 5, borderRadius: 4, backgroundColor: '#1B1B1B' },
   routeCard: { minHeight: 86, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 6, backgroundColor: '#EAE7E4' },
   routeEndpoints: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

@@ -47,14 +47,19 @@ export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, sel
         {...(selectedVehicle ? { centerCoordinate: center, zoomLevel: 15 } : bounds ? { bounds, animationMode: 'easeTo' as const } : { centerCoordinate: center, zoomLevel: 12 })}
         animationDuration={450}
       />
-      {routes.map((route, index) => route.route_geometry && (
-        <Mapbox.ShapeSource key={`route-${route.route_id}`} id={`route-${route.route_id}`} shape={route.route_geometry} onPress={() => onSelectRoute(route.route_id)}>
-          <Mapbox.LineLayer
-            id={`route-line-${route.route_id}`}
-            style={{ lineColor: index % 2 ? '#8A55E8' : '#17BFD5', lineWidth: selectedRouteId === route.route_id ? 7 : 4, lineOpacity: selectedRouteId === route.route_id ? 1 : 0.62, lineJoin: 'round', lineCap: 'round' }}
-          />
-        </Mapbox.ShapeSource>
-      ))}
+      {routes.map((route, index) => {
+        if (!route.route_geometry) return null;
+        const isValencia = route.destination_name.toLowerCase().includes('valencia');
+        const routeColor = isValencia ? '#17BFD5' : index % 2 ? '#8A55E8' : '#17BFD5';
+        return (
+          <Mapbox.ShapeSource key={`route-${route.route_id}`} id={`route-${route.route_id}`} shape={route.route_geometry} onPress={() => onSelectRoute(route.route_id)}>
+            <Mapbox.LineLayer
+              id={`route-line-${route.route_id}`}
+              style={{ lineColor: routeColor, lineWidth: selectedRouteId === route.route_id ? 7 : 4, lineOpacity: selectedRouteId === route.route_id ? 1 : 0.62, lineJoin: 'round', lineCap: 'round' }}
+            />
+          </Mapbox.ShapeSource>
+        );
+      })}
       {vehicles.map((vehicle) => (
         <Mapbox.MarkerView key={`vehicle-${vehicle.vehicle_id}`} id={`vehicle-${vehicle.vehicle_id}`} coordinate={[vehicle.longitude, vehicle.latitude]} anchor={{ x: 0.5, y: 0.5 }}>
           <Pressable onPress={() => onSelectVehicle(vehicle.vehicle_id)} style={[styles.vehicleMarker, selectedVehicleId === vehicle.vehicle_id && styles.vehicleMarkerSelected]} accessibilityLabel={`Select vehicle ${vehicle.plate_number}`}>
