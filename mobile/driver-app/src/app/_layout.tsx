@@ -43,8 +43,8 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right', animationDuration: 0 }}>
-      <Stack.Protected guard={isAuthenticated && mustChangePassword}>
-        <Stack.Screen name="change-password" options={{ gestureEnabled: false }} />
+      <Stack.Protected guard={isAuthenticated}>
+        <Stack.Screen name="change-password" options={{ gestureEnabled: !mustChangePassword }} />
       </Stack.Protected>
       <Stack.Protected guard={isAuthenticated && !mustChangePassword}>
         <Stack.Screen name="tabs" />

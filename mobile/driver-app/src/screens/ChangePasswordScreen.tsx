@@ -49,12 +49,18 @@ export default function ChangePasswordScreen() {
     if (!current || !next || !confirm || next !== confirm || !passwordPattern.test(next)) return;
 
     setSaving(true);
+    const isRequiredChange = mustChangePassword;
     try {
       await changePassword(current, next, confirm);
       completePasswordChange();
-      Alert.alert('Password set', 'Your account is ready to use.', [
-        { text: 'Continue', onPress: () => router.replace('/tabs' as never) },
-      ]);
+      Alert.alert(
+        isRequiredChange ? 'Password set' : 'Password changed',
+        isRequiredChange ? 'Your account is ready to use.' : 'Your password was updated.',
+        [{
+          text: 'Continue',
+          onPress: () => isRequiredChange ? router.replace('/tabs' as never) : router.back(),
+        }],
+      );
     } catch (error: any) {
       const responseData = error?.response?.data;
       const validationErrors = responseData?.error?.details;
@@ -81,7 +87,7 @@ export default function ChangePasswordScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {mustChangePassword ? <Text style={styles.title}>Set your password</Text> : <Pressable style={styles.back} onPress={leave}>
           <Ionicons name="arrow-back" size={21} color="#26383E" />
-          <Text style={styles.title}>Set your password</Text>
+          <Text style={styles.title}>Change password</Text>
         </Pressable>}
         <Text style={styles.subtitle}>{mustChangePassword ? 'You must replace your temporary password before using the driver app.' : 'Choose a password you haven’t used before.'}</Text>
         <Text style={styles.requirement}>{passwordRequirement}</Text>
