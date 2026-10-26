@@ -18,6 +18,7 @@ from app.models.queue_reservation import QueueReservation
 from app.models.dispatch_ticket import DispatchTicket
 from app.models.dispatcher_assignment import DispatcherAssignment
 from app.models.dispatcher_profile import DispatcherProfile
+from app.models.passenger_queue_entry import PassengerQueueEntry
 
 __all__ = [
   "Account",
@@ -41,4 +42,5 @@ __all__ = [
   "DispatchTicket",
   "DispatcherAssignment",
   "DispatcherProfile",
+  "PassengerQueueEntry",
 ]

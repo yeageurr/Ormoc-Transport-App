@@ -26,6 +26,14 @@ export type CommuterVehicle = {
   recorded_at: string;
 };
 
+export type TerminalGeofence = {
+  terminal_name: string;
+  min_latitude: number;
+  min_longitude: number;
+  max_latitude: number;
+  max_longitude: number;
+};
+
 const API_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/$/, '');
 
 async function getPublicData<T>(path: string): Promise<T> {
@@ -37,3 +45,4 @@ async function getPublicData<T>(path: string): Promise<T> {
 
 export const getCommuterRoutes = () => getPublicData<CommuterRoute[]>('/routes');
 export const getLiveCommuterVehicles = () => getPublicData<CommuterVehicle[]>('/vehicles/live');
+export const getTerminalGeofence = () => getPublicData<TerminalGeofence>('/terminal-geofence');

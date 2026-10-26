@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { getCommuterRoutes, getLiveCommuterVehicles, type CommuterRoute, type CommuterVehicle } from '@/api/publicAPI';
+import { joinPassengerQueue, restorePassengerQueue, updatePassengerQueuePresence, type PassengerQueueSession } from '@/api/passengerQueueAPI';
+import { getCommuterRoutes, getLiveCommuterVehicles, getTerminalGeofence, type CommuterRoute, type CommuterVehicle, type TerminalGeofence } from '@/api/publicAPI';
 import CommuterLiveMap from '@/components/CommuterLiveMap';
+import PassengerQueueFlow from '@/components/PassengerQueueFlow';
 import { Ionicons } from '@expo/vector-icons';
 
 const SKY = '#A9E4FF';
@@ -42,6 +44,14 @@ const APPROACH_RADIUS_METERS = 500;
 const APPROACH_MIN_CLOSING_DISTANCE_METERS = 20;
 const APPROACH_MIN_SPEED_KMH = 2;
 const LIVE_POSITION_MAX_AGE_MS = 30_000;
+const QUEUE_HEARTBEAT_INTERVAL_MS = 30_000;
+
+function isInsideTerminal(position: CommuterPosition, geofence: TerminalGeofence) {
+  return position.latitude >= geofence.min_latitude
+    && position.latitude <= geofence.max_latitude
+    && position.longitude >= geofence.min_longitude
+    && position.longitude <= geofence.max_longitude;
+}
 
 async function resolveLocationAddress(latitude: number, longitude: number) {
   const token = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
@@ -115,11 +125,18 @@ export default function LiveMapScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [currentLocation, setCurrentLocation] = useState('Finding your current location…');
   const [approachingVehicleIds, setApproachingVehicleIds] = useState<Set<number>>(() => new Set());
+  const [queuePromptVisible, setQueuePromptVisible] = useState(false);
+  const [queueSession, setQueueSession] = useState<PassengerQueueSession | null>(null);
+  const [queueRouteId, setQueueRouteId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const routeSheetTranslateY = useRef(new Animated.Value(0)).current;
   const commuterPositionRef = useRef<CommuterPosition | null>(null);
   const vehicleDistanceSamplesRef = useRef(new Map<number, VehicleDistanceSample>());
+  const terminalGeofenceRef = useRef<TerminalGeofence | null>(null);
+  const queueSessionRef = useRef<PassengerQueueSession | null>(null);
+  const promptDismissedRef = useRef(false);
+  const exitHeartbeatSentRef = useRef(false);
   const mapLoading = loading || !routesLoaded || !mapReady;
 
   const handleMapLoaded = useCallback(() => setMapReady(true), []);
@@ -205,11 +222,32 @@ export default function LiveMapScreen() {
     let geocodeRequestId = 0;
 
     const updateAddress = (location: Location.LocationObject) => {
-      commuterPositionRef.current = {
+      const position: CommuterPosition = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
         accuracy: location.coords.accuracy,
       };
+      commuterPositionRef.current = position;
+      const geofence = terminalGeofenceRef.current;
+      const inside = Boolean(geofence && isInsideTerminal(position, geofence));
+      if (inside) {
+        exitHeartbeatSentRef.current = false;
+        if (!queueSessionRef.current && !promptDismissedRef.current) setQueuePromptVisible(true);
+      } else {
+        promptDismissedRef.current = false;
+        setQueuePromptVisible(false);
+        const activeSession = queueSessionRef.current;
+        if (activeSession && !exitHeartbeatSentRef.current) {
+          exitHeartbeatSentRef.current = true;
+          void updatePassengerQueuePresence(position).then((session) => {
+            if (!session?.active) {
+              queueSessionRef.current = null;
+              setQueueSession(null);
+              setQueueRouteId(null);
+            }
+          }).catch(() => undefined);
+        }
+      }
       if (!isActive || Date.now() - lastGeocodeAt < 30_000) return;
       lastGeocodeAt = Date.now();
       const requestId = ++geocodeRequestId;
@@ -223,6 +261,18 @@ export default function LiveMapScreen() {
 
     const startLocationUpdates = async () => {
       try {
+        const [geofence, restoredQueue] = await Promise.all([
+          getTerminalGeofence().catch(() => null),
+          restorePassengerQueue().catch(() => null),
+        ]);
+        if (!isActive) return;
+        terminalGeofenceRef.current = geofence;
+        if (restoredQueue?.active) {
+          queueSessionRef.current = restoredQueue;
+          setQueueSession(restoredQueue);
+          setQueueRouteId(restoredQueue.route_id);
+        }
+
         let permission = await Location.getForegroundPermissionsAsync();
         if (permission.status !== 'granted' && permission.canAskAgain) {
           permission = await Location.requestForegroundPermissionsAsync();
@@ -247,9 +297,21 @@ export default function LiveMapScreen() {
     };
 
     void startLocationUpdates();
+    const heartbeat = setInterval(() => {
+      const position = commuterPositionRef.current;
+      if (!position || !queueSessionRef.current) return;
+      void updatePassengerQueuePresence(position).then((session) => {
+        if (!session?.active) {
+          queueSessionRef.current = null;
+          setQueueSession(null);
+          setQueueRouteId(null);
+        }
+      }).catch(() => undefined);
+    }, QUEUE_HEARTBEAT_INTERVAL_MS);
     return () => {
       isActive = false;
       locationSubscription?.remove();
+      clearInterval(heartbeat);
     };
   }, []);
 
@@ -348,6 +410,30 @@ export default function LiveMapScreen() {
     if (vehicle.route_id != null) setSelectedRouteId(vehicle.route_id);
   };
 
+  const handleJoinPassengerQueue = async (routeId: number) => {
+    const position = commuterPositionRef.current;
+    const geofence = terminalGeofenceRef.current;
+    if (!position || !geofence || !isInsideTerminal(position, geofence)) {
+      throw new Error('You must be inside the terminal area to join the queue.');
+    }
+    const session = await joinPassengerQueue(routeId, position);
+    queueSessionRef.current = session;
+    exitHeartbeatSentRef.current = false;
+    setQueueSession(session);
+    setQueueRouteId(session.route_id);
+    promptDismissedRef.current = true;
+  };
+
+  const handleNoThanks = () => {
+    promptDismissedRef.current = true;
+    setQueuePromptVisible(false);
+  };
+
+  const handleQueueContinue = () => {
+    promptDismissedRef.current = true;
+    setQueuePromptVisible(false);
+  };
+
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
@@ -372,6 +458,15 @@ export default function LiveMapScreen() {
           <View style={styles.approachingNoticeDot} />
           <Text style={styles.approachingNoticeText}>
             {approachingVehicleIds.size === 1 ? 'A vehicle is approaching nearby' : `${approachingVehicleIds.size} vehicles are approaching nearby`}
+          </Text>
+        </View>
+      )}
+
+      {queueSession?.active && (
+        <View style={[styles.passengerQueueNotice, { top: insets.top + 64 }]} accessibilityLiveRegion="polite">
+          <Ionicons name="people" size={15} color="#17634E" />
+          <Text style={styles.passengerQueueNoticeText}>
+            In queue{routes.find((route) => route.route_id === queueRouteId)?.destination_name ? ` for ${routes.find((route) => route.route_id === queueRouteId)?.destination_name}` : ''}
           </Text>
         </View>
       )}
@@ -441,6 +536,14 @@ export default function LiveMapScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      <PassengerQueueFlow
+        visible={queuePromptVisible}
+        routes={routes}
+        onJoin={handleJoinPassengerQueue}
+        onNoThanks={handleNoThanks}
+        onContinue={handleQueueContinue}
+      />
     </View>
   );
 }
@@ -472,6 +575,8 @@ const styles = StyleSheet.create({
   approachingNotice: { position: 'absolute', left: 16, right: 16, minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, paddingHorizontal: 12, borderWidth: 1, borderColor: '#B9E7D6', borderRadius: 20, backgroundColor: '#F2FFF9', elevation: 4 },
   approachingNoticeDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#0A9D74' },
   approachingNoticeText: { color: '#17634E', fontFamily: 'Poppins_500Medium', fontSize: 11 },
+  passengerQueueNotice: { position: 'absolute', left: 16, right: 16, minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: '#B9E7D6', borderRadius: 20, backgroundColor: '#F2FFF9', elevation: 4 },
+  passengerQueueNoticeText: { color: '#17634E', fontFamily: 'Poppins_500Medium', fontSize: 11 },
   routesButton: { position: 'absolute', left: 16, right: 16, height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15, borderWidth: 1, borderColor: '#D4E4EB', borderRadius: 12, backgroundColor: '#FFFFFF', elevation: 4 },
   routesButtonContent: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   routesButtonLabel: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },

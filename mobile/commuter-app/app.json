@@ -41,7 +41,8 @@
         {
           "locationWhenInUsePermission": "Allow OTA Commuters to use your location to show your current position on the live map."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

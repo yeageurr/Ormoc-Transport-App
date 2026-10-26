@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
 import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
 import { getCurrentDriverReservation, type DriverReservation } from '@/api/queueAPI';
+import { getPassengerQueueCount } from '@/api/passengerQueueAPI';
 import { NotificationBell } from '@/components/NotificationCenter';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -22,6 +23,7 @@ export default function HomeScreen() {
   const [tripError, setTripError] = useState(false);
   const [currentDispatch, setCurrentDispatch] = useState<CurrentDispatch | null>(null);
   const [currentReservation, setCurrentReservation] = useState<DriverReservation | null>(null);
+  const [passengerQueueCount, setPassengerQueueCount] = useState<number | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('checking');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -53,6 +55,14 @@ export default function HomeScreen() {
     }
   }, []);
 
+  const loadPassengerQueueCount = useCallback(async () => {
+    try {
+      setPassengerQueueCount(await getPassengerQueueCount());
+    } catch {
+      setPassengerQueueCount(null);
+    }
+  }, []);
+
   const checkGpsStatus = useCallback(async (requestPermission = false) => {
     try {
       let permission = await Location.getForegroundPermissionsAsync();
@@ -77,11 +87,12 @@ export default function HomeScreen() {
       loadTrips(false),
       loadCurrentDispatch(),
       loadCurrentReservation(),
+      loadPassengerQueueCount(),
       checkGpsStatus(),
       refreshUser().catch(() => undefined),
     ]);
     setRefreshing(false);
-  }, [checkGpsStatus, loadCurrentDispatch, loadCurrentReservation, loadTrips, refreshUser]);
+  }, [checkGpsStatus, loadCurrentDispatch, loadCurrentReservation, loadPassengerQueueCount, loadTrips, refreshUser]);
 
   const handleGpsPress = useCallback(() => {
     if (gpsStatus === 'denied') {
@@ -99,7 +110,10 @@ export default function HomeScreen() {
     void loadTrips();
     void loadCurrentDispatch();
     void loadCurrentReservation();
-  }, [loadCurrentDispatch, loadCurrentReservation, loadTrips]));
+    void loadPassengerQueueCount();
+    const refreshQueueCount = setInterval(() => void loadPassengerQueueCount(), 15_000);
+    return () => clearInterval(refreshQueueCount);
+  }, [loadCurrentDispatch, loadCurrentReservation, loadPassengerQueueCount, loadTrips]));
 
   useEffect(() => { void checkGpsStatus(true); }, [checkGpsStatus]);
 
@@ -183,7 +197,7 @@ export default function HomeScreen() {
           <View style={styles.queueCard}>
             <View style={styles.queueIcon}><Ionicons name="people-outline" size={18} color="#137B70" /></View>
             <Text style={styles.queueLabel}>Passengers on queue</Text>
-            <Text style={styles.queueValue}>—</Text>
+            <Text style={styles.queueValue}>{passengerQueueCount == null ? '—' : passengerQueueCount}</Text>
           </View>
 
           <View style={styles.recentTripsCard}>
