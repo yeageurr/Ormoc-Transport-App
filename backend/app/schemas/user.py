@@ -119,13 +119,34 @@ class EmailOtpVerify(BaseModel):
 
 
 class DriverAdminUpdate(BaseModel):
-  """Admin editing a driver's profile — unlike UserUpdate, this CAN
-  touch contact_number and license fields, since the ticketing officer is the
-  authoritative source for correcting driver records (e.g. a typo'd
-  phone number or license renewal), not the driver themselves."""
-  first_name: str | None = None
-  last_name: str | None = None
-  contact_number: str | None = None
-  email: EmailStr | None = None
+  """Staff may maintain only regulatory driver and vehicle details."""
   license_num: str | None = None
   license_expiry: datetime | None = None
+  vehicle_plate_number: str | None = None
+
+  @field_validator("license_num")
+  @classmethod
+  def validate_license_num(cls, value: str | None) -> str | None:
+    if value is None:
+      raise ValueError("License number cannot be empty")
+    value = value.strip()
+    if not value or len(value) > 13:
+      raise ValueError("License number must be between 1 and 13 characters")
+    return value
+
+  @field_validator("vehicle_plate_number")
+  @classmethod
+  def validate_vehicle_plate_number(cls, value: str | None) -> str | None:
+    if value is None:
+      raise ValueError("Vehicle plate number cannot be empty")
+    value = value.strip().upper()
+    if not value or len(value) > 8:
+      raise ValueError("Vehicle plate number must be between 1 and 8 characters")
+    return value
+
+  @field_validator("license_expiry")
+  @classmethod
+  def validate_license_expiry(cls, value: datetime | None) -> datetime:
+    if value is None:
+      raise ValueError("License expiry date is required")
+    return value

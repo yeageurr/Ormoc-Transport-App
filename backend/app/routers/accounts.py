@@ -3,7 +3,7 @@ import string
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -23,7 +23,7 @@ from app.core.security import hash_password
 from app.core.permissions import require_role
 from app.services.account_service import generate_account_code, generate_driver_id
 from app.enums import AccountRole, AccountStatus, TripStatus, VehicleActivityStatus
-from app.services.account_activity_email import notify_ticketing_officer_user_created, notify_driver_profile_updated
+from app.services.account_activity_email import notify_ticketing_officer_user_created
 
 router = APIRouter()
 PH_TIMEZONE = ZoneInfo("Asia/Manila")
@@ -516,50 +516,68 @@ async def reactivate_driver(
 def ticketing_officer_update_driver(
   user_id: int,
   payload: DriverAdminUpdate,
-  request: Request,
   db: Session = Depends(get_db),
   ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
 ):
-  """Admin-facing edit — unlike PATCH /users/me, this CAN touch
-  contact_number (which also means updating the linked account's
-  username, since drivers log in with their phone number)."""
+  """Update regulatory driver details and the plate of their active vehicle.
+
+  Personal/contact details remain editable only by the driver through
+  PATCH /users/me.
+  """
   driver = db.query(User).filter(User.user_id == user_id).first()
   if driver is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver not found")
 
   update_data = payload.model_dump(exclude_unset=True)
-  old_emails = (driver.email, driver.account.email)
-  profile_changed = any(getattr(driver, field) != value for field, value in update_data.items())
+  if not update_data:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provide at least one field to update")
 
-  if "contact_number" in update_data and update_data["contact_number"] != driver.contact_number:
-    existing = db.query(Account).filter(Account.username == update_data["contact_number"]).first()
-    if existing:
-      raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Contact number already in use")
-    driver.account.username = update_data["contact_number"]
+  changed_fields = []
 
   if "license_num" in update_data and update_data["license_num"] != driver.license_num:
     existing = db.query(User).filter(User.license_num == update_data["license_num"]).first()
     if existing:
       raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="License number already in use")
+    driver.license_num = update_data["license_num"]
+    changed_fields.append("driver license number")
 
-  for field, value in update_data.items():
-    setattr(driver, field, value)
-  if "email" in update_data:
-    driver.account.email = update_data["email"]
+  if "license_expiry" in update_data and update_data["license_expiry"] != driver.license_expiry:
+    driver.license_expiry = update_data["license_expiry"]
+    changed_fields.append("driver license expiry")
 
-  db.commit()
-  db.refresh(driver)
+  if "vehicle_plate_number" in update_data:
+    vehicle = driver.active_vehicle
+    if vehicle is None:
+      raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This driver has no active vehicle assigned")
+
+    plate_number = update_data["vehicle_plate_number"]
+    if plate_number != vehicle.plate_number:
+      existing_vehicle = db.query(Vehicle).filter(
+        func.upper(Vehicle.plate_number) == plate_number,
+        Vehicle.vehicle_id != vehicle.vehicle_id,
+      ).first()
+      if existing_vehicle:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Plate number already registered")
+      vehicle.plate_number = plate_number
+      changed_fields.append("vehicle plate number")
+
+  if changed_fields:
+    db.commit()
+    db.refresh(driver)
 
   from app.services.audit_service import log_action
   from app.enums import AuditAction
   log_action(
     db, ticketing_officer.account_id, AuditAction.UPDATE, "users", driver.user_id,
-    f"Updated driver profile for {driver.first_name} {driver.last_name}",
+    (
+      f"Updated {', '.join(changed_fields)} for {driver.first_name} {driver.last_name}"
+      if changed_fields else f"No changes to regulatory details for {driver.first_name} {driver.last_name}"
+    ),
   )
-  if profile_changed:
-    notify_driver_profile_updated((*old_emails, driver.email, driver.account.email), request)
 
-  return driver
+  response = UserResponse.model_validate(driver).model_dump()
+  response["vehicle_plate_number"] = driver.active_vehicle.plate_number.upper() if driver.active_vehicle else None
+  return response
 
 
 @router.delete("/drivers/{user_id}")

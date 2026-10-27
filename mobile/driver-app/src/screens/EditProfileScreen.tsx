@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StatusBar, StyleSheet, Text, TextInput, View, StyleProp, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
 import { getMyProfile, resendMyEmailOtp, updateMyProfile, verifyMyEmailOtp, type DriverProfile } from '@/api/profileAPI';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -12,7 +11,6 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const { refreshUser, signOut } = useAuth();
   const [profile, setProfile] = useState<DriverProfile | null>(null);
-  const [dispatch, setDispatch] = useState<CurrentDispatch | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
@@ -48,15 +46,14 @@ export default function EditProfileScreen() {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([getMyProfile(), getCurrentDispatch().catch(() => null)])
-      .then(([currentProfile, currentDispatch]) => {
+    void getMyProfile()
+      .then((currentProfile) => {
         if (!active) return;
         setProfile(currentProfile);
         setFirstName(currentProfile.first_name);
         setLastName(currentProfile.last_name);
         setContactNumber(currentProfile.contact_number);
         setEmail(currentProfile.email ?? '');
-        setDispatch(currentDispatch);
       })
       .catch(() => Alert.alert('Unable to load profile', 'Check your connection and try again.'))
       .finally(() => { if (active) setLoading(false); });
@@ -285,7 +282,7 @@ export default function EditProfileScreen() {
                 />
               </View>
               <View style={styles.fields}>
-                <FormField label="Vehicle Plate No." placeholderText="ABC-1234" value={dispatch?.vehicle_plate ?? 'Currently not assigned'} editable={false} icon="car-outline" />
+                <FormField label="Vehicle Plate No." placeholderText="ABC-1234" value={profile?.vehicle_plate_number?.toUpperCase() ?? 'Currently not assigned'} editable={false} icon="car-outline" />
               </View>
               <View style={styles.fields}>
                 <FormField label="License No." placeholderText="A01-23-456789" value={profile.license_num} editable={false} icon="card-outline" />

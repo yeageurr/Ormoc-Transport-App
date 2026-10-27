@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import AddUserModal from "../../components/modals/AddUserModal";
+import EditDriverDetailsModal from "../../components/modals/EditDriverDetailsModal";
 import UserActionConfirmModal from "../../components/modals/UserActionConfirmModal";
 import Toast from "../../components/ui/Toast";
 import {
@@ -8,7 +9,7 @@ import {
   reactivateDriver,
   deleteDriver,
 } from "../../api/usersAPI";
-import { Power, RotateCcw, Trash2, Users as UsersIcon } from 'lucide-react';
+import { Pencil, Power, RotateCcw, Trash2, Users as UsersIcon } from 'lucide-react';
 import { AdminSearchField, adminCreateButtonClassName, adminFilterClassName } from "../../components/ui/AdminToolbarControls";
 import setTitle from "../../components/pageTitle";
 
@@ -23,6 +24,7 @@ export default function Users() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [actioningId, setActioningId] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
+  const [editingDriver, setEditingDriver] = useState(null);
   const [toast, setToast] = useState(null);
 
   const UserAccountStatus = [
@@ -173,6 +175,13 @@ export default function Users() {
                     <td className="px-[9px] py-0">
                       <div className="flex items-center gap-2">
                         <button
+                          title="Edit license and vehicle plate"
+                          aria-label={`Edit license and vehicle plate for ${driver.first_name} ${driver.last_name}`}
+                          className="rounded p-1.5 text-[#0879ac] transition-colors hover:bg-[#e8f6fc] disabled:opacity-40"
+                          disabled={actioningId === driver.user_id}
+                          onClick={() => setEditingDriver(driver)}
+                        ><Pencil size={15} /></button>
+                        <button
                           title={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
                           aria-label={driver.account?.status === "active" ? "Suspend User" : "Reactivate User"}
                           className="rounded p-1.5 text-[#b57600] transition-colors hover:bg-[#fff4d9] disabled:opacity-40"
@@ -205,6 +214,15 @@ export default function Users() {
           }}
           onError={(message) => showToast("error", message)}
         />
+        {editingDriver && <EditDriverDetailsModal
+          driver={editingDriver}
+          onClose={() => setEditingDriver(null)}
+          onSuccess={async () => {
+            await loadDrivers();
+            setEditingDriver(null);
+            showToast("success", `${editingDriver.first_name} ${editingDriver.last_name}'s license and vehicle details were updated.`);
+          }}
+        />}
         <UserActionConfirmModal
           action={pendingAction?.type}
           driver={pendingAction?.driver}

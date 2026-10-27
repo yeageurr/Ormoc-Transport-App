@@ -24,9 +24,7 @@ export const getBorrowableVehicles = async () => {
   return response.data;
 };
 
-// Admin: edit a driver's profile — unlike the driver's own self-edit,
-// this CAN touch contact_number (also updates their login username) and
-// license fields.
+// Admin: edit regulatory details only (driver license and active vehicle plate).
 export const updateDriver = async (userId, payload) => {
   const response = await axiosClient.patch(`/accounts/drivers/${userId}`, payload);
   return response.data;
