@@ -46,7 +46,7 @@ export default function Login() {
 
     try {
       await login(username, password);
-      navigate('/dashboard');
+      navigate('/users');
     } catch (err) {
       setError(err.message || "Login failed. Please try again.");
     } finally {
