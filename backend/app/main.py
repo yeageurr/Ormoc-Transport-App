@@ -14,7 +14,11 @@ load_dotenv()
 
 APP_NAME = os.getenv("APP_NAME", "OrmocTransportApp")
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
+ALLOWED_ORIGINS = [
+  origin.strip().rstrip("/")
+  for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+  if origin.strip()
+]
 logger = logging.getLogger(__name__)
 
 
