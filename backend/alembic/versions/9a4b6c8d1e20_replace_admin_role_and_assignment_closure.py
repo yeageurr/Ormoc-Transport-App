@@ -22,16 +22,13 @@ def upgrade() -> None:
   # continue to reference the same people.
   if bind.dialect.name == "postgresql":
     op.execute(
-      "UPDATE accounts SET role = 'TICKETING_OFFICER' "
-      "WHERE role = 'ADMIN'"
-    )
-    op.execute(
       "CREATE TYPE account_role_without_admin AS ENUM "
       "('DRIVER', 'DISPATCHER', 'TICKETING_OFFICER')"
     )
     op.execute(
       "ALTER TABLE accounts ALTER COLUMN role TYPE account_role_without_admin "
-      "USING role::text::account_role_without_admin"
+      "USING (CASE role::text WHEN 'ADMIN' THEN 'TICKETING_OFFICER' "
+      "ELSE role::text END)::account_role_without_admin"
     )
     op.execute("DROP TYPE account_role")
     op.execute("ALTER TYPE account_role_without_admin RENAME TO account_role")
@@ -219,14 +216,14 @@ def downgrade() -> None:
   if bind.dialect.name == "postgresql":
     # Downgrade maps ticketing officers back to admin because their original
     # role cannot be distinguished after the upgrade.
-    op.execute("UPDATE accounts SET role = 'ADMIN' WHERE role = 'TICKETING_OFFICER'")
     op.execute(
       "CREATE TYPE account_role_with_admin AS ENUM "
       "('ADMIN', 'DRIVER', 'DISPATCHER', 'TICKETING_OFFICER')"
     )
     op.execute(
       "ALTER TABLE accounts ALTER COLUMN role TYPE account_role_with_admin "
-      "USING role::text::account_role_with_admin"
+      "USING (CASE role::text WHEN 'TICKETING_OFFICER' THEN 'ADMIN' "
+      "ELSE role::text END)::account_role_with_admin"
     )
     op.execute("DROP TYPE account_role")
     op.execute("ALTER TYPE account_role_with_admin RENAME TO account_role")
