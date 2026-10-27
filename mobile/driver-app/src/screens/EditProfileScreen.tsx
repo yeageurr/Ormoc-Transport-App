@@ -5,12 +5,14 @@ import { ActivityIndicator, Alert, Modal, Pressable, StatusBar, StyleSheet, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getMyProfile, resendMyEmailOtp, updateMyProfile, verifyMyEmailOtp, type DriverProfile } from '@/api/profileAPI';
+import { getMyDriverVehicle } from '@/api/routesAPI';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { refreshUser, signOut } = useAuth();
   const [profile, setProfile] = useState<DriverProfile | null>(null);
+  const [vehiclePlateNumber, setVehiclePlateNumber] = useState<string | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [contactNumber, setContactNumber] = useState('');
@@ -46,10 +48,14 @@ export default function EditProfileScreen() {
 
   useEffect(() => {
     let active = true;
-    void getMyProfile()
-      .then((currentProfile) => {
+    void Promise.all([
+      getMyProfile(),
+      getMyDriverVehicle().catch(() => null),
+    ])
+      .then(([currentProfile, currentVehicle]) => {
         if (!active) return;
         setProfile(currentProfile);
+        setVehiclePlateNumber(currentVehicle?.plate_number ?? currentProfile.vehicle_plate_number ?? null);
         setFirstName(currentProfile.first_name);
         setLastName(currentProfile.last_name);
         setContactNumber(currentProfile.contact_number);
@@ -282,7 +288,7 @@ export default function EditProfileScreen() {
                 />
               </View>
               <View style={styles.fields}>
-                <FormField label="Vehicle Plate No." placeholderText="ABC-1234" value={profile?.vehicle_plate_number?.toUpperCase() ?? 'Currently not assigned'} editable={false} icon="car-outline" />
+                <FormField label="Vehicle Plate No." placeholderText="ABC-1234" value={(vehiclePlateNumber ?? profile?.vehicle_plate_number)?.toUpperCase() ?? 'Currently not assigned'} editable={false} icon="car-outline" />
               </View>
               <View style={styles.fields}>
                 <FormField label="License No." placeholderText="A01-23-456789" value={profile.license_num} editable={false} icon="card-outline" />
