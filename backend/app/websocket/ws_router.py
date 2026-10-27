@@ -11,6 +11,13 @@ router = APIRouter()
 
 
 def _extract_token_from_cookie(websocket: WebSocket) -> str | None:
+  # Native clients cannot rely on the browser's httpOnly cookie jar. They
+  # authenticate the socket with the same short-lived bearer token used by
+  # their REST requests.
+  authorization = websocket.headers.get("authorization")
+  if authorization and authorization.startswith("Bearer "):
+    return authorization.split(" ", 1)[1]
+
   raw = websocket.cookies.get("access_token")
   if not raw:
     return None

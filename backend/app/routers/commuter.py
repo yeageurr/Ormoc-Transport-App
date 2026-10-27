@@ -18,10 +18,57 @@ from app.models.terminal import Terminal
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
 from app.models.passenger_queue_entry import PassengerQueueEntry
+from app.models.user import User
 from app.services.geofence_service import is_inside_geofence
+from app.websocket.connection_manager import manager
 
 router = APIRouter()
 PH = ZoneInfo("Asia/Manila")
+
+
+def _active_passenger_count(db: Session, route_id: int, now: datetime) -> int:
+  cutoff = now - timedelta(minutes=2)
+  return int(db.query(func.count(PassengerQueueEntry.passenger_queue_entry_id)).filter(
+    PassengerQueueEntry.route_id == route_id,
+    PassengerQueueEntry.is_active.is_(True),
+    PassengerQueueEntry.last_seen_at >= cutoff,
+  ).scalar() or 0)
+
+
+async def _push_passenger_queue_count(db: Session, route_id: int) -> None:
+  """Push the authoritative count to today's drivers assigned to this route."""
+  now_ph = datetime.now(PH)
+  day_start = now_ph.replace(hour=0, minute=0, second=0, microsecond=0)
+  day_end = day_start + timedelta(days=1)
+  assignments = (
+    db.query(Account.account_id, DispatchLog.driver_id, DispatchLog.route_id, DispatchLog.effective_on)
+    .join(User, User.account_id == Account.account_id)
+    .join(DispatchLog, DispatchLog.driver_id == User.user_id)
+    .filter(
+      Account.role == AccountRole.DRIVER,
+      DispatchLog.effective_on >= day_start,
+      DispatchLog.effective_on < day_end,
+    )
+    .order_by(DispatchLog.effective_on.desc())
+    .all()
+  )
+  # Match get_driver_passenger_queue_count: a driver's latest daily dispatch
+  # determines the route whose queue count they see.
+  latest_route_by_driver: dict[int, tuple[int, int]] = {}
+  for account_id, driver_id, assigned_route_id, _ in assignments:
+    latest_route_by_driver.setdefault(driver_id, (account_id, assigned_route_id))
+  recipients = [
+    account_id for account_id, assigned_route_id in latest_route_by_driver.values()
+    if assigned_route_id == route_id
+  ]
+  if recipients:
+    await manager.broadcast_to(recipients, {
+      "type": "passenger_queue_count",
+      "data": {
+        "route_id": route_id,
+        "count": _active_passenger_count(db, route_id, datetime.now(timezone.utc)),
+      },
+    })
 
 
 class CommuterRouteResponse(BaseModel):
@@ -183,7 +230,7 @@ def get_current_passenger_queue(
 
 
 @router.post("/passenger-queue", response_model=PassengerQueueResponse, status_code=status.HTTP_201_CREATED)
-def join_passenger_queue(payload: PassengerQueueJoinRequest, db: Session = Depends(get_db)):
+async def join_passenger_queue(payload: PassengerQueueJoinRequest, db: Session = Depends(get_db)):
   route = db.query(Route).filter(Route.route_id == payload.route_id, Route.is_active.is_(True)).first()
   if route is None or route.origin is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected route is unavailable")
@@ -197,6 +244,10 @@ def join_passenger_queue(payload: PassengerQueueJoinRequest, db: Session = Depen
     if entry and entry.is_active and entry.last_seen_at >= now - timedelta(minutes=2) and entry.route_id != route.route_id:
       raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Leave your current passenger queue before selecting another route")
 
+  previous_route_id = entry.route_id if entry is not None else None
+  previously_counted_active = bool(
+    entry is not None and entry.is_active and entry.last_seen_at >= now - timedelta(minutes=2)
+  )
   if entry is None:
     entry = PassengerQueueEntry(
       session_token=secrets.token_urlsafe(32),
@@ -215,13 +266,20 @@ def join_passenger_queue(payload: PassengerQueueJoinRequest, db: Session = Depen
     entry.last_seen_at = now
     entry.left_at = None
 
+  affected_route_ids = set()
+  if not previously_counted_active:
+    affected_route_ids.add(route.route_id)
+  if previously_counted_active and previous_route_id is not None and previous_route_id != route.route_id:
+    affected_route_ids.add(previous_route_id)
   db.commit()
   db.refresh(entry)
+  for affected_route_id in affected_route_ids:
+    await _push_passenger_queue_count(db, affected_route_id)
   return PassengerQueueResponse(session_token=entry.session_token, route_id=entry.route_id, active=True)
 
 
 @router.post("/passenger-queue/{session_token}/heartbeat", response_model=PassengerQueueResponse)
-def passenger_queue_heartbeat(
+async def passenger_queue_heartbeat(
   session_token: str,
   payload: PassengerQueueHeartbeatRequest,
   db: Session = Depends(get_db),
@@ -230,6 +288,7 @@ def passenger_queue_heartbeat(
   if entry is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Passenger queue entry was not found")
   now = datetime.now(timezone.utc)
+  was_counted_active = entry.is_active and entry.last_seen_at >= now - timedelta(minutes=2)
   terminal = db.query(Terminal).filter(Terminal.terminal_id == entry.terminal_id).first()
   if terminal is None or not is_inside_geofence(payload.latitude, payload.longitude, terminal):
     entry.is_active = False
@@ -239,6 +298,9 @@ def passenger_queue_heartbeat(
     entry.last_seen_at = now
     entry.left_at = None
   db.commit()
+  is_counted_active = entry.is_active and entry.last_seen_at >= now - timedelta(minutes=2)
+  if was_counted_active != is_counted_active:
+    await _push_passenger_queue_count(db, entry.route_id)
   return PassengerQueueResponse(session_token=entry.session_token, route_id=entry.route_id, active=entry.is_active)
 
 
@@ -259,14 +321,5 @@ def get_driver_passenger_queue_count(
   )
   if dispatch is None:
     return PassengerQueueCountResponse(route_id=None, count=0)
-  cutoff = datetime.now(timezone.utc) - timedelta(minutes=2)
-  count = (
-    db.query(func.count(PassengerQueueEntry.passenger_queue_entry_id))
-    .filter(
-      PassengerQueueEntry.route_id == dispatch.route_id,
-      PassengerQueueEntry.is_active.is_(True),
-      PassengerQueueEntry.last_seen_at >= cutoff,
-    )
-    .scalar()
-  ) or 0
-  return PassengerQueueCountResponse(route_id=dispatch.route_id, count=int(count))
+  count = _active_passenger_count(db, dispatch.route_id, datetime.now(timezone.utc))
+  return PassengerQueueCountResponse(route_id=dispatch.route_id, count=count)

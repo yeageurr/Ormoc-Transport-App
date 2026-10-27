@@ -15,6 +15,13 @@ export interface Trip {
   average_speed_km: number | null;
   distance_traveled_km: number | null;
   is_complete: boolean;
+  pause_events: TripPauseEvent[];
+}
+
+export interface TripPauseEvent {
+  pause_event_id: number;
+  paused_at: string;
+  resumed_at: string | null;
 }
 
 export interface DriverTrip extends Trip {
@@ -104,6 +111,16 @@ export async function startTrip(routeId: number, direction: Trip['status']): Pro
 
 export async function endTrip(tripId: string): Promise<Trip> {
   const { data } = await authClient.post<Trip>(`/trips/${tripId}/end`);
+  return data;
+}
+
+export async function pauseTrip(tripId: string): Promise<TripPauseEvent> {
+  const { data } = await authClient.post<TripPauseEvent>(`/trips/${tripId}/pause`);
+  return data;
+}
+
+export async function resumeTrip(tripId: string): Promise<TripPauseEvent> {
+  const { data } = await authClient.post<TripPauseEvent>(`/trips/${tripId}/resume`);
   return data;
 }
 

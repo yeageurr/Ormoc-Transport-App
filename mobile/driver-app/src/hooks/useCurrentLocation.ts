@@ -7,6 +7,15 @@ export interface DriverLocation {
   latitude: number;
   longitude: number;
   speedKph: number | null;
+  geofence?: {
+    currently_inside?: boolean;
+    status_changed?: boolean;
+    vehicle_status?: string;
+    elapsed_seconds?: number;
+    remaining_seconds?: number;
+    dwell_threshold_seconds?: number;
+    error?: string;
+  };
 }
 
 /** Sends foreground location fixes for the driver's linked vehicle. */
@@ -26,13 +35,14 @@ export function useCurrentLocation() {
 
       const sendLocation = (position: Location.LocationObject) => {
         if (!active) return;
-        setLocation({
+        const fix = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           speedKph: position.coords.speed === null
             ? null
             : Math.max(0, position.coords.speed * 3.6),
-        });
+        };
+        setLocation((current) => ({ ...fix, geofence: current?.geofence }));
         void updateCurrentLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -44,8 +54,13 @@ export function useCurrentLocation() {
         void pingGeofence({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
-        }).catch(() => {
-          // Geofence updates are best-effort while location/network is unavailable.
+        }).then((geofence) => {
+          if (active) setLocation((current) => current ? ({ ...current, geofence }) : current);
+        }).catch((error: any) => {
+          // Keep the location watcher alive, but expose the error on the trip
+          // screen so terminal-readiness failures aren't silently hidden.
+          const detail = error?.response?.data?.detail || error?.message || 'Unable to confirm terminal geofence.';
+          if (active) setLocation((current) => current ? ({ ...current, geofence: { error: detail } }) : current);
         });
       };
 

@@ -17,12 +17,14 @@ from app.models.trip import Trip
 from app.models.user import User
 from app.models.route import Route
 from app.models.vehicle import Vehicle
+from app.models.trip_pause_event import TripPauseEvent
 from app.schemas.trip import (
   AdminTripResponse,
   DriverDailySummary,
   DriverTripResponse,
   TripDriverSummary,
   TripResponse,
+  TripPauseEventResponse,
   TripStart,
 )
 
@@ -137,6 +139,75 @@ def start_trip(
   return trip
 
 
+@router.post("/{trip_id}/pause", response_model=TripPauseEventResponse, status_code=status.HTTP_201_CREATED)
+def pause_trip(
+  trip_id: int,
+  db: Session = Depends(get_db),
+  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Record a pause marker without suspending GPS collection."""
+  trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
+  if trip is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
+  driver = get_driver_profile(db, current_driver)
+  trip_driver = _driver_for_trip(trip)
+  if trip_driver is None or trip_driver.user_id != driver.user_id:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+  if trip.is_complete:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trip is already complete")
+
+  open_pause = db.query(TripPauseEvent).filter(
+    TripPauseEvent.trip_id == trip_id,
+    TripPauseEvent.resumed_at.is_(None),
+  ).first()
+  if open_pause:
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This trip is already paused")
+
+  pause_event = TripPauseEvent(trip_id=trip_id, paused_at=datetime.now(timezone.utc))
+  db.add(pause_event)
+  db.commit()
+  db.refresh(pause_event)
+  from app.services.audit_service import log_action
+  from app.enums import AuditAction
+  log_action(db, current_driver.account_id, AuditAction.UPDATE, "trips", trip_id, "Paused trip; GPS recording continues")
+  return pause_event
+
+
+@router.post("/{trip_id}/resume", response_model=TripPauseEventResponse)
+def resume_trip(
+  trip_id: int,
+  db: Session = Depends(get_db),
+  current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
+):
+  """Close the latest pause marker; trip GPS collection has remained active."""
+  trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
+  if trip is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+
+  driver = get_driver_profile(db, current_driver)
+  trip_driver = _driver_for_trip(trip)
+  if trip_driver is None or trip_driver.user_id != driver.user_id:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+  if trip.is_complete:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trip is already complete")
+
+  pause_event = db.query(TripPauseEvent).filter(
+    TripPauseEvent.trip_id == trip_id,
+    TripPauseEvent.resumed_at.is_(None),
+  ).order_by(TripPauseEvent.paused_at.desc()).first()
+  if pause_event is None:
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This trip is not paused")
+
+  pause_event.resumed_at = datetime.now(timezone.utc)
+  db.commit()
+  db.refresh(pause_event)
+  from app.services.audit_service import log_action
+  from app.enums import AuditAction
+  log_action(db, current_driver.account_id, AuditAction.UPDATE, "trips", trip_id, "Resumed trip after recorded pause")
+  return pause_event
+
+
 @router.post("/{trip_id}/end", response_model=TripResponse)
 def end_trip(
   trip_id: int,
@@ -170,6 +241,13 @@ def end_trip(
   )
   trip.distance_traveled_km = _gps_distance_km(gps_points)
   trip.is_complete = True
+
+  open_pause = db.query(TripPauseEvent).filter(
+    TripPauseEvent.trip_id == trip_id,
+    TripPauseEvent.resumed_at.is_(None),
+  ).first()
+  if open_pause:
+    open_pause.resumed_at = trip.time_arrived
 
   vehicle = _vehicle_for_trip(trip)
   if vehicle is not None:
@@ -210,6 +288,7 @@ def list_my_trips(
       average_speed_km=trip.average_speed_km,
       distance_traveled_km=trip.distance_traveled_km,
       is_complete=trip.is_complete,
+      pause_events=trip.pause_events,
       vehicle_plate=_vehicle_for_trip(trip).plate_number if _vehicle_for_trip(trip) else None,
       route_label=_route_label(trip, terminal_name),
       route_distance_km=(

@@ -6,7 +6,7 @@ import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, StatusBar,
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getDriverRoutes, getMyDriverVehicle, type DriverRoute, type DriverVehicleStatus } from '@/api/routesAPI';
-import { endTrip, getTripLogs, startTrip, type DriverTrip, type Trip } from '@/api/tripsAPI';
+import { endTrip, getTripLogs, pauseTrip, resumeTrip, startTrip, type DriverTrip, type Trip } from '@/api/tripsAPI';
 import { logTripGpsPing } from '@/api/gpsAPI';
 import DriverMap from '@/components/DriverMap';
 import { useDriverLocation } from '@/hooks/useDriverLocation';
@@ -120,6 +120,7 @@ export default function RecordTripScreen() {
   const [completedTripSummary, setCompletedTripSummary] = useState<DriverTrip | null>(null);
   const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [isUpdatingPause, setIsUpdatingPause] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [locationAddress, setLocationAddress] = useState('Finding nearby address…');
   const [sheetHeight, setSheetHeight] = useState(302);
@@ -290,11 +291,43 @@ export default function RecordTripScreen() {
     ? `Ormoc City Terminal ↔ ${selectedRoute.destination.name}`
     : 'Select a route';
   const isReady = vehicle?.activity_status === 'loading';
+  const isTripPaused = Boolean(activeTrip?.pause_events?.some((event) => event.resumed_at == null));
   const canStart = selectedRouteId != null && vehicle != null && (selectedDirection === 'returning' || isReady);
   const averageDuration = selectedRoute?.average_travel_duration ?? null;
   const routeDistance = selectedRoute?.distance ?? null;
   const averageDurationText = averageDuration == null ? '— min' : `${Math.round(averageDuration)} min`;
   const routeDistanceText = routeDistance == null ? '— km' : `${Number(routeDistance).toFixed(1)} km`;
+
+  const terminalReadinessMessage = location?.geofence?.error
+    ? `Terminal check failed: ${location.geofence.error}`
+    : location?.geofence?.currently_inside === false
+      ? 'GPS reports you outside the terminal geofence. Check the device location and terminal boundary.'
+      : location?.geofence?.currently_inside && (location.geofence.remaining_seconds ?? 0) > 0
+        ? `Inside the terminal geofence. Keep the vehicle here for ${Math.ceil(location.geofence.remaining_seconds ?? 0)} more seconds.`
+        : location?.geofence?.currently_inside
+          ? 'Inside the terminal geofence. Waiting for the vehicle readiness status.'
+          : 'Waiting for a GPS check from the terminal geofence.';
+
+  const handleTogglePause = useCallback(async () => {
+    if (!activeTrip || isUpdatingPause) return;
+    setIsUpdatingPause(true);
+    setMessage(null);
+    try {
+      const event = isTripPaused
+        ? await resumeTrip(String(activeTrip.trip_id))
+        : await pauseTrip(String(activeTrip.trip_id));
+      setActiveTrip((current) => current ? ({
+        ...current,
+        pause_events: isTripPaused
+          ? (current.pause_events ?? []).map((item) => item.pause_event_id === event.pause_event_id ? event : item)
+          : [...(current.pause_events ?? []), event],
+      }) : current);
+    } catch (error: any) {
+      setMessage(error?.response?.data?.detail || 'Unable to update the trip pause. Try again.');
+    } finally {
+      setIsUpdatingPause(false);
+    }
+  }, [activeTrip, isTripPaused, isUpdatingPause]);
 
   const handleFinish = useCallback(async () => {
     if (!activeTrip) return;
@@ -309,6 +342,9 @@ export default function RecordTripScreen() {
         route_label: existingTrip?.route_label ?? routeLabel,
         route_distance_km: existingTrip?.route_distance_km ?? routeDistance,
       };
+      // Suggest the opposite direction for the next leg of a round trip.
+      // The driver can still change it with the direction selector.
+      setSelectedDirection(finished.status === 'outgoing' ? 'returning' : 'outgoing');
       setTripLogs((logs) => [completedTrip, ...logs.filter((trip) => trip.trip_id !== finished.trip_id)]);
       setActiveTrip(null);
       setFinishOpen(false);
@@ -367,7 +403,7 @@ export default function RecordTripScreen() {
         {activeTrip ? (
           <>
             <Text style={styles.sheetTitle}>Trip in progress, take care!</Text>
-            <Text style={styles.sheetSubtitle}>Stay alert on the road.</Text>
+            <Text style={styles.sheetSubtitle}>{isTripPaused ? 'Trip paused. GPS location logging remains active.' : 'Stay alert on the road.'}</Text>
             <View style={styles.routeCard}>
               <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
               <View style={styles.directionRow}>
@@ -381,8 +417,8 @@ export default function RecordTripScreen() {
               </View>
             </View>
             <View style={styles.actionRow}>
-              <Pressable accessibilityLabel="Pause trip is not available" onPress={() => setMessage('Pausing a trip is not available yet. GPS tracking remains active.')} style={styles.pauseButton}>
-                <Text style={styles.pauseText}>Pause</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={isTripPaused ? 'Resume trip; GPS logging is active' : 'Pause trip; GPS logging will continue'} disabled={isUpdatingPause} onPress={() => void handleTogglePause()} style={[styles.pauseButton, isUpdatingPause && styles.disabledButton]}>
+                {isUpdatingPause ? <ActivityIndicator size="small" color="#087C73" /> : <Text style={styles.pauseText}>{isTripPaused ? 'Resume' : 'Pause'}</Text>}
               </Pressable>
               <Pressable onPress={() => setFinishOpen(true)} style={styles.endButton}>
                 <Text style={styles.endText}>End Trip</Text>
@@ -392,7 +428,7 @@ export default function RecordTripScreen() {
         ) : (
           <>
             <Text style={styles.sheetTitle}>Heads up!</Text>
-            <Text style={styles.sheetSubtitle}>{selectedDirection === 'returning' ? 'Returning trips can start from your current location.' : isReady ? 'Your vehicle is ready at the terminal.' : 'Wait at the terminal until your vehicle is ready.'}</Text>
+            <Text style={styles.sheetSubtitle}>{selectedDirection === 'returning' ? 'Returning trips can start from your current location.' : isReady ? 'Your vehicle is ready at the terminal.' : terminalReadinessMessage}</Text>
             <View style={styles.routeCard}>
               <Pressable disabled={Boolean(activeTrip)} onPress={() => setRoutePickerOpen(true)} accessibilityRole="button" style={styles.routeSelectButton}>
                 <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>

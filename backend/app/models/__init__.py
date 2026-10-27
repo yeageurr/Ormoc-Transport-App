@@ -19,6 +19,7 @@ from app.models.dispatch_ticket import DispatchTicket
 from app.models.dispatcher_assignment import DispatcherAssignment
 from app.models.dispatcher_profile import DispatcherProfile
 from app.models.passenger_queue_entry import PassengerQueueEntry
+from app.models.trip_pause_event import TripPauseEvent
 
 __all__ = [
   "Account",
@@ -43,4 +44,5 @@ __all__ = [
   "DispatcherAssignment",
   "DispatcherProfile",
   "PassengerQueueEntry",
+  "TripPauseEvent",
 ]

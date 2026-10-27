@@ -15,6 +15,7 @@ if TYPE_CHECKING:
   from app.models.vehicle import Vehicle
   from app.models.dispatch_ticket import DispatchTicket
   from app.models.route import Route
+  from app.models.trip_pause_event import TripPauseEvent
 
 
 class Trip(Base):
@@ -53,4 +54,7 @@ class Trip(Base):
   vehicle: Mapped["Vehicle | None"] = relationship(back_populates="direct_trips")
   dispatch_ticket: Mapped["DispatchTicket | None"] = relationship(back_populates="trip")
   gps_logs: Mapped[list["GpsLog"]] = relationship(back_populates="trip")
+  pause_events: Mapped[list["TripPauseEvent"]] = relationship(
+    back_populates="trip", cascade="all, delete-orphan", order_by="TripPauseEvent.paused_at"
+  )
   incidents: Mapped[list["Incident"]] = relationship(back_populates="trip")

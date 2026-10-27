@@ -42,7 +42,11 @@ def process_vehicle_position(
   last_event = _get_last_event(db, vehicle.vehicle_id, terminal.terminal_id)
   was_inside = last_event is not None and last_event.event_type == GeofenceEventType.ENTER
 
-  result = {"currently_inside": currently_inside, "status_changed": False}
+  result = {
+    "currently_inside": currently_inside,
+    "status_changed": False,
+    "dwell_threshold_seconds": DWELL_THRESHOLD_SECONDS,
+  }
 
   if currently_inside and not was_inside:
     # Just crossed into the geofence — record the entry, don't act yet.
@@ -68,6 +72,8 @@ def process_vehicle_position(
       event_time=now,
     )
     db.add(event)
+    if vehicle.activity_status == VehicleActivityStatus.LOADING:
+      vehicle.activity_status = VehicleActivityStatus.ACTIVE
     db.commit()
     result["event"] = "exited"
     return result
@@ -80,6 +86,7 @@ def process_vehicle_position(
 
     elapsed_seconds = (now - entered_at).total_seconds()
     result["elapsed_seconds"] = elapsed_seconds
+    result["remaining_seconds"] = max(0, DWELL_THRESHOLD_SECONDS - elapsed_seconds)
 
     if elapsed_seconds >= DWELL_THRESHOLD_SECONDS and vehicle.activity_status == VehicleActivityStatus.ACTIVE:
       vehicle.activity_status = VehicleActivityStatus.LOADING

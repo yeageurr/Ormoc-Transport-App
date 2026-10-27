@@ -64,4 +64,4 @@ def geofence_ping(
     )
 
   result = process_vehicle_position(db, vehicle, payload.latitude, payload.longitude, terminal)
-  return result
+  return {**result, "vehicle_status": vehicle.activity_status.value}

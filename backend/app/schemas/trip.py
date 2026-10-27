@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.enums import TripStatus
 
@@ -9,6 +9,14 @@ class TripStart(BaseModel):
   """Driver starts one route leg in the selected direction."""
   route_id: int
   status: TripStatus
+
+
+class TripPauseEventResponse(BaseModel):
+  model_config = ConfigDict(from_attributes=True)
+
+  pause_event_id: int
+  paused_at: datetime
+  resumed_at: datetime | None = None
 
 
 class TripEnd(BaseModel):
@@ -33,6 +41,7 @@ class TripResponse(BaseModel):
   average_speed_km: float | None = None
   distance_traveled_km: float | None = None
   is_complete: bool
+  pause_events: list[TripPauseEventResponse] = Field(default_factory=list)
 
 
 class DriverTripResponse(TripResponse):

@@ -11,6 +11,7 @@ import { getCurrentDriverReservation, type DriverReservation } from '@/api/queue
 import { getPassengerQueueCount } from '@/api/passengerQueueAPI';
 import { NotificationBell } from '@/components/NotificationCenter';
 import { useAuth } from '@/hooks/useAuth';
+import { useDriverPassengerQueueUpdates } from '@/hooks/useWebsocket';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 type GpsStatus = 'checking' | 'connected' | 'unavailable' | 'denied';
@@ -62,6 +63,10 @@ export default function HomeScreen() {
       setPassengerQueueCount(null);
     }
   }, []);
+
+  useDriverPassengerQueueUpdates(useCallback((count: number) => {
+    setPassengerQueueCount(count);
+  }, []));
 
   const checkGpsStatus = useCallback(async (requestPermission = false) => {
     try {

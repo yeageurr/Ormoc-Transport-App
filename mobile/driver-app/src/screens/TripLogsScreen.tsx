@@ -100,6 +100,12 @@ function formatOverlayTime(value: string) {
   }).format(new Date(value));
 }
 
+function formatPauseLength(pausedAt: string, resumedAt: string | null) {
+  if (!resumedAt) return 'In progress';
+  const minutes = Math.max(0, Math.round((new Date(resumedAt).getTime() - new Date(pausedAt).getTime()) / 60000));
+  return `${minutes} min${minutes === 1 ? '' : 's'}`;
+}
+
 function measureGpsPathKm(points: TripGpsLog[]) {
   const toRadians = (degrees: number) => degrees * Math.PI / 180;
   let distanceKm = 0;
@@ -368,7 +374,7 @@ export default function TripLogsScreen() {
                   <Ionicons name="close" size={22} color="#153D3C" />
                 </Pressable>
               </View>
-              <View style={styles.historyDetails}>
+              <ScrollView style={styles.historyDetails} contentContainerStyle={styles.historyDetailsContent} showsVerticalScrollIndicator={false}>
                 <Text style={styles.historyTitle}>Trip History</Text>
                 <Text style={styles.historyDate}>{formatOverlayDate(selectedTrip.time_departed)} - {formatOverlayTime(selectedTrip.time_departed)}</Text>
                 <View style={styles.historySummaryCard}>
@@ -385,7 +391,23 @@ export default function TripLogsScreen() {
                     <HistoryMetric icon="navigate" value={selectedTrip.status === 'returning' ? 'Returning' : 'Outgoing'} label="Direction" />
                   </View>
                 </View>
-              </View>
+                {(selectedTrip.pause_events?.length ?? 0) > 0 && (
+                  <View style={styles.pauseHistory}>
+                    <Text style={styles.pauseHistoryTitle}>Pause history</Text>
+                    {selectedTrip.pause_events.map((event, index) => (
+                      <View key={event.pause_event_id} style={styles.pauseHistoryRow}>
+                        <Ionicons name="pause-circle-outline" size={15} color="#C5F3E8" />
+                        <Text style={styles.pauseHistoryText}>
+                          {formatOverlayTime(event.paused_at)} – {event.resumed_at ? formatOverlayTime(event.resumed_at) : 'Still paused'}
+                          {' · '}{formatPauseLength(event.paused_at, event.resumed_at)}
+                        </Text>
+                        <Text style={styles.pauseHistoryIndex}>{index + 1}</Text>
+                      </View>
+                    ))}
+                    <Text style={styles.pauseGpsNote}>GPS pings continued during each pause.</Text>
+                  </View>
+                )}
+              </ScrollView>
             </View>
           </View>
         )}
@@ -496,7 +518,8 @@ const styles = StyleSheet.create({
   mapEmptyState: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 32, backgroundColor: '#E9E6E1' },
   mapEmptyText: { color: '#607176', fontSize: 13, textAlign: 'center' },
   mapRetry: { color: '#008F83', fontSize: 13, fontWeight: '700' },
-  historyDetails: { paddingHorizontal: 10, paddingTop: 9, paddingBottom: 12, backgroundColor: '#075E56' },
+  historyDetails: { maxHeight: '48%', backgroundColor: '#075E56' },
+  historyDetailsContent: { paddingHorizontal: 10, paddingTop: 9, paddingBottom: 12 },
   historyTitle: { color: '#FFFFFF', fontSize: 19, lineHeight: 23, fontWeight: '700' },
   historyDate: { color: '#E2F1EE', fontSize: 10, lineHeight: 15 },
   historySummaryCard: { marginTop: 13, borderRadius: 6, paddingHorizontal: 16, paddingTop: 15, paddingBottom: 13, backgroundColor: '#E7EFED' },
@@ -509,4 +532,10 @@ const styles = StyleSheet.create({
   historyMetricValue: { minHeight: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 14, paddingHorizontal: 8, backgroundColor: '#D4DFE9' },
   historyMetricText: { color: '#26383B', fontSize: 10, fontWeight: '600' },
   historyMetricLabel: { marginTop: 3, color: '#526165', fontSize: 8, fontStyle: 'italic', textAlign: 'center' },
+  pauseHistory: { marginTop: 8, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.1)' },
+  pauseHistoryTitle: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
+  pauseHistoryRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 5 },
+  pauseHistoryText: { flex: 1, color: '#E2F1EE', fontSize: 9 },
+  pauseHistoryIndex: { color: '#C5F3E8', fontSize: 9, fontWeight: '700' },
+  pauseGpsNote: { marginTop: 5, color: '#C5F3E8', fontSize: 8, fontStyle: 'italic' },
 });

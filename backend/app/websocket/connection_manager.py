@@ -19,7 +19,12 @@ class ConnectionManager:
   async def send_to(self, account_id: int, message: dict):
     connection = self.active_connections.get(account_id)
     if connection:
-      await connection.send_json(message)
+      try:
+        await connection.send_json(message)
+      except Exception:
+        # A dropped mobile connection must not make the API request that
+        # triggered a broadcast fail after its database transaction committed.
+        self.disconnect(account_id)
 
   async def broadcast_to(self, account_ids: list[int], message: dict):
     for account_id in account_ids:
