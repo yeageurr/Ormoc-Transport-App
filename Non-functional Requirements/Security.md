@@ -2,7 +2,9 @@
 
 **Document ID:** SRS-NFR-SEC  
 **Version:** 1.0  
-**Review date:** 2026-10-25
+**Review date:** 2026-10-28
+
+> **Implementation baseline (reviewed 2026-10-28):** The current product direction is no-dispatch, while the repository still retains legacy Dispatcher and Ticketing Officer roles and routes. The implementation notes below describe source code, not a verified production deployment.
 
 ## 1. Purpose and scope
 
@@ -23,9 +25,10 @@ This document specifies security-related non-functional requirements for authent
 
 ## 3. Implementation status
 
-- **Implemented:** The backend login request accepts a portal identifier and rejects role mismatches, bad credentials, and inactive accounts with the same generic response. Ticketing web clients identify as `ticketing_officer`; the driver app identifies as `driver`. Session restoration checks the expected portal role. Backend endpoints also enforce role permissions. Accounts requiring initial password setup are blocked from protected REST and WebSocket operations until the password is changed.
-- **Pending:** The Dispatcher mobile app has not been created. When implemented, it must identify as `dispatcher` for login and session restoration.
-- **Partial:** The three-attempt login limit and OTP sending cooldown/limit are agreed requirements, but shared enforcement across all relevant flows remains pending. OTP attempt limits are intentionally disabled for development.
+- **Implemented in source:** `/auth/login` checks the requested portal role and returns the same generic response for missing/invalid credentials, role mismatch, and inactive accounts. `/auth/me` validates portal-role consistency. Protected REST endpoints and WebSockets enforce account status and the initial-password gate. Passwords are hashed, OTP values are stored hashed, and native clients store their bearer token in secure storage.
+- **Partial:** the Dispatcher app does not exist. The no-dispatch management portal still authenticates using `ticketing_officer`. The driver WebSocket now accepts bearer authorization; its server-side connection registry is in-process and is not shared across multiple workers/instances.
+- **Not implemented:** three-failed-login throttling and the complete OTP send policy (three sends, then a three-minute cooldown). A 60-second resend cooldown exists. OTP verification attempts are limited in some flows (for example, email-change verification), so “unlimited OTP failures” is not accurate as a global statement. SMS OTP/provider is absent.
+- **Deployment caveat:** source inspection does not confirm deployed CORS, secrets, rate limiting at an edge proxy, TLS configuration, or database revision. Verify those in the target hosting environment.
 
 ## 4. Security design note
 
@@ -33,6 +36,7 @@ The portal identifier supplied by a client selects the role expected for that lo
 
 ## 5. Related requirements
 
-- [Authentication and Accounts](../Functional%20Requirements/Authentication%20and%20Accounts.md)
-- [Ticketing Officer Portal](../Functional%20Requirements/Ticketing%20Officer%20Portal.md)
-- [Dispatcher Assignments](../Functional%20Requirements/Dispatcher%20Assignments.md)
+- [Current no-dispatch Authentication and Accounts](../Functional%20Requirements/No%20Dispatch%20Ticketing/Authentication%20and%20Accounts.md)
+- [Prior dispatch-ticketing Authentication and Accounts](../Functional%20Requirements/With%20Dispatch%20Ticketing%20Feature/Authentication%20and%20Accounts.md)
+- [Prior Ticketing Officer Portal](../Functional%20Requirements/With%20Dispatch%20Ticketing%20Feature/Ticketing%20Officer%20Portal.md)
+- [Prior Dispatcher Assignments](../Functional%20Requirements/With%20Dispatch%20Ticketing%20Feature/Dispatcher%20Assignments.md)
