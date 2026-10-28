@@ -117,7 +117,9 @@ def collect_rows() -> tuple[list[dict[str, object]], dict[str, int]]:
         trips = db.query(Trip).filter(Trip.is_complete.is_(True), Trip.time_arrived.isnot(None)).all()
         for trip in trips:
             dispatch = trip.dispatch_log
-            route = dispatch.route if dispatch else None
+            # Current route-based trips store their route directly; retain the
+            # dispatch relationship as a fallback for older historical rows.
+            route = trip.route or (dispatch.route if dispatch else None)
             if route is None:
                 skipped["missing_route_stats"] += 1
                 continue

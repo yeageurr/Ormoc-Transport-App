@@ -35,6 +35,7 @@ Driver sign-in and password setup, home dashboard, route-based trip start/end, t
 
 - **Present:** Driver authentication/recovery, initial-password gate, dashboard, route/direction trip selection, trip completion/summary, trip logs with GPS-path overlay, profile editing, notifications, and foreground trip tracking.
 - **Present:** trip screen records pause/resume markers while GPS sampling continues. Home receives passenger-count WebSocket events and retains a 15-second REST refresh fallback.
+- **Present:** the collapsed active-trip card requests an ETA endpoint and can display a labeled distance/speed baseline. It shows `--` if no recent trip GPS fix or usable route geometry is available; this is not trained ML.
 - **Partial:** passenger count still depends on a legacy dispatch-log route. GPS samples are attempted about every five seconds while the trip screen is active, but failed uploads are dropped; background/offline replay is absent. The profile still exposes a Change Password action although the backend restricts that endpoint to initial setup.
 - **Legacy UI:** reservation/My Tickets and incident screens/code remain in the source despite being outside the intended no-dispatch scope.
 - **Pending:** resolve route source and password-screen mismatch, implement durable/background GPS, and remove or formally retain legacy screens.

@@ -7,6 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { getDriverRoutes, getMyDriverVehicle, type DriverRoute, type DriverVehicleStatus } from '@/api/routesAPI';
 import { endTrip, getTripLogs, pauseTrip, resumeTrip, startTrip, type DriverTrip, type Trip } from '@/api/tripsAPI';
+import { getTripEta } from '@/api/etaAPI';
 import { logTripGpsPing } from '@/api/gpsAPI';
 import DriverMap from '@/components/DriverMap';
 import { useDriverLocation } from '@/hooks/useDriverLocation';
@@ -122,6 +123,8 @@ export default function RecordTripScreen() {
   const [isFinishing, setIsFinishing] = useState(false);
   const [isUpdatingPause, setIsUpdatingPause] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+  const [etaSource, setEtaSource] = useState<string>('unavailable');
   const [locationAddress, setLocationAddress] = useState('Finding nearby address…');
   const [sheetHeight, setSheetHeight] = useState(302);
   const [sheetCollapsed, setSheetCollapsed] = useState(false);
@@ -212,6 +215,33 @@ export default function RecordTripScreen() {
     if (!activeTrip) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
+  }, [activeTrip?.trip_id]);
+  useEffect(() => {
+    setEtaMinutes(null);
+    setEtaSource('unavailable');
+    if (!activeTrip) return;
+    let mounted = true;
+    const refreshEta = () => {
+      void getTripEta(activeTrip.trip_id)
+        .then((result) => {
+          if (mounted) {
+            setEtaMinutes(result.eta_minutes);
+            setEtaSource(result.source);
+          }
+        })
+        .catch(() => {
+          if (mounted) {
+            setEtaMinutes(null);
+            setEtaSource('unavailable');
+          }
+        });
+    };
+    refreshEta();
+    const interval = setInterval(refreshEta, 15_000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [activeTrip?.trip_id]);
   useEffect(() => {
     if (!activeTrip) return;
@@ -394,7 +424,9 @@ export default function RecordTripScreen() {
               <Text style={styles.collapsedRouteTitle} numberOfLines={1}>{routeLabel}</Text>
               <View style={styles.collapsedEta}>
                 <Text style={styles.collapsedEtaLabel}>ETA</Text>
-                <Text style={styles.collapsedEtaValue}>--</Text>
+                <Text style={styles.collapsedEtaValue}>
+                  {etaMinutes == null ? '--' : `~${Math.max(0, Math.round(etaMinutes))} min`}
+                </Text>
               </View>
             </View>
           )}
@@ -404,6 +436,13 @@ export default function RecordTripScreen() {
           <>
             <Text style={styles.sheetTitle}>Trip in progress, take care!</Text>
             <Text style={styles.sheetSubtitle}>{isTripPaused ? 'Trip paused. GPS location logging remains active.' : 'Stay alert on the road.'}</Text>
+            <Text style={styles.etaNote}>
+              {etaSource === 'trained_model'
+                ? 'ETA prediction based on collected trip data.'
+                : etaSource === 'distance_speed_fallback'
+                  ? 'Basic distance-and-speed estimate while trip data is collected.'
+                  : 'ETA needs a recent GPS fix and route geometry.'}
+            </Text>
             <View style={styles.routeCard}>
               <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
               <View style={styles.directionRow}>
@@ -622,6 +661,7 @@ const styles = StyleSheet.create({
 
   sheetTitle: { color: '#F4FFFC', fontFamily: 'Poppins_500Medium', fontSize: 18, fontWeight: '700' },
   sheetSubtitle: { marginTop: 2, marginBottom: 9, color: '#ffffff', fontFamily: 'Poppins_400Regular', fontSize: 10 },
+  etaNote: { marginTop: -5, marginBottom: 7, color: '#D1E4E1', fontFamily: 'Poppins_400Regular', fontSize: 8, fontStyle: 'italic', textAlign: 'center' },
   routeSelectButton: { minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
   routeCard: { height: 125, borderRadius: 5, paddingHorizontal: 13, paddingTop: 8, paddingBottom: 8, backgroundColor: '#F2F7F5', alignItems: 'center', justifyContent: 'center' },
   directionRow: { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', marginTop: 2 },

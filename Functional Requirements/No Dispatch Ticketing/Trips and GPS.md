@@ -32,6 +32,7 @@ Each trip is a one-way leg associated directly with a Driver, vehicle, route, an
 - **SRS-ND-TRIP-FR-007:** The system shall expose ordered GPS samples to the Driver's trip-history detail view so the app can draw the traveled path.
 - **SRS-ND-TRIP-FR-008:** GPS samples shall be accepted only for an active trip owned by the authenticated Driver; completed trips shall reject further samples.
 - **SRS-ND-TRIP-FR-009:** The app shall not treat an old location as a new fix when the operating system cannot provide a current position.
+- **SRS-ND-TRIP-FR-010:** During an active trip, the app shall display an ETA based on route-matched current location when the required data is available. It shall identify a distance/speed fallback as an estimate, reserve “trained model” labeling for a validated trained model, and show unavailable state when the GPS fix or route geometry is missing or stale.
 
 ## 4. Implementation status (source review: 2026-10-28)
 
@@ -39,5 +40,6 @@ Each trip is a one-way leg associated directly with a Driver, vehicle, route, an
 - **Present with limits:** while the active-trip screen is foregrounded and location permission/services are available, the app requests high-accuracy fixes about every five seconds and posts them. Backend checks trip ownership and rejects completed-trip samples; distance calculation ignores small stationary drift and implausible jumps.
 - **Known operational issue:** outgoing readiness requires geofence/vehicle processing to reach `loading`. A reported test stayed at “Waiting for the terminal” while physically inside; this is not verified resolved.
 - **Partial:** failed GPS uploads are discarded; no durable offline queue, idempotent retry, background/screen-off capture, or automatic reconnect sync exists.
-- **Legacy/pending:** nullable dispatch/ticket columns and code paths remain, though new trip start is direct route-based and does not consume tickets. ETA prediction remains unimplemented.
+- **ETA status:** authenticated `GET /eta/trip/{trip_id}` now map-matches the latest trip GPS fix to route geometry and returns a clearly labeled distance/speed baseline. The Driver shows it in the collapsed trip card and displays `--` when the fix is stale or route data is unavailable. This is not a trained ML prediction.
+- **Legacy/pending:** nullable dispatch/ticket columns and code paths remain, though new trip start is direct route-based and does not consume tickets. Training and serving the learned ETA model remains pending until sufficient reviewed real data is available.
 

@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from app.routers import auth, accounts, vehicles, dispatch, trips, gps, incidents, geofence, notifications, audit_logs, terminals, dashboard, routes, users, dispatcher_assignments, dispatch_tickets, queue_reservations, commuter
+from app.routers import auth, accounts, vehicles, dispatch, trips, gps, incidents, geofence, notifications, audit_logs, terminals, dashboard, routes, users, dispatcher_assignments, dispatch_tickets, queue_reservations, commuter, eta
 from app.websocket import ws_router
 from app.core.exceptions import register_exception_handlers
 from app.jobs.close_dispatcher_assignments import close_expired_dispatcher_assignments
@@ -74,6 +74,7 @@ app.include_router(vehicles.router, prefix="/vehicles", tags=["vehicles"])
 app.include_router(dispatch.router, prefix="/dispatch", tags=["dispatch"])
 app.include_router(trips.router, prefix="/trips", tags=["trips"])
 app.include_router(gps.router, prefix="/gps", tags=["gps"])
+app.include_router(eta.router, prefix="/eta", tags=["eta"])
 app.include_router(incidents.router, prefix="/incidents", tags=["incidents"])
 app.include_router(geofence.router, prefix="/geofence", tags=["geofence"])
 app.include_router(ws_router.router, tags=["websocket"])

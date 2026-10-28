@@ -1,12 +1,12 @@
 # ETA prediction workspace
 
-This folder owns ETA data export, feature preparation, model training, and local inference. The production app does not load models directly from this directory; model serving/API integration is a separate backend step.
+This folder owns ETA data export, feature preparation, model training, and local inference. The backend now exposes the authenticated ETA endpoint and shares its inference service with the local prediction command. It uses a transparent fallback until a trained artifact is available.
 
 ## Current data status
 
-No ETA export or trained model exists yet. The exporter creates `data/trips_export.csv` when run; generated exports and model binaries are git-ignored because the export contains sensitive location history. The app should continue showing `ETA --` until a model or a deliberate fallback is connected to the driver UI. Do not use fabricated or synthetic rows to claim model accuracy.
+No ETA export or trained model exists yet. The exporter creates `data/trips_export.csv` when run; generated exports and model binaries are git-ignored because the export contains sensitive location history. The Driver app now displays an explicitly labeled distance/speed baseline when a fresh GPS fix and route geometry are available; it is not presented as a trained ML result. Do not use fabricated or synthetic rows to claim model accuracy.
 
-The existing driver location hook currently sends `/gps/current` and `/geofence/ping`. It does not persist live trip fixes to `gps_logs`, even though the backend has a trip GPS logging endpoint. Training needs active-trip GPS snapshots, plus route geometry and completed-trip arrival times. Wire periodic, authenticated GPS logging during active trips before expecting the exporter to produce a useful dataset.
+The active trip screen writes authenticated GPS fixes to `gps_logs` about every five seconds while foregrounded. Upload failures are dropped, so some trips may have incomplete trails. The exporter supports both current direct route-based trips and legacy dispatch-linked trips. Training still needs enough completed trips with usable GPS snapshots, route geometry, and arrival times.
 
 ## Layout
 
@@ -14,7 +14,7 @@ The existing driver location hook currently sends `/gps/current` and `/geofence/
 - `src/export_training_data.py`: reads completed trips and their persisted GPS logs from the configured backend database, map-matches each fix to the assigned route geometry, and computes the remaining-time target.
 - `src/features.py`: single source of truth for input validation and engineered model features.
 - `src/train_model.py`: trip-grouped holdout evaluation, training, and versioned `joblib` artifact output.
-- `src/predict.py`: validates live feature values, loads a compatible local model when one exists, otherwise uses a transparent distance/speed estimate.
+- `src/predict.py`: calls the same inference service as FastAPI, loading a compatible local model when one exists, otherwise returning a transparent distance/speed estimate.
 - `models/`: generated trained artifacts; no trained model is checked in yet.
 - `notebooks/`: optional exploratory analysis after real data accumulates.
 
@@ -78,6 +78,6 @@ Until a trained artifact exists, inference uses `remaining_distance / usable_spe
 
 - The trainer requires the real `gps_logs` collection and accurate route geometry. The current mobile app does not yet write active-trip samples there.
 - The CSV is an intermediate artifact. Keep it access-controlled and remove or aggregate it if it contains sensitive trip traces.
-- `predict.py` is library/CLI code only. It is not imported by FastAPI or the driver app yet; the production integration should expose an authenticated ETA endpoint that computes route progress from the current GPS fix and returns ETA plus its source.
-- The native driver UI should keep `--` if no valid remaining distance or speed is available. Do not present average route duration as live ETA.
-- Track held-out MAE and compare it with the distance/speed fallback before enabling the trained model for drivers. Re-train only when enough new, reviewed trips are available.
+- FastAPI exposes authenticated `GET /eta/trip/{trip_id}` for the active Driver trip. It map-matches the newest trip GPS fix to the route geometry and returns the estimate, source, and location timestamp. The Driver refreshes this endpoint during the active trip and displays `--` when data is stale or route geometry is unavailable.
+- The native driver UI keeps `--` if there is no fresh GPS fix, route geometry match, or usable speed. Do not present average route duration as a live ETA by itself.
+- Training requires at least 30 distinct trips and 200 snapshots, and validation keeps trips grouped to avoid leaking the same trip into training and validation. Track held-out MAE against the distance/speed fallback before enabling a trained artifact. When deploying a model, set `ETA_MODEL_PATH` and install `ai_ml/requirements.txt` in the backend environment.
