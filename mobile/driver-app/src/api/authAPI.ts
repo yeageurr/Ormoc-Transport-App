@@ -54,16 +54,24 @@ export async function loginDriver(
   return response.data;
 }
 
-export async function requestPasswordResetCode(email: string): Promise<void> {
-  await authClient.post('/auth/password-reset/request-code', { email });
+function passwordResetDestination(contact: string): { email: string } | { phone: string } {
+  const value = contact.trim();
+  return value.includes('@') ? { email: value.toLowerCase() } : { phone: value };
 }
 
-export async function resendPasswordResetCode(email: string): Promise<void> {
-  await authClient.post('/auth/password-reset/resend-code', { email });
+export async function requestPasswordResetCode(contact: string): Promise<void> {
+  await authClient.post('/auth/password-reset/request-code', passwordResetDestination(contact));
 }
 
-export async function verifyPasswordResetCode(email: string, code: string): Promise<string> {
-  const { data } = await authClient.post<{ reset_token: string }>('/auth/password-reset/verify-code', { email, code });
+export async function resendPasswordResetCode(contact: string): Promise<void> {
+  await authClient.post('/auth/password-reset/resend-code', passwordResetDestination(contact));
+}
+
+export async function verifyPasswordResetCode(contact: string, code: string): Promise<string> {
+  const { data } = await authClient.post<{ reset_token: string }>('/auth/password-reset/verify-code', {
+    ...passwordResetDestination(contact),
+    code,
+  });
   return data.reset_token;
 }
 

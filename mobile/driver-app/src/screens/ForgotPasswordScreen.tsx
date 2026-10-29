@@ -24,13 +24,13 @@ import {
   verifyPasswordResetCode,
 } from '@/api/authAPI';
 
-type ResetStep = 'email' | 'code' | 'password';
+type ResetStep = 'contact' | 'code' | 'password';
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
-  const [step, setStep] = useState<ResetStep>('email');
-  const [email, setEmail] = useState('');
+  const [step, setStep] = useState<ResetStep>('contact');
+  const [contact, setContact] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -45,16 +45,21 @@ export default function ForgotPasswordScreen() {
     reason?.response?.data?.detail ?? reason?.response?.data?.error?.message ?? fallback;
 
   const sendCode = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(normalizedEmail)) {
-      setError('Enter a valid email address.');
+    const normalizedContact = contact.trim();
+    const phoneDigits = normalizedContact.replace(/\D/g, '');
+    const validEmail = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(normalizedContact);
+    const validPhone = (phoneDigits.length === 11 && phoneDigits.startsWith('09'))
+      || (phoneDigits.length === 12 && phoneDigits.startsWith('63'))
+      || (phoneDigits.length === 10 && phoneDigits.startsWith('9'));
+    if (!normalizedContact || (normalizedContact.includes('@') ? !validEmail : !validPhone)) {
+      setError('Enter a valid email address or Philippine mobile number.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      await requestPasswordResetCode(normalizedEmail);
-      setEmail(normalizedEmail);
+      await requestPasswordResetCode(normalizedContact);
+      setContact(normalizedContact);
       setCode(['', '', '', '', '', '']);
       setStep('code');
     } catch (reason) {
@@ -83,13 +88,13 @@ export default function ForgotPasswordScreen() {
   const verifyCode = async () => {
     const value = code.join('');
     if (value.length !== 6) {
-      setError('Enter all 6 digits from the email.');
+      setError('Enter all 6 digits from the message.');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const token = await verifyPasswordResetCode(email, value);
+      const token = await verifyPasswordResetCode(contact, value);
       setResetToken(token);
       setStep('password');
     } catch (reason) {
@@ -103,9 +108,9 @@ export default function ForgotPasswordScreen() {
     setLoading(true);
     setError('');
     try {
-      await resendPasswordResetCode(email);
+      await resendPasswordResetCode(contact);
       setCode(['', '', '', '', '', '']);
-      Alert.alert('Code sent', `A new reset code was sent to ${email}.`);
+      Alert.alert('Code sent', `A new reset code was sent to ${contact}.`);
       requestAnimationFrame(() => codeInputs.current[0]?.focus());
     } catch (reason) {
       setError(apiError(reason, 'Unable to resend the code. Please try again.'));
@@ -140,13 +145,13 @@ export default function ForgotPasswordScreen() {
   const goBack = () => {
     setError('');
     if (step === 'password') setStep('code');
-    else if (step === 'code') setStep('email');
+    else if (step === 'code') setStep('contact');
     else router.back();
   };
 
   const titles: Record<ResetStep, string> = {
-    email: 'Forgot your password?',
-    code: 'Verify your email',
+    contact: 'Forgot your password?',
+    code: 'Verify your contact',
     password: 'Create a new password',
   };
 
@@ -172,27 +177,27 @@ export default function ForgotPasswordScreen() {
           <Text style={styles.title}>{titles[step]}</Text>
 
           <View style={styles.card}>
-            {step === 'email' ? (
+            {step === 'contact' ? (
               <>
-                <Text style={styles.fieldLabel}>Email</Text>
+                <Text style={styles.fieldLabel}>Email or mobile number</Text>
                 <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
-                  <Ionicons name="mail-outline" size={18} color={COLORS.ink} style={styles.inputIcon} />
+                  <Ionicons name={contact.includes('@') ? 'mail-outline' : 'phone-portrait-outline'} size={18} color={COLORS.ink} style={styles.inputIcon} />
                   <TextInput
                     style={styles.input}
-                    value={email}
+                    value={contact}
                     onChangeText={(value) => {
-                      setEmail(value);
+                      setContact(value);
                       setError('');
                     }}
-                    placeholder="Enter your email address"
+                    placeholder="Enter email or 09XXXXXXXXX"
                     placeholderTextColor={COLORS.placeholder}
-                    keyboardType="email-address"
+                    keyboardType="default"
                     autoCapitalize="none"
                     autoCorrect={false}
                     editable={!loading}
                     returnKeyType="send"
                     onSubmitEditing={() => void sendCode()}
-                    accessibilityLabel="Email address"
+                    accessibilityLabel="Email address or mobile number"
                   />
                 </View>
                 <ActionButton title="Send OTP" loading={loading} onPress={() => void sendCode()} />
@@ -204,7 +209,7 @@ export default function ForgotPasswordScreen() {
 
             {step === 'code' ? (
               <>
-                <Text style={styles.stepDescription}>Enter the 6-digit OTP sent to {email}</Text>
+                <Text style={styles.stepDescription}>Enter the 6-digit OTP sent to {contact}</Text>
                 <View style={styles.codeRow}>
                   {code.map((digit, index) => (
                     <TextInput

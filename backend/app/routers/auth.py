@@ -27,10 +27,52 @@ from app.core.permissions import get_account_for_password_setup, require_role
 from app.enums import AccountRole, AccountStatus, AuditAction
 from app.services.audit_service import log_action
 from app.services.email_service import EmailDeliveryError, send_password_reset_code, send_password_reset_email
+from app.services.sms_service import SmsDeliveryError, send_password_reset_sms
 from app.services.account_activity_email import notify_password_changed
 
 router = APIRouter()
 PASSWORD_RECOVERY_ROLES = (AccountRole.DRIVER, AccountRole.TICKETING_OFFICER)
+
+
+def _verification_query(db: Session, destination: PasswordResetCodeRequest | PasswordResetCodeVerify):
+  query = (
+    db.query(PasswordResetOtp)
+    .join(Account, Account.account_id == PasswordResetOtp.account_id)
+    .filter(Account.role.in_(PASSWORD_RECOVERY_ROLES))
+  )
+  if destination.email is not None:
+    return query.filter(func.lower(PasswordResetOtp.target_email) == str(destination.email).strip().lower())
+  return query.filter(PasswordResetOtp.target_phone == destination.phone)
+
+
+def _deliver_password_reset_code(email: str | None, phone: str | None, code: str) -> None:
+  if email:
+    send_password_reset_code(email, code)
+  elif phone:
+    send_password_reset_sms(phone, code)
+  else:
+    raise EmailDeliveryError("Password reset destination is missing")
+
+
+def _enforce_reset_send_cooldown(verification: PasswordResetOtp | None, now: datetime) -> int:
+  if verification is None:
+    return 1
+  last_sent = verification.last_sent_at
+  if last_sent.tzinfo is None:
+    last_sent = last_sent.replace(tzinfo=timezone.utc)
+  cooldown_until = verification.cooldown_until
+  if cooldown_until is not None:
+    if cooldown_until.tzinfo is None:
+      cooldown_until = cooldown_until.replace(tzinfo=timezone.utc)
+    if cooldown_until > now:
+      wait_seconds = int((cooldown_until - now).total_seconds()) + 1
+      raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=f"Too many code requests. Try again in {wait_seconds} seconds.",
+      )
+  if now - last_sent < timedelta(seconds=60):
+    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait 60 seconds before requesting another code")
+  return 1 if verification.send_count >= 3 else verification.send_count + 1
 
 
 @router.post("/verify-password")
@@ -138,75 +180,63 @@ def logout(response: Response):
 
 @router.post("/password-reset/request-code")
 def request_password_reset_code(payload: PasswordResetCodeRequest, db: Session = Depends(get_db)):
-  email = str(payload.email).strip().lower()
-  accounts = (
-    db.query(Account)
-    .outerjoin(User, User.account_id == Account.account_id)
-    .filter(
-      Account.role.in_(PASSWORD_RECOVERY_ROLES),
-      or_(func.lower(Account.email) == email, func.lower(User.email) == email),
-    )
-    .distinct()
-    .all()
+  generic_response = {"detail": "If an account matches that contact, a 6-digit reset code has been sent."}
+  account_query = db.query(Account).outerjoin(User, User.account_id == Account.account_id).filter(
+    Account.role.in_(PASSWORD_RECOVERY_ROLES)
   )
+  if payload.email is not None:
+    email = str(payload.email).strip().lower()
+    accounts = account_query.filter(
+      or_(func.lower(Account.email) == email, func.lower(User.email) == email)
+    ).distinct().all()
+  else:
+    accounts = account_query.filter(
+      Account.role == AccountRole.DRIVER,
+      User.contact_number == payload.phone,
+    ).all()
   if not accounts:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No account is registered with this email address")
+    return generic_response
   if len(accounts) > 1:
-    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This email is linked to multiple accounts. Contact the system operator.")
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This contact is linked to multiple accounts. Contact the system operator.")
 
   account = accounts[0]
   verification = db.query(PasswordResetOtp).filter(PasswordResetOtp.account_id == account.account_id).first()
   now = datetime.now(timezone.utc)
-  if verification is not None:
-    last_sent = verification.last_sent_at
-    if last_sent.tzinfo is None:
-      last_sent = last_sent.replace(tzinfo=timezone.utc)
-    if now - last_sent < timedelta(seconds=60):
-      raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait before requesting another code")
+  next_send_count = _enforce_reset_send_cooldown(verification, now)
 
   code = f"{secrets.randbelow(900000) + 100000:06d}"
   salt = secrets.token_hex(16)
   if verification is None:
-    verification = PasswordResetOtp(account_id=account.account_id, target_email=email)
+    verification = PasswordResetOtp(account_id=account.account_id)
     db.add(verification)
-  verification.target_email = email
+  verification.target_email = str(payload.email).strip().lower() if payload.email is not None else None
+  verification.target_phone = payload.phone
   verification.code_salt = salt
   verification.code_hash = hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
   verification.expires_at = now + timedelta(minutes=10)
   verification.attempts = 0
+  verification.send_count = next_send_count
   verification.last_sent_at = now
+  verification.cooldown_until = now + timedelta(minutes=3) if next_send_count >= 3 else None
   verification.reset_token_hash = None
   verification.reset_token_expires_at = None
   try:
-    send_password_reset_code(verification.target_email, code)
-  except EmailDeliveryError as exc:
+    _deliver_password_reset_code(verification.target_email, verification.target_phone, code)
+  except (EmailDeliveryError, SmsDeliveryError) as exc:
     db.rollback()
-    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Password reset email is temporarily unavailable") from exc
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Password reset code delivery is temporarily unavailable") from exc
   db.commit()
-  return {"detail": "A 6-digit password reset code was sent to your email address"}
+  return generic_response
 
 
 @router.post("/password-reset/resend-code")
 def resend_password_reset_code(payload: PasswordResetCodeRequest, db: Session = Depends(get_db)):
-  email = str(payload.email).strip().lower()
-  verification = (
-    db.query(PasswordResetOtp)
-    .join(Account, Account.account_id == PasswordResetOtp.account_id)
-    .filter(
-      Account.role.in_(PASSWORD_RECOVERY_ROLES),
-      func.lower(PasswordResetOtp.target_email) == email,
-    )
-    .first()
-  )
+  verification = _verification_query(db, payload).first()
   if verification is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active password reset request for this email")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active password reset request for this contact")
 
   now = datetime.now(timezone.utc)
-  last_sent = verification.last_sent_at
-  if last_sent.tzinfo is None:
-    last_sent = last_sent.replace(tzinfo=timezone.utc)
-  if now - last_sent < timedelta(seconds=60):
-    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait before requesting another code")
+  next_send_count = _enforce_reset_send_cooldown(verification, now)
 
   code = f"{secrets.randbelow(900000) + 100000:06d}"
   salt = secrets.token_hex(16)
@@ -214,32 +244,25 @@ def resend_password_reset_code(payload: PasswordResetCodeRequest, db: Session = 
   verification.code_hash = hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
   verification.expires_at = now + timedelta(minutes=10)
   verification.attempts = 0
+  verification.send_count = next_send_count
   verification.last_sent_at = now
+  verification.cooldown_until = now + timedelta(minutes=3) if next_send_count >= 3 else None
   verification.reset_token_hash = None
   verification.reset_token_expires_at = None
   try:
-    send_password_reset_code(verification.target_email, code)
-  except EmailDeliveryError as exc:
+    _deliver_password_reset_code(verification.target_email, verification.target_phone, code)
+  except (EmailDeliveryError, SmsDeliveryError) as exc:
     db.rollback()
-    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Password reset email is temporarily unavailable") from exc
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Password reset code delivery is temporarily unavailable") from exc
   db.commit()
   return {"detail": "A new password reset code was sent"}
 
 
 @router.post("/password-reset/verify-code")
 def verify_password_reset_code(payload: PasswordResetCodeVerify, db: Session = Depends(get_db)):
-  email = str(payload.email).strip().lower()
-  verification = (
-    db.query(PasswordResetOtp)
-    .join(Account, Account.account_id == PasswordResetOtp.account_id)
-    .filter(
-      Account.role.in_(PASSWORD_RECOVERY_ROLES),
-      func.lower(PasswordResetOtp.target_email) == email,
-    )
-    .first()
-  )
+  verification = _verification_query(db, payload).first()
   if verification is None:
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active password reset request for this email")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active password reset request for this contact")
 
   now = datetime.now(timezone.utc)
   expires_at = verification.expires_at
@@ -284,15 +307,17 @@ def complete_password_reset(payload: PasswordResetComplete, request: Request, re
     db.commit()
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Driver account not found")
 
-  recipient = verification.target_email
+  recipient = verification.target_email or (account.email or (account.user.email if account.user else None))
+  reset_channel = "email" if verification.target_email else "SMS"
   account.password_hash = hash_password(payload.new_password)
   account.must_change_password = False
   account.password_reset_token_hash = None
   account.password_reset_expires_at = None
   db.delete(verification)
   db.commit()
-  log_action(db, account.account_id, AuditAction.UPDATE, "accounts", account.account_id, "Reset driver password with email OTP")
-  notify_password_changed(account, request, recipient)
+  log_action(db, account.account_id, AuditAction.UPDATE, "accounts", account.account_id, f"Reset driver password with {reset_channel} OTP")
+  if recipient:
+    notify_password_changed(account, request, recipient)
   response.delete_cookie(key="access_token", path="/")
   return {"detail": "Password reset successfully. Please sign in with your new password."}
 

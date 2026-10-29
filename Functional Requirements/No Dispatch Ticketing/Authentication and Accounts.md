@@ -26,16 +26,18 @@ Driver authentication and account access used by the driver mobile app and the a
 - **SRS-ND-AUTH-FR-001:** The system shall authenticate a Driver using the Driver's phone-based username and password through the Driver portal.
 - **SRS-ND-AUTH-FR-002:** The system shall deny authentication when credentials are invalid or the account is disabled or suspended, without disclosing whether an identity exists in another portal.
 - **SRS-ND-AUTH-FR-003:** A newly created account shall require an initial password change before the Driver can use protected app functions. The successful initial change shall set `must_change_password` to false.
-- **SRS-ND-AUTH-FR-004:** The Driver shall be able to recover account access by verifying a one-time code sent to the registered email, then setting and confirming a replacement password.
+- **SRS-ND-AUTH-FR-004:** The Driver shall be able to recover account access by verifying a one-time code sent to the registered email address or mobile number, then setting and confirming a replacement password.
+- **SRS-ND-AUTH-FR-007:** The system shall send recovery codes to Philippine mobile numbers through the configured PhilSMS service and shall keep the provider token on the backend only.
+- **SRS-ND-AUTH-FR-008:** The system shall enforce a 60-second resend cooldown and, after three sends, a three-minute cooldown. OTP entry failures remain unlimited during the current testing phase.
 - **SRS-ND-AUTH-FR-005:** The system shall apply the configured password-strength validation and shall not return or store plaintext passwords or OTPs.
 - **SRS-ND-AUTH-FR-006:** The system shall provide an authenticated logout that clears the app's locally stored access token.
 
 ## 4. Implementation status (source review: 2026-10-28)
 
-- **Present:** portal-specific login checks, generic role/credential failure text, disabled/suspended account rejection, protected-session role checks, initial-password enforcement, secure Driver token storage, and email OTP password recovery.
-- **Partial:** the admin portal still uses the legacy `ticketing_officer` role, while the no-dispatch target has no final management-role design. OTP resend enforces a 60-second cooldown, but the agreed three-send limit followed by a three-minute cooldown is not implemented. The login endpoint has no three-failed-attempt lockout. SMS OTP is not configured.
+- **Present:** portal-specific login checks, generic role/credential failure text, disabled/suspended account rejection, protected-session role checks, initial-password enforcement, secure Driver token storage, email and SMS OTP password recovery, and 60-second/three-minute OTP-send throttling.
+- **Partial:** the admin portal still uses the legacy `ticketing_officer` role, while the no-dispatch target has no final management-role design. The login endpoint has no three-failed-attempt lockout. PhilSMS delivery requires valid deployment secrets and sufficient provider balance; live delivery must be confirmed on the target deployment.
 - **Policy mismatch:** the backend permits the authenticated password-change endpoint only for initial setup while `must_change_password` is true, but the Driver profile still exposes a Change Password screen/action. Routine changes should use the separate recovery policy or the product rule must be revised.
-- **Pending:** settle management identity/role, implement the agreed login and OTP-send throttles, select an SMS provider if phone recovery remains required, and align the profile UI with the one-time password-change rule.
+- **Pending:** settle management identity/role, implement the agreed login lockout, confirm SMS delivery from the deployed backend, and align the profile UI with the one-time password-change rule.
 
 ## 5. Constraints
 

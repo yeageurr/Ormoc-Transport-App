@@ -1,7 +1,7 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
 
 from app.enums import AccountRole
 
@@ -72,12 +72,36 @@ class ResetPasswordRequest(BaseModel):
     return value
 
 
-class PasswordResetCodeRequest(BaseModel):
-  email: EmailStr
+class PasswordResetDestination(BaseModel):
+  email: EmailStr | None = None
+  phone: str | None = None
+
+  @field_validator("phone", mode="before")
+  @classmethod
+  def normalize_phone(cls, value: str | None) -> str | None:
+    if value is None or not str(value).strip():
+      return None
+    digits = "".join(character for character in str(value) if character.isdigit())
+    if digits.startswith("63") and len(digits) == 12:
+      return f"0{digits[2:]}"
+    if len(digits) == 10 and digits.startswith("9"):
+      return f"0{digits}"
+    if len(digits) == 11 and digits.startswith("09"):
+      return digits
+    raise ValueError("Enter a valid 11-digit Philippine mobile number")
+
+  @model_validator(mode="after")
+  def require_one_destination(self):
+    if (self.email is None) == (self.phone is None):
+      raise ValueError("Provide either an email address or a phone number")
+    return self
 
 
-class PasswordResetCodeVerify(BaseModel):
-  email: EmailStr
+class PasswordResetCodeRequest(PasswordResetDestination):
+  pass
+
+
+class PasswordResetCodeVerify(PasswordResetDestination):
   code: str
 
   @field_validator("code")

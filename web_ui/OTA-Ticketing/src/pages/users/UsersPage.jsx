@@ -80,7 +80,7 @@ export default function UsersPage() {
       <Navbar account={account} items={NAV_ITEMS} activePage="users" onNavigate={goTo} onLogout={() => void signOut()} />
       <main className="box-border flex h-full min-h-[calc(100vh-32px)] flex-1 flex-col gap-1 rounded-lg bg-[#A9E4FF] max-[760px]:mx-2 max-[760px]:my-2 max-[760px]:min-h-[calc(100vh-16px)]">
         <header className="flex min-h-[47px] items-center justify-between rounded-lg border-b border-[#b3d7e6] bg-[#f3faff] px-3 max-[760px]:px-[5px]">
-          <strong className="truncate text-[13px] font-semibold">{account?.role === 'ticketing_officer' ? 'Ticketing Officer' : 'admin'}</strong>
+          <strong className="truncate text-[13px] font-semibold">{account.role}</strong>
           <span className="inline-flex items-center gap-[5px] rounded-[7px] bg-[#a6e3fa] px-[10px] py-[5px] text-[11px] text-[#183b4c]"><CalendarIcon /> {dateLabel}</span>
         </header>
 
