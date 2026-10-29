@@ -1,5 +1,4 @@
 from datetime import datetime
-from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.enums import TripStatus
@@ -29,11 +28,9 @@ class TripResponse(BaseModel):
   model_config = ConfigDict(from_attributes=True)
 
   trip_id: int
-  dispatch_id: int | None = None
-  route_id: int | None = None
-  driver_id: int | None = None
-  vehicle_id: int | None = None
-  dispatch_ticket_id: UUID | None = None
+  route_id: int
+  driver_id: int
+  vehicle_id: int
   status: TripStatus
   time_departed: datetime
   time_arrived: datetime | None = None
@@ -54,7 +51,6 @@ class DriverTripResponse(TripResponse):
 class DriverDailySummary(BaseModel):
   """Counts for the signed-in driver's current calendar day."""
   trips_completed: int
-  incidents_reported: int
 
 
 class TripDriverSummary(BaseModel):
@@ -64,11 +60,10 @@ class TripDriverSummary(BaseModel):
 
 
 class AdminTripResponse(BaseModel):
-  """Used for the ticketing-officer Trip Logs table, which needs driver name
+  """Used for the admin trip overview, which needs driver name
   and route directly, not just IDs — driver's own /trips/driver/mine
   doesn't need this since it's implicitly always their own trips."""
   trip_id: int
-  dispatch_id: int | None
   status: TripStatus
   route_id: int | None = None
   time_departed: datetime

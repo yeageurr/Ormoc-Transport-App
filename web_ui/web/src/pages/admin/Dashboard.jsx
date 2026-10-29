@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, LabelList } from "recharts";
 import StatCard from "../../components/ui/StatCard";
-import { getDashboardStats, getTripVolume, getRecentIncidents } from "../../api/dashboardApi";
-import { Bus, Clock, TrendingUp, TrendingDown, Minus, TriangleAlert, UserRoundCheck } from 'lucide-react';
+import { getDashboardStats, getTripVolume } from "../../api/dashboardApi";
+import { Bus, Clock, TrendingUp, TrendingDown, Minus, UserRoundCheck } from 'lucide-react';
 import PageHeader from "../../components/ui/PageHeader";
 import setTitle from "../../components/pageTitle";
 
@@ -48,7 +48,6 @@ export default function Dashboard() {
   setTitle('Dashboard');
   const [stats, setStats] = useState(null);
   const [tripVolume, setTripVolume] = useState([]);
-  const [recentIncidents, setRecentIncidents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -57,14 +56,12 @@ export default function Dashboard() {
       setIsLoading(true);
       setError(null);
       try {
-        const [statsData, volumeData, incidentsData] = await Promise.all([
+        const [statsData, volumeData] = await Promise.all([
           getDashboardStats(),
           getTripVolume(),
-          getRecentIncidents(),
         ]);
         setStats(statsData);
         setTripVolume(volumeData);
-        setRecentIncidents(incidentsData);
       } catch (err) {
         setError(err.message || "Failed to load dashboard data.");
       } finally {
@@ -99,7 +96,7 @@ export default function Dashboard() {
         <p className="text-[#9fcabd] text-sm">Loading dashboard...</p>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-4 mb-6">
             <StatCard 
               label="Total Trips Today" 
               value={stats?.total_trips_today ?? "—"} 
@@ -112,13 +109,6 @@ export default function Dashboard() {
               icon={Clock}
               subtext={<TrendIndicator current={stats?.avg_trip_duration_minutes} previous={stats?.avg_trip_duration_previous_period_minutes} period="vs prior 7 days" />}
             />
-            <StatCard
-              label="Incidents This Month"
-              value={stats?.incidents_reported_total ?? "—"}
-              icon={TriangleAlert}
-              iconColor="#F0997B"
-              subtext={<TrendIndicator current={stats?.incidents_reported_total} previous={stats?.incidents_reported_previous_period} period="vs same period last month" />}
-            />
             <StatCard 
               label="Drivers" 
               value={stats?.drivers_total ?? "—"} 
@@ -127,8 +117,8 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2 bg-[var(--wrapper-bg)] rounded-2xl p-5">
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-[var(--wrapper-bg)] rounded-2xl p-5">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-[#eafff5] text-base font-semibold">Trip Volume (last 7 days)</h2>
                 <span className="text-[#9fcabd] text-xs">{totalTripVolume} Total</span>
@@ -177,29 +167,6 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
 
-            <div className="bg-[var(--wrapper-bg)] rounded-2xl p-5">
-              <h2 className="text-[#eafff5] text-base font-semibold mb-4">Recent Incidents</h2>
-              <div className="space-y-4">
-                {recentIncidents.length === 0 && (
-                  <p className="text-[#9fcabd] text-sm">No incidents reported yet.</p>
-                )}
-                {recentIncidents.map((incident) => (
-                  <div key={incident.incident_id} className="flex items-start justify-between">
-                    <div>
-                      <p className="text-[#eafff5] text-sm capitalize">
-                        {incident.incident_type.replace(/_/g, " ")}
-                      </p>
-                      <p className="text-[#5DCAA5] text-xs">
-                        Ormoc · {incident.route_label}
-                      </p>
-                    </div>
-                    {incident.vehicle_plate && (
-                      <span className="text-[#5DCAA5] text-xs">{incident.vehicle_plate}</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         </>
       )}

@@ -3,12 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.account import Account
-from app.models.user import User
-from app.models.dispatch_log import DispatchLog
-from app.models.notification import Notification, BroadcastNotification
-from app.schemas.notification import NotificationResponse, BroadcastNotificationResponse
+from app.models.notification import Notification
+from app.schemas.notification import NotificationResponse
 from app.core.permissions import require_role, get_current_account
-from app.enums import AccountRole, NotificationType, BroadcastType
+from app.enums import NotificationType
 from app.websocket.connection_manager import manager
 
 router = APIRouter()
@@ -73,62 +71,3 @@ def mark_notification_read(
   notification.is_read = True
   db.commit()
   return {"detail": "Marked as read"}
-
-
-# ---------- Broadcast notifications ----------
-
-async def send_route_broadcast(
-  db: Session, broadcast_type: BroadcastType, terminal_id: int | None, route_id: int | None
-) -> BroadcastNotification:
-  """Called from other routers (e.g. incident reporting, passenger queue
-  detection) — not exposed directly. Persists the broadcast AND pushes
-  it to route-scoped drivers plus all connected ticketing officers."""
-
-  broadcast = BroadcastNotification(
-    terminal_id=terminal_id,
-    route_id=route_id,
-    broadcast_type=broadcast_type,
-  )
-  db.add(broadcast)
-  db.commit()
-  db.refresh(broadcast)
-
-  payload = {
-    "type": "broadcast",
-    "data": {
-      "broadcast_id": broadcast.broadcast_id,
-      "broadcast_type": broadcast.broadcast_type.value,
-      "route_id": broadcast.route_id,
-      "created_at": broadcast.created_at.isoformat(),
-    },
-  }
-
-  # Admins always see every broadcast, regardless of route.
-  ticketing_officer_ids = [acc.account_id for acc in db.query(Account).filter(Account.role == AccountRole.TICKETING_OFFICER).all()]
-  await manager.broadcast_to(ticketing_officer_ids, payload)
-
-  # Drivers only see it if they're currently dispatched on the affected route today.
-  if route_id is not None:
-    driver_account_ids = [
-      driver.account_id
-      for driver in (
-        db.query(Account)
-        .join(User, User.account_id == Account.account_id)
-        .join(DispatchLog, DispatchLog.driver_id == User.user_id)
-        .filter(DispatchLog.route_id == route_id)
-        .all()
-      )
-    ]
-    await manager.broadcast_to(driver_account_ids, payload)
-
-  return broadcast
-
-
-@router.get("/broadcasts", response_model=list[BroadcastNotificationResponse])
-def list_recent_broadcasts(
-  db: Session = Depends(get_db),
-  current_account: Account = Depends(get_current_account),
-):
-  """Fallback for clients that missed the live push (e.g. just reconnected).
-  Cleanup job purges anything older than BROADCAST_RETENTION_HOURS separately."""
-  return db.query(BroadcastNotification).order_by(BroadcastNotification.created_at.desc()).all()

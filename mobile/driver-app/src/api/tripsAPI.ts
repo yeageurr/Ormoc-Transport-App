@@ -3,11 +3,9 @@ import { authClient } from './authAPI';
 
 export interface Trip {
   trip_id: number;
-  dispatch_id: number | null;
-  route_id: number | null;
-  driver_id: number | null;
-  vehicle_id: number | null;
-  dispatch_ticket_id: string | null;
+  route_id: number;
+  driver_id: number;
+  vehicle_id: number;
   status: 'outgoing' | 'returning';
   time_departed: string;
   time_arrived: string | null;
@@ -32,47 +30,7 @@ export interface DriverTrip extends Trip {
 
 export interface DriverDailySummary {
   trips_completed: number;
-  incidents_reported: number;
 }
-
-export interface RecordTripPayload {
-  routeId: string;
-  vehiclePlate?: string;
-  notes?: string;
-}
-
-export interface IncidentReport {
-  tripId: number;
-  incidentType: IncidentType;
-  description: string;
-  latitude?: number;
-  longitude?: number;
-  occurredAt: string; // ISO 8601
-}
-
-export type IncidentType = 'vehicle_breakdown' | 'flooded_road' | 'crime_incident' | 'road_accident';
-
-export interface DriverIncident {
-  incident_id: number;
-  trip_id: number;
-  incident_type: IncidentType;
-  description: string | null;
-  latitude: number;
-  longitude: number;
-  status: 'open' | 'under_review' | 'resolved';
-  reported_at: string;
-  reporter?: { first_name: string; last_name: string } | null;
-  route?: { route_name: string | null } | null;
-}
-
-/**
- * ASSUMPTION — NOT YET VERIFIED against the real backend router.
- *
- * No dedicated incidentAPI.ts exists in the confirmed src/api/
- * structure, so reportIncident() lives here for now, backing
- * ReportIncidentScreen.tsx. If the backend treats incidents as a
- * fully separate resource, split this into its own incidentAPI.ts.
- */
 
 /** Returns only the signed-in driver's trips, newest first. */
 export async function getTripLogs(): Promise<DriverTrip[]> {
@@ -88,15 +46,6 @@ export async function getDailySummary(): Promise<DriverDailySummary> {
 
 export async function getTripDetail(tripId: string): Promise<Trip> {
   const { data } = await authClient.get<Trip>(`/trips/${tripId}`);
-  return data;
-}
-
-export async function recordTrip(payload: RecordTripPayload): Promise<Trip> {
-  const { data } = await authClient.post<Trip>('/trips', {
-    route_id: payload.routeId,
-    vehicle_plate: payload.vehiclePlate,
-    notes: payload.notes,
-  });
   return data;
 }
 
@@ -121,25 +70,5 @@ export async function pauseTrip(tripId: string): Promise<TripPauseEvent> {
 
 export async function resumeTrip(tripId: string): Promise<TripPauseEvent> {
   const { data } = await authClient.post<TripPauseEvent>(`/trips/${tripId}/resume`);
-  return data;
-}
-
-export async function reportIncident(report: IncidentReport): Promise<void> {
-  await authClient.post('/incidents', {
-    trip_id: report.tripId,
-    incident_type: report.incidentType,
-    description: report.description,
-    latitude: report.latitude,
-    longitude: report.longitude,
-  });
-}
-
-export async function getMyIncidents(): Promise<DriverIncident[]> {
-  const { data } = await authClient.get<DriverIncident[]>('/incidents/driver/mine');
-  return data;
-}
-
-export async function getAllIncidents(): Promise<DriverIncident[]> {
-  const { data } = await authClient.get<DriverIncident[]>('/incidents/driver/all');
   return data;
 }

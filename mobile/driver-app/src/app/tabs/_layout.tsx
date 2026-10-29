@@ -12,7 +12,6 @@ export default function TabsLayout() {
     '/tabs': 0,
     '/tabs/': 0,
     '/tabs/trip-logs': 1,
-    '/tabs/my-tickets': 1,
     '/tabs/profile': 2,
   };
   const previousOrder = pageOrder[previousPathname.current];
@@ -34,10 +33,7 @@ export default function TabsLayout() {
             <Stack.Screen name="explore" />
             <Stack.Screen name="profile" />
             <Stack.Screen name="record-trip" />
-            <Stack.Screen name="report-incident" />
             <Stack.Screen name="trip-logs" />
-            <Stack.Screen name="my-tickets" />
-            <Stack.Screen name="make-reservation" />
           </Stack>
         </View>
         {pathname !== '/tabs/record-trip' && <BottomNav />}

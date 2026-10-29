@@ -2,7 +2,6 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,7 +9,6 @@ from app.models.account import Account
 from app.models.trip import Trip
 from app.models.gps_log import GpsLog
 from app.models.driver_location import DriverLocation
-from app.models.dispatch_log import DispatchLog
 from app.schemas.gps_log import CurrentLocationPing, GpsPing, GpsLogResponse
 from app.core.permissions import get_driver_profile, require_role
 from app.enums import AccountRole
@@ -26,18 +24,13 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
 
   active_trip = (
     db.query(Trip)
-    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
     .filter(
       Trip.is_complete.is_(False),
-      or_(Trip.driver_id == driver.user_id, DispatchLog.driver_id == driver.user_id),
+      Trip.driver_id == driver.user_id,
     )
     .first()
   )
-  vehicle = (
-    (active_trip.vehicle if active_trip.dispatch_id is None else active_trip.dispatch_log.vehicle)
-    if active_trip
-    else driver.active_vehicle
-  )
+  vehicle = active_trip.vehicle if active_trip else driver.active_vehicle
 
   if vehicle is None:
     raise HTTPException(
@@ -54,7 +47,6 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
     db.add(location)
 
   location.vehicle_id = vehicle.vehicle_id
-  location.dispatch_id = active_trip.dispatch_id if active_trip else None
   location.latitude = payload.latitude
   location.longitude = payload.longitude
   location.speed_kmh = payload.speed_kmh
@@ -62,16 +54,15 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
   db.commit()
   db.refresh(location)
 
-  ticketing_officer_ids = [
+  admin_ids = [
     account_id for (account_id,) in db.query(Account.account_id)
-    .filter(Account.role == AccountRole.TICKETING_OFFICER).all()
+    .filter(Account.role == AccountRole.ADMIN).all()
   ]
 
-  await manager.broadcast_to(ticketing_officer_ids, {
+  await manager.broadcast_to(admin_ids, {
   "type": "gps_update",
     "data": {
       "vehicle_id": location.vehicle_id,
-      "dispatch_id": location.dispatch_id,
       "latitude": float(location.latitude),
       "longitude": float(location.longitude),
       "speed_kmh": float(location.speed_kmh),
@@ -91,8 +82,7 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
       detail="Trip not found"
     )
 
-  trip_driver_id = trip.driver_id if trip.dispatch_id is None else trip.dispatch_log.driver_id
-  if trip_driver_id != get_driver_profile(db, current_driver).user_id:
+  if trip.driver_id != get_driver_profile(db, current_driver).user_id:
     raise HTTPException(
       status_code = status.HTTP_403_FORBIDDEN,
       detail = "This trip does not belong to you",
@@ -116,18 +106,18 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
   db.refresh(gps_log)
 
 
-  ticketing_officer_ids = [
+  admin_ids = [
     acc.account_id
-    for acc in db.query(Account).filter(Account.role == AccountRole.TICKETING_OFFICER).all()
+    for acc in db.query(Account).filter(Account.role == AccountRole.ADMIN).all()
   ]
 
-  await manager.broadcast_to(ticketing_officer_ids, {
+  await manager.broadcast_to(admin_ids, {
     "type": "gps_update",
     "data": {
       # vehicle_id added so the Live Map can update the right marker
       # directly — the frontend has no trip_id -> vehicle_id mapping of
       # its own (LiveVehicleSummary doesn't expose trip_id).
-      "vehicle_id": trip.vehicle_id if trip.dispatch_id is None else trip.dispatch_log.vehicle_id,
+      "vehicle_id": trip.vehicle_id,
       "trip_id": gps_log.trip_id,
       "latitude": float(gps_log.latitude),
       "longitude": float(gps_log.longitude),
@@ -143,7 +133,7 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
 def get_trip_path(
   trip_id: int,
   db: Session = Depends(get_db),
-  current_account: Account = Depends(require_role(AccountRole.TICKETING_OFFICER, AccountRole.DRIVER)),
+  current_account: Account = Depends(require_role(AccountRole.ADMIN, AccountRole.DRIVER)),
 ):
   """Full GPS trail for a trip — used to draw the route path after the fact."""
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
@@ -155,8 +145,7 @@ def get_trip_path(
 
   if current_account.role == AccountRole.DRIVER:
     driver = get_driver_profile(db, current_account)
-    trip_driver_id = trip.driver_id if trip.dispatch_id is None else trip.dispatch_log.driver_id
-    if trip_driver_id != driver.user_id:
+    if trip.driver_id != driver.user_id:
       raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
 
   return (

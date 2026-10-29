@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,7 +10,6 @@ from app.database import get_db
 from app.models.account import Account
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.models.dispatch_log import DispatchLog
 from app.models.gps_log import GpsLog
 from app.models.trip import Trip
 from app.models.driver_location import DriverLocation
@@ -29,7 +28,7 @@ router = APIRouter()
 def list_eligible_owners(
   vehicle_id: int | None = None,
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   """Active, unassigned drivers, plus the current owner while editing."""
   return (
@@ -65,7 +64,7 @@ class LiveVehicleSummary(BaseModel):
 @router.get("/live", response_model=list[LiveVehicleSummary])
 def get_live_vehicle_overview(
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   """REST snapshot for the Live Map's initial page load, before any
   WebSocket pings have arrived yet. WS handles updates after this;
@@ -85,36 +84,20 @@ def get_live_vehicle_overview(
     current_lat = None
     current_lng = None
 
-    dispatch = (
-      db.query(DispatchLog)
-      .filter(
-        DispatchLog.vehicle_id == vehicle.vehicle_id,
-        DispatchLog.effective_on >= day_start,
-        DispatchLog.effective_on < day_start + timedelta(days=1),
-      )
-      .order_by(DispatchLog.effective_on.desc())
-      .first()
-    )
     current_location = db.query(DriverLocation).filter(
       DriverLocation.vehicle_id == vehicle.vehicle_id
     ).first()
 
-    if dispatch:
-      driver_name = f"{dispatch.driver.first_name} {dispatch.driver.last_name}"
-      route_id = dispatch.route_id
-      route_label = dispatch.route.destination.name if dispatch.route and dispatch.route.destination else None
-
     active_trip = (
       db.query(Trip)
-      .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
       .filter(
         Trip.is_complete.is_(False),
-        or_(Trip.vehicle_id == vehicle.vehicle_id, DispatchLog.vehicle_id == vehicle.vehicle_id),
+        Trip.vehicle_id == vehicle.vehicle_id,
       )
       .order_by(Trip.time_departed.desc())
       .first()
     )
-    if active_trip and active_trip.dispatch_id is None:
+    if active_trip:
       if active_trip.driver:
         driver_name = f"{active_trip.driver.first_name} {active_trip.driver.last_name}"
       route = active_trip.route
@@ -152,7 +135,7 @@ def get_live_vehicle_overview(
 def create_vehicle(
   payload: VehicleCreate,
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   owner = db.query(User).filter(User.user_id == payload.owner_id).first()
   if owner is None:
@@ -194,7 +177,7 @@ def create_vehicle(
 
 
   log_action(
-    db, ticketing_officer.account_id, AuditAction.CREATE, "vehicles", vehicle.vehicle_id,
+    db, admin.account_id, AuditAction.CREATE, "vehicles", vehicle.vehicle_id,
     f"Created vehicle {vehicle.plate_number} for {owner.first_name} {owner.last_name}",
   )
 
@@ -204,7 +187,7 @@ def create_vehicle(
 @router.get("", response_model=list[VehicleResponse])
 def list_vehicles(
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   return db.query(Vehicle).all()
 
@@ -212,7 +195,7 @@ def list_vehicles(
 @router.get("/borrowable", response_model=list[VehicleResponse])
 def list_borrowable_vehicles(
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   """Vehicles with an active owner and no current borrower."""
   return (
@@ -253,7 +236,7 @@ def get_my_vehicle(
 def get_vehicle(
   vehicle_id: int,
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
   if vehicle is None:
@@ -266,7 +249,7 @@ def update_vehicle(
   vehicle_id: int,
   payload: VehicleUpdate,
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
   if vehicle is None:
@@ -322,7 +305,7 @@ def update_vehicle(
   db.refresh(vehicle)
 
   log_action(
-    db, ticketing_officer.account_id, AuditAction.UPDATE, "vehicles", vehicle_id,
+    db, admin.account_id, AuditAction.UPDATE, "vehicles", vehicle_id,
     f"Updated vehicle {vehicle.plate_number}: {', '.join(changes) or 'no field changes'}",
   )
 
@@ -333,25 +316,18 @@ def update_vehicle(
 def delete_vehicle(
   vehicle_id: int,
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
-  """Permanently remove an unused vehicle.
-
-  A vehicle with dispatch history is retained so the dispatch, trip, and
-  incident records that refer to it remain valid. Those vehicles must not be
-  deleted from the ticketing officer interface.
-  """
+  """Permanently remove a vehicle that has no trip history."""
   vehicle = db.query(Vehicle).filter(Vehicle.vehicle_id == vehicle_id).first()
   if vehicle is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehicle not found")
 
-  has_dispatch_history = db.query(DispatchLog.dispatch_id).filter(
-    DispatchLog.vehicle_id == vehicle_id
-  ).first()
-  if has_dispatch_history:
+  has_trip_history = db.query(Trip.trip_id).filter(Trip.vehicle_id == vehicle_id).first()
+  if has_trip_history:
     raise HTTPException(
       status_code=status.HTTP_409_CONFLICT,
-      detail="This vehicle has dispatch history and cannot be deleted",
+      detail="This vehicle has trip history and cannot be deleted",
     )
 
   plate_number = vehicle.plate_number
@@ -359,6 +335,6 @@ def delete_vehicle(
   db.commit()
 
   log_action(
-    db, ticketing_officer.account_id, AuditAction.DELETE, "vehicles", vehicle_id,
+    db, admin.account_id, AuditAction.DELETE, "vehicles", vehicle_id,
     f"Deleted unused vehicle {plate_number}",
   )

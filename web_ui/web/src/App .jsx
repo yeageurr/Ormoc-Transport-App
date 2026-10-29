@@ -24,7 +24,7 @@ function App() {
           <Route
             path="/"
             element={
-              <ProtectedRoute requiredRole="ticketing_officer">
+              <ProtectedRoute requiredRole="admin">
                 <AdminLayout />
               </ProtectedRoute>
               }

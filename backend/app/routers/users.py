@@ -38,7 +38,7 @@ def get_my_profile(db: Session = Depends(get_db), current_account: Account = Dep
   if profile_row is None:
     raise HTTPException(
       status_code=status.HTTP_404_NOT_FOUND,
-      detail="No profile linked to this account (ticketing officer accounts do not have a User row)"
+      detail="No profile linked to this account (admin accounts do not have a User row)"
     )
   user, vehicle_plate_number = profile_row
   profile = UserResponse.model_validate(user)
@@ -261,9 +261,9 @@ def resend_my_email_code(db: Session = Depends(get_db), current_account: Account
   return {"detail": "A new verification code was sent"}
 
 
-# Endpoint for a ticketing officer checking a user profile
+# Endpoint for an admin checking a driver profile
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: Session = Depends(get_db), ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)), ):
+def get_user(user_id: int, db: Session = Depends(get_db), admin: Account = Depends(require_role(AccountRole.ADMIN)), ):
   user = db.query(User).filter(User.user_id == user_id).first()
   if user is None:
     raise HTTPException(

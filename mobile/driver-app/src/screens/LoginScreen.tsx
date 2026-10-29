@@ -64,7 +64,7 @@ export default function LoginScreen() {
           loginError.response?.status === 401
             ? "Account doesn't exist."
             : loginError.response?.status === 403 && detail?.toLowerCase().includes('suspended')
-              ? 'Your account has been suspended. Please contact the ticketing officer.'
+              ? 'Your account has been suspended. Please contact an administrator.'
               : detail || 'Unable to sign in. Please try again.',
         );
       } else if (loginError instanceof Error) {

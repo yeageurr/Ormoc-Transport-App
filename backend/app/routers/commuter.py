@@ -11,7 +11,6 @@ from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
 from app.enums import AccountRole, VehicleActivityStatus
 from app.models.account import Account
-from app.models.dispatch_log import DispatchLog
 from app.models.driver_location import DriverLocation
 from app.models.route import Route
 from app.models.terminal import Terminal
@@ -36,26 +35,25 @@ def _active_passenger_count(db: Session, route_id: int, now: datetime) -> int:
 
 
 async def _push_passenger_queue_count(db: Session, route_id: int) -> None:
-  """Push the authoritative count to today's drivers assigned to this route."""
+  """Push the route's authoritative queue count to drivers who've driven it today."""
   now_ph = datetime.now(PH)
   day_start = now_ph.replace(hour=0, minute=0, second=0, microsecond=0)
   day_end = day_start + timedelta(days=1)
-  assignments = (
-    db.query(Account.account_id, DispatchLog.driver_id, DispatchLog.route_id, DispatchLog.effective_on)
+  trips = (
+    db.query(Account.account_id, Trip.driver_id, Trip.route_id, Trip.time_departed)
     .join(User, User.account_id == Account.account_id)
-    .join(DispatchLog, DispatchLog.driver_id == User.user_id)
+    .join(Trip, Trip.driver_id == User.user_id)
     .filter(
       Account.role == AccountRole.DRIVER,
-      DispatchLog.effective_on >= day_start,
-      DispatchLog.effective_on < day_end,
+      Trip.time_departed >= day_start,
+      Trip.time_departed < day_end,
     )
-    .order_by(DispatchLog.effective_on.desc())
+    .order_by(Trip.time_departed.desc())
     .all()
   )
-  # Match get_driver_passenger_queue_count: a driver's latest daily dispatch
-  # determines the route whose queue count they see.
+  # The latest route trip today determines the route whose count the driver sees.
   latest_route_by_driver: dict[int, tuple[int, int]] = {}
-  for account_id, driver_id, assigned_route_id, _ in assignments:
+  for account_id, driver_id, assigned_route_id, _ in trips:
     latest_route_by_driver.setdefault(driver_id, (account_id, assigned_route_id))
   recipients = [
     account_id for account_id, assigned_route_id in latest_route_by_driver.values()
@@ -166,17 +164,6 @@ def list_public_live_vehicles(db: Session = Depends(get_db)):
   )
   results = []
   for location, vehicle in locations:
-    dispatch = (
-      db.query(DispatchLog)
-      .options(joinedload(DispatchLog.route).joinedload(Route.destination))
-      .filter(
-        DispatchLog.vehicle_id == vehicle.vehicle_id,
-        DispatchLog.effective_on >= datetime.combine(today, datetime.min.time(), tzinfo=PH),
-        DispatchLog.effective_on < datetime.combine(today + timedelta(days=1), datetime.min.time(), tzinfo=PH),
-      )
-      .order_by(DispatchLog.effective_on.desc())
-      .first()
-    )
     active_trip = (
       db.query(Trip)
       .filter(
@@ -186,7 +173,7 @@ def list_public_live_vehicles(db: Session = Depends(get_db)):
       .order_by(Trip.time_departed.desc())
       .first()
     )
-    route = active_trip.route if active_trip and active_trip.route else (dispatch.route if dispatch else None)
+    route = active_trip.route if active_trip else None
     results.append(CommuterVehicleResponse(
       vehicle_id=vehicle.vehicle_id,
       plate_number=vehicle.plate_number,
@@ -313,13 +300,13 @@ def get_driver_passenger_queue_count(
   now_ph = datetime.now(PH)
   start = now_ph.replace(hour=0, minute=0, second=0, microsecond=0)
   end = start + timedelta(days=1)
-  dispatch = (
-    db.query(DispatchLog)
-    .filter(DispatchLog.driver_id == driver.user_id, DispatchLog.effective_on >= start, DispatchLog.effective_on < end)
-    .order_by(DispatchLog.effective_on.desc())
+  trip = (
+    db.query(Trip)
+    .filter(Trip.driver_id == driver.user_id, Trip.time_departed >= start, Trip.time_departed < end)
+    .order_by(Trip.time_departed.desc())
     .first()
   )
-  if dispatch is None:
+  if trip is None:
     return PassengerQueueCountResponse(route_id=None, count=0)
-  count = _active_passenger_count(db, dispatch.route_id, datetime.now(timezone.utc))
-  return PassengerQueueCountResponse(route_id=dispatch.route_id, count=count)
+  count = _active_passenger_count(db, trip.route_id, datetime.now(timezone.utc))
+  return PassengerQueueCountResponse(route_id=trip.route_id, count=count)

@@ -1,6 +1,5 @@
 from datetime import datetime
-from uuid import UUID
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Numeric, Enum, ForeignKey
+from sqlalchemy import Boolean, DateTime, Numeric, Enum, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 
@@ -8,12 +7,9 @@ from app.database import Base
 from app.enums import TripStatus
 
 if TYPE_CHECKING:
-  from app.models.dispatch_log import DispatchLog
   from app.models.gps_log import GpsLog
-  from app.models.incident_log import Incident
   from app.models.user import User
   from app.models.vehicle import Vehicle
-  from app.models.dispatch_ticket import DispatchTicket
   from app.models.route import Route
   from app.models.trip_pause_event import TripPauseEvent
 
@@ -21,20 +17,10 @@ if TYPE_CHECKING:
 class Trip(Base):
   __tablename__ = "trips"
 
-  __table_args__ = (
-    CheckConstraint(
-      "(dispatch_id IS NOT NULL AND driver_id IS NULL AND vehicle_id IS NULL) "
-      "OR (dispatch_id IS NULL AND driver_id IS NOT NULL AND vehicle_id IS NOT NULL)",
-      name="ck_trips_identity_source",
-    ),
-  )
-
   trip_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-  dispatch_id: Mapped[int | None] = mapped_column(ForeignKey("dispatch_logs.dispatch_id"), nullable=True)
-  driver_id: Mapped[int | None] = mapped_column(ForeignKey("users.user_id"), nullable=True)
-  vehicle_id: Mapped[int | None] = mapped_column(ForeignKey("vehicles.vehicle_id"), nullable=True)
-  route_id: Mapped[int | None] = mapped_column(ForeignKey("routes.route_id"), nullable=True, index=True)
-  dispatch_ticket_id: Mapped[UUID | None] = mapped_column(ForeignKey("dispatch_tickets.id"), nullable=True)
+  driver_id: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+  vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicles.vehicle_id"), nullable=False)
+  route_id: Mapped[int] = mapped_column(ForeignKey("routes.route_id"), nullable=False, index=True)
   status: Mapped[TripStatus] = mapped_column(
       Enum(TripStatus, name="trip_status"), nullable=False, default=TripStatus.OUTGOING
   )
@@ -48,13 +34,10 @@ class Trip(Base):
   is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
   # Relationships
-  dispatch_log: Mapped["DispatchLog | None"] = relationship(back_populates="trips")
   route: Mapped["Route | None"] = relationship(back_populates="trips")
   driver: Mapped["User | None"] = relationship(back_populates="direct_trips")
   vehicle: Mapped["Vehicle | None"] = relationship(back_populates="direct_trips")
-  dispatch_ticket: Mapped["DispatchTicket | None"] = relationship(back_populates="trip")
   gps_logs: Mapped[list["GpsLog"]] = relationship(back_populates="trip")
   pause_events: Mapped[list["TripPauseEvent"]] = relationship(
     back_populates="trip", cascade="all, delete-orphan", order_by="TripPauseEvent.paused_at"
   )
-  incidents: Mapped[list["Incident"]] = relationship(back_populates="trip")

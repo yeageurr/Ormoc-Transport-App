@@ -4,7 +4,7 @@ import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, Status
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getTripGpsLogs, type TripGpsLog } from '@/api/gpsAPI';
-import type { RouteGeometry } from '@/api/dispatchAPI';
+import type { RouteGeometry } from '@/api/routesAPI';
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
 import DriverMap from '@/components/DriverMap';
 import { NotificationBell } from '@/components/NotificationCenter';

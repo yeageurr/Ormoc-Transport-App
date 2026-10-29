@@ -9,9 +9,7 @@ from app.enums import VehicleCondition, VehicleActivityStatus
 if TYPE_CHECKING:
   from app.models.user import User
   from app.models.geofence_event import GeofenceEvent
-  from app.models.dispatch_log import DispatchLog
   from app.models.trip import Trip
-  from app.models.queue_reservation import QueueReservation
 
 
 
@@ -41,6 +39,4 @@ class Vehicle(Base):
   borrower: Mapped["User | None"] = relationship(foreign_keys=[borrower_id], back_populates="borrowed_vehicle")
   owner: Mapped["User"] = relationship(foreign_keys=[owner_id], back_populates="vehicle")
   geofence_events: Mapped[list["GeofenceEvent"]] = relationship(back_populates="vehicle")
-  dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="vehicle")
   direct_trips: Mapped[list["Trip"]] = relationship(back_populates="vehicle", foreign_keys="Trip.vehicle_id")
-  queue_reservations: Mapped[list["QueueReservation"]] = relationship(back_populates="vehicle")

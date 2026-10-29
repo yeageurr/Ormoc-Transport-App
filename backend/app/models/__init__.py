@@ -4,20 +4,14 @@ from app.models.vehicle import Vehicle
 from app.models.terminal import Terminal
 from app.models.destinations import Destination
 from app.models.route import Route
-from app.models.dispatch_log import DispatchLog
 from app.models.trip import Trip
 from app.models.gps_log import GpsLog
 from app.models.driver_location import DriverLocation
-from app.models.incident_log import Incident
-from app.models.notification import Notification, BroadcastNotification
+from app.models.notification import Notification
 from app.models.geofence_event import GeofenceEvent
 from app.models.audit_log import AuditLog
 from app.models.email_verification import EmailVerification
 from app.models.password_reset_otp import PasswordResetOtp
-from app.models.queue_reservation import QueueReservation
-from app.models.dispatch_ticket import DispatchTicket
-from app.models.dispatcher_assignment import DispatcherAssignment
-from app.models.dispatcher_profile import DispatcherProfile
 from app.models.passenger_queue_entry import PassengerQueueEntry
 from app.models.trip_pause_event import TripPauseEvent
 
@@ -28,21 +22,14 @@ __all__ = [
   "Terminal",
   "Destination",
   "Route",
-  "DispatchLog",
   "Trip",
   "GpsLog",
   "DriverLocation",
-  "Incident",
   "Notification",
-  "BroadcastNotification",
   "GeofenceEvent",
   "AuditLog",
   "EmailVerification",
   "PasswordResetOtp",
-  "QueueReservation",
-  "DispatchTicket",
-  "DispatcherAssignment",
-  "DispatcherProfile",
   "PassengerQueueEntry",
   "TripPauseEvent",
 ]

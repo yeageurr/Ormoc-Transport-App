@@ -6,7 +6,7 @@ import {
   UserCircle
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import ormocDriverMark from "../../../../OTA-Ticketing/src/assets/ormoc-driver-mark.png";
+import ormocDriverMark from "../../assets/ormoc-driver-mark.png";
 
 
 const mainLinks = [
@@ -61,10 +61,10 @@ export default function Sidebar({ onOpenLogout }) {
           </div>
           <div className="overflow-hidden max-[760px]:hidden">
             <p className="truncate text-xs font-semibold text-[#071e27]">
-              {account?.display_name || account?.name || "Ticketing Officer"}
+              {account?.display_name || account?.name || "Admin"}
             </p>
             <p className="truncate text-[10px] text-[#3e6370]">
-              Ticketing Officer
+              Administrator
             </p>
           </div>
         </div>

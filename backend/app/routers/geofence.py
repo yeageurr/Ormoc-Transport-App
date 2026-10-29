@@ -1,14 +1,12 @@
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.account import Account
 from app.models.terminal import Terminal
-from app.models.dispatch_log import DispatchLog
 from app.models.trip import Trip
 from app.core.permissions import get_driver_profile, require_role
 from app.enums import AccountRole
@@ -38,10 +36,9 @@ def geofence_ping(
   driver = get_driver_profile(db, current_driver)
   active_trip = (
     db.query(Trip)
-    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
     .filter(
       Trip.is_complete.is_(False),
-      or_(Trip.driver_id == driver.user_id, DispatchLog.driver_id == driver.user_id),
+      Trip.driver_id == driver.user_id,
     )
     .first()
   )

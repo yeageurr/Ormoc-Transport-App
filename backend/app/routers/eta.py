@@ -9,7 +9,6 @@ from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
 from app.enums import AccountRole, TripStatus
 from app.models.account import Account
-from app.models.dispatch_log import DispatchLog
 from app.models.gps_log import GpsLog
 from app.models.trip import Trip
 from app.models.user import User
@@ -43,24 +42,20 @@ def get_trip_eta(
   driver = get_driver_profile(db, current_account)
   trip = (
     db.query(Trip)
-    .options(
-      joinedload(Trip.route),
-      joinedload(Trip.dispatch_log).joinedload(DispatchLog.route),
-      joinedload(Trip.dispatch_log).joinedload(DispatchLog.driver),
-    )
+    .options(joinedload(Trip.route), joinedload(Trip.driver))
     .filter(Trip.trip_id == trip_id)
     .first()
   )
   if trip is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
 
-  trip_driver: User | None = trip.dispatch_log.driver if trip.dispatch_log else trip.driver
+  trip_driver: User | None = trip.driver
   if trip_driver is None or trip_driver.user_id != driver.user_id:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
   if trip.is_complete:
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="ETA is only available for an active trip")
 
-  route = trip.route or (trip.dispatch_log.route if trip.dispatch_log else None)
+  route = trip.route
   if route is None or not route.route_geometry:
     return EtaResponse(
       trip_id=trip.trip_id,

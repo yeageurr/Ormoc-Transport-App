@@ -6,8 +6,6 @@ import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, Stat
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
-import { getCurrentDispatch, type CurrentDispatch } from '@/api/dispatchAPI';
-import { getCurrentDriverReservation, type DriverReservation } from '@/api/queueAPI';
 import { getPassengerQueueCount } from '@/api/passengerQueueAPI';
 import { NotificationBell } from '@/components/NotificationCenter';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,8 +20,6 @@ export default function HomeScreen() {
   const [trips, setTrips] = useState<DriverTrip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(true);
   const [tripError, setTripError] = useState(false);
-  const [currentDispatch, setCurrentDispatch] = useState<CurrentDispatch | null>(null);
-  const [currentReservation, setCurrentReservation] = useState<DriverReservation | null>(null);
   const [passengerQueueCount, setPassengerQueueCount] = useState<number | null>(null);
   const [gpsStatus, setGpsStatus] = useState<GpsStatus>('checking');
   const [refreshing, setRefreshing] = useState(false);
@@ -37,22 +33,6 @@ export default function HomeScreen() {
       setTripError(true);
     } finally {
       setIsLoadingTrips(false);
-    }
-  }, []);
-
-  const loadCurrentDispatch = useCallback(async () => {
-    try {
-      setCurrentDispatch(await getCurrentDispatch());
-    } catch {
-      setCurrentDispatch(null);
-    }
-  }, []);
-
-  const loadCurrentReservation = useCallback(async () => {
-    try {
-      setCurrentReservation(await getCurrentDriverReservation());
-    } catch {
-      setCurrentReservation(null);
     }
   }, []);
 
@@ -90,14 +70,12 @@ export default function HomeScreen() {
     setRefreshing(true);
     await Promise.all([
       loadTrips(false),
-      loadCurrentDispatch(),
-      loadCurrentReservation(),
       loadPassengerQueueCount(),
       checkGpsStatus(),
       refreshUser().catch(() => undefined),
     ]);
     setRefreshing(false);
-  }, [checkGpsStatus, loadCurrentDispatch, loadCurrentReservation, loadPassengerQueueCount, loadTrips, refreshUser]);
+  }, [checkGpsStatus, loadPassengerQueueCount, loadTrips, refreshUser]);
 
   const handleGpsPress = useCallback(() => {
     if (gpsStatus === 'denied') {
@@ -113,12 +91,10 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => {
     void loadTrips();
-    void loadCurrentDispatch();
-    void loadCurrentReservation();
     void loadPassengerQueueCount();
     const refreshQueueCount = setInterval(() => void loadPassengerQueueCount(), 15_000);
     return () => clearInterval(refreshQueueCount);
-  }, [loadCurrentDispatch, loadCurrentReservation, loadPassengerQueueCount, loadTrips]));
+  }, [loadPassengerQueueCount, loadTrips]));
 
   useEffect(() => { void checkGpsStatus(true); }, [checkGpsStatus]);
 
@@ -128,15 +104,6 @@ export default function HomeScreen() {
   );
   const averageSpeed = average(todayTrips.map((trip) => trip.average_speed_km));
   const distanceToday = todayTrips.reduce((total, trip) => total + (trip.distance_traveled_km ?? 0), 0);
-  const queueStatusLabel = currentReservation
-    ? currentReservation.queue_status === 'loading'
-      ? 'Now Loading'
-      : currentReservation.queue_status === 'on_queue'
-        ? 'On Queue'
-        : 'Awaiting Approval'
-    : currentDispatch
-      ? 'Ready to Reserve'
-      : 'No Current Dispatch';
   const firstName = fullName?.trim().split(/\s+/)[0] || 'Driver';
 
   return (
@@ -161,18 +128,6 @@ export default function HomeScreen() {
               <Text style={styles.greetingSubtitle}>Ready for your ride today?</Text>
             </View>
             <NotificationBell />
-          </View>
-
-          <View style={styles.queueSummaryCard}>
-            <View style={styles.queueSummaryItem}>
-              <Text numberOfLines={1} adjustsFontSizeToFit style={styles.queueSummaryValue}>{queueStatusLabel}</Text>
-              <Text style={styles.queueSummaryCaption}>Queue Status</Text>
-            </View>
-            <View style={styles.queueSummaryDivider} />
-            <View style={styles.queueSummaryItem}>
-              <Text style={styles.queueSummaryValue}>{currentReservation?.queue_display || '—'}</Text>
-              <Text style={styles.queueSummaryCaption}>Your Queue Number</Text>
-            </View>
           </View>
 
           <Pressable onPress={handleGpsPress} accessibilityRole="button" style={styles.gpsStatus}>
@@ -320,11 +275,6 @@ const styles = StyleSheet.create({
   greetingCopy: { flex: 1, paddingRight: 12 },
   greeting: { color: '#F5FFFD', fontSize: 20, fontWeight: '800' },
   greetingSubtitle: { marginTop: 2, color: '#B8D9D5', fontSize: 11 },
-  queueSummaryCard: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 12, borderRadius: 6, backgroundColor: '#0A7168' },
-  queueSummaryItem: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  queueSummaryValue: { color: '#FFFFFF', fontSize: 13, lineHeight: 27, fontWeight: '700' },
-  queueSummaryCaption: { color: '#D2ECE8', fontSize: 9, marginTop: 1 },
-  queueSummaryDivider: { width: 1, height: 35, backgroundColor: 'rgba(218, 248, 242, 0.35)' },
 
   gpsStatus: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, marginTop: 9 },
   gpsDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#54E18D' },

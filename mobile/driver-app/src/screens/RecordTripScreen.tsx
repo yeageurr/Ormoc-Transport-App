@@ -181,7 +181,7 @@ export default function RecordTripScreen() {
     extrapolate: 'clamp',
   });
 
-  const loadDispatch = useCallback(async (showLoading = true) => {
+  const loadTripData = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     setMessage(null);
     try {
@@ -203,14 +203,14 @@ export default function RecordTripScreen() {
     }
   }, []);
 
-  useEffect(() => { void loadDispatch(); }, [loadDispatch]);
+  useEffect(() => { void loadTripData(); }, [loadTripData]);
   useEffect(() => {
     if (activeTrip) setDirectionPickerOpen(false);
   }, [activeTrip]);
   useEffect(() => {
-    const interval = setInterval(() => { void loadDispatch(false); }, 10000);
+    const interval = setInterval(() => { void loadTripData(false); }, 10000);
     return () => clearInterval(interval);
-  }, [loadDispatch]);
+  }, [loadTripData]);
   useEffect(() => {
     if (!activeTrip) return;
     const interval = setInterval(() => setNow(Date.now()), 1000);

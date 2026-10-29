@@ -9,7 +9,7 @@ from app.enums import AccountRole
 class LoginRequest(BaseModel):
   username: str
   password: str
-  portal: Literal["ticketing_officer", "driver", "dispatcher"]
+  portal: Literal["admin", "driver"]
 
 
 class TokenResponse(BaseModel):

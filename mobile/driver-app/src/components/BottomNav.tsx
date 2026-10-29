@@ -13,7 +13,6 @@ const navItems: NavItem[] = [
   { label: 'Trip Logs', icon: 'reader-outline', href: '/tabs/trip-logs' },
   // Start Trip is a prominent action on the v2 Home screen.
   // { label: 'Start Trip', icon: 'navigate', href: '/tabs/record-trip' },
-  // { label: 'Reports', icon: 'list-outline', href: '/tabs/report-incident' },
   { label: 'Me', icon: 'person-outline', href: '/tabs/profile' },
 ];
 

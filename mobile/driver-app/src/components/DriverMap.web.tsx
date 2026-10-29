@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { RouteGeometry } from '@/api/dispatchAPI';
+import type { RouteGeometry } from '@/api/routesAPI';
 
 export default function DriverMap({ fullScreen = false }: {
   fullScreen?: boolean;

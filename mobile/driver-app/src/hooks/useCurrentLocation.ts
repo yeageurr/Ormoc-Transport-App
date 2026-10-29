@@ -48,7 +48,7 @@ export function useCurrentLocation() {
           longitude: position.coords.longitude,
           speedKph: Math.max(0, (position.coords.speed ?? 0) * 3.6),
         }).catch(() => {
-          // A missing current dispatch and temporary network failures do not
+          // A missing trip and temporary network failures do not
           // stop foreground GPS watching.
         });
         void pingGeofence({
@@ -65,7 +65,7 @@ export function useCurrentLocation() {
       };
 
       // A watch callback may not fire until the device moves. Send one
-      // location immediately so a stationary dispatched driver is visible.
+      // location immediately so a stationary driver is visible.
       sendLocation(await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
 
       subscription = await Location.watchPositionAsync(

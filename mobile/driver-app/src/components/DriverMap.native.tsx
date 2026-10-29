@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useDriverLocation } from '@/hooks/useDriverLocation';
-import type { RouteGeometry } from '@/api/dispatchAPI';
+import type { RouteGeometry } from '@/api/routesAPI';
 
 const ORMOC_CENTER: [number, number] = [124.6075, 11.0064];
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN;
@@ -96,7 +96,7 @@ export default function DriverMap({
         )}
         {startCoordinate && (
           <Mapbox.PointAnnotation
-            id="dispatch-start-pin"
+            id="route-start-pin"
             coordinate={startCoordinate}
             title={historyPath ? 'Trip start' : isReturning ? 'Start: destination' : 'Start: terminal'}
             anchor={{ x: 0.5, y: 1 }}
@@ -108,7 +108,7 @@ export default function DriverMap({
         )}
         {destinationCoordinate && (
           <Mapbox.PointAnnotation
-            id="dispatch-destination-pin"
+            id="route-destination-pin"
             coordinate={destinationCoordinate}
             title={historyPath ? 'Trip end' : isReturning ? 'Destination: terminal' : 'Destination: route end'}
             anchor={{ x: 0.5, y: 1 }}

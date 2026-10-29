@@ -36,7 +36,7 @@ export const updateVehicle = async (vehicleId, payload) => {
 };
 
 // Admin: permanently remove an unused vehicle. The API protects vehicles
-// that already have dispatch history.
+// that already have trip history.
 export const deleteVehicle = async (vehicleId) => {
   await axiosClient.delete(`/vehicles/${vehicleId}`);
 };

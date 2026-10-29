@@ -11,8 +11,6 @@ if TYPE_CHECKING:
   from app.models.user import User
   from app.models.terminal import Terminal
   from app.models.notification import Notification
-  from app.models.dispatch_log import DispatchLog
-  from app.models.incident_log import Incident
   from app.models.audit_log import AuditLog
 
 
@@ -41,7 +39,4 @@ class Account(Base):
   user: Mapped["User"] = relationship(back_populates="account", uselist=False)
   terminal: Mapped["Terminal"] = relationship(back_populates="admin", uselist=False)
   notifications: Mapped[list["Notification"]] = relationship(back_populates="recipient")
-  dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="admin")
-  incidents_updated: Mapped[list["Incident"]] = relationship(back_populates="updated_by_account", foreign_keys="Incident.updated_by")
   audit_logs: Mapped[list["AuditLog"]] = relationship(back_populates="actor")
-  incidents_resolved: Mapped[list["Incident"]] = relationship(back_populates="resolved_by_user", foreign_keys="Incident.resolved_by")

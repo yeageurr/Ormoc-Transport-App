@@ -2,16 +2,14 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
 from app.enums import AccountRole, TripStatus, VehicleActivityStatus, VehicleCondition
 from app.models.account import Account
-from app.models.dispatch_log import DispatchLog
 from app.models.gps_log import GpsLog
-from app.models.incident_log import Incident
 from app.models.terminal import Terminal
 from app.models.trip import Trip
 from app.models.user import User
@@ -53,19 +51,15 @@ def _gps_distance_km(points: list[GpsLog]) -> float:
 
 
 def _driver_for_trip(trip: Trip) -> User | None:
-  if trip.dispatch_log is not None:
-    return trip.dispatch_log.driver
   return trip.driver
 
 
 def _vehicle_for_trip(trip: Trip) -> Vehicle | None:
-  if trip.dispatch_log is not None:
-    return trip.dispatch_log.vehicle
   return trip.vehicle
 
 
 def _route_for_trip(trip: Trip) -> Route | None:
-  return trip.route or (trip.dispatch_log.route if trip.dispatch_log else None)
+  return trip.route
 
 
 def _route_label(trip: Trip, terminal_name: str) -> str | None:
@@ -83,7 +77,7 @@ def start_trip(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  """Start a route-based trip leg without creating a dispatch record."""
+  """Start a route-based trip leg using its route, driver, and vehicle records."""
   driver = get_driver_profile(db, current_driver)
   route = db.query(Route).filter(Route.route_id == payload.route_id, Route.is_active.is_(True)).first()
   if route is None:
@@ -93,7 +87,7 @@ def start_trip(
   if vehicle is None:
     raise HTTPException(
       status_code=status.HTTP_409_CONFLICT,
-      detail="No vehicle is linked to your driver account. Contact the ticketing officer.",
+      detail="No vehicle is linked to your driver account. Contact an administrator.",
     )
 
   if vehicle.condition == VehicleCondition.UNDER_MAINTENANCE:
@@ -101,10 +95,9 @@ def start_trip(
 
   active_trip = (
     db.query(Trip)
-    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
     .filter(
       Trip.is_complete.is_(False),
-      or_(Trip.vehicle_id == vehicle.vehicle_id, DispatchLog.vehicle_id == vehicle.vehicle_id),
+      Trip.vehicle_id == vehicle.vehicle_id,
     )
     .first()
   )
@@ -265,8 +258,7 @@ def list_my_trips(
   driver = get_driver_profile(db, current_driver)
   trips = (
     db.query(Trip)
-    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
-    .filter(or_(Trip.driver_id == driver.user_id, DispatchLog.driver_id == driver.user_id))
+    .filter(Trip.driver_id == driver.user_id)
     .order_by(Trip.time_departed.desc())
     .all()
   )
@@ -276,11 +268,9 @@ def list_my_trips(
   return [
     DriverTripResponse(
       trip_id=trip.trip_id,
-      dispatch_id=trip.dispatch_id,
-      route_id=trip.route_id or (trip.dispatch_log.route_id if trip.dispatch_log else None),
+      route_id=trip.route_id,
       driver_id=trip.driver_id,
       vehicle_id=trip.vehicle_id,
-      dispatch_ticket_id=str(trip.dispatch_ticket_id) if trip.dispatch_ticket_id else None,
       status=trip.status,
       time_departed=trip.time_departed,
       time_arrived=trip.time_arrived,
@@ -313,32 +303,22 @@ def get_my_daily_summary(
 
   trips_completed = (
     db.query(func.count(Trip.trip_id))
-    .outerjoin(DispatchLog, Trip.dispatch_id == DispatchLog.dispatch_id)
     .filter(
-      or_(Trip.driver_id == driver_id, DispatchLog.driver_id == driver_id),
+      Trip.driver_id == driver_id,
       Trip.is_complete.is_(True),
       Trip.time_arrived >= day_start,
       Trip.time_arrived < day_end,
     )
     .scalar()
   )
-  incidents_reported = (
-    db.query(func.count(Incident.incident_id))
-    .filter(
-      Incident.reported_by == driver_id,
-      Incident.reported_at >= day_start,
-      Incident.reported_at < day_end,
-    )
-    .scalar()
-  )
-  return DriverDailySummary(trips_completed=trips_completed or 0, incidents_reported=incidents_reported or 0)
+  return DriverDailySummary(trips_completed=trips_completed or 0)
 
 
 @router.get("/{trip_id}", response_model=TripResponse)
 def get_trip(
   trip_id: int,
   db: Session = Depends(get_db),
-  current_account: Account = Depends(require_role(AccountRole.TICKETING_OFFICER, AccountRole.DRIVER)),
+  current_account: Account = Depends(require_role(AccountRole.ADMIN, AccountRole.DRIVER)),
 ):
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
   if trip is None:
@@ -354,7 +334,7 @@ def get_trip(
 @router.get("", response_model=list[AdminTripResponse])
 def list_all_trips(
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   trips = db.query(Trip).order_by(Trip.time_departed.desc()).all()
   terminal = db.query(Terminal).first()
@@ -364,9 +344,8 @@ def list_all_trips(
     driver = _driver_for_trip(trip)
     results.append(AdminTripResponse(
       trip_id=trip.trip_id,
-      dispatch_id=trip.dispatch_id,
       status=trip.status,
-      route_id=trip.route_id or (trip.dispatch_log.route_id if trip.dispatch_log else None),
+      route_id=trip.route_id,
       time_departed=trip.time_departed,
       time_arrived=trip.time_arrived,
       trip_duration_minutes=trip.trip_duration_minutes,

@@ -7,7 +7,6 @@ from app.database import Base
 if TYPE_CHECKING:
   from app.models.account import Account
   from app.models.geofence_event import GeofenceEvent
-  from app.models.notification import BroadcastNotification
   from app.models.route import Route
 
 
@@ -26,5 +25,4 @@ class Terminal(Base):
   # Relationships
   admin: Mapped["Account"] = relationship(back_populates="terminal")
   geofence_events: Mapped[list["GeofenceEvent"]] = relationship(back_populates="terminal")
-  broadcast_notifications: Mapped[list["BroadcastNotification"]] = relationship(back_populates="terminal")
   routes: Mapped[list["Route"]] = relationship(back_populates="origin")

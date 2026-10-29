@@ -31,7 +31,7 @@ from app.services.sms_service import SmsDeliveryError, send_password_reset_sms
 from app.services.account_activity_email import notify_password_changed
 
 router = APIRouter()
-PASSWORD_RECOVERY_ROLES = (AccountRole.DRIVER, AccountRole.TICKETING_OFFICER)
+PASSWORD_RECOVERY_ROLES = (AccountRole.DRIVER, AccountRole.ADMIN)
 
 
 def _verification_query(db: Session, destination: PasswordResetCodeRequest | PasswordResetCodeVerify):
@@ -78,7 +78,7 @@ def _enforce_reset_send_cooldown(verification: PasswordResetOtp | None, now: dat
 @router.post("/verify-password")
 def verify_current_password(
   payload: VerifyPasswordRequest,
-  current_account: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  current_account: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   if not verify_password(payload.password, current_account.password_hash):
     # A bad password supplied for this action does not mean the login session
@@ -156,7 +156,7 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
 
 @router.get("/me")
 def get_me(
-  portal: Literal["ticketing_officer", "driver", "dispatcher"],
+  portal: Literal["admin", "driver"],
   current_account: Account = Depends(get_account_for_password_setup),
 ):
   if current_account.role != AccountRole(portal):

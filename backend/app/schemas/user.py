@@ -55,28 +55,6 @@ class DriverCreate(UserBase):
     return self
 
 
-class DispatcherCreate(BaseModel):
-  first_name: str
-  last_name: str
-  contact_number: str
-  email: EmailStr | None = None
-
-  @field_validator("contact_number")
-  @classmethod
-  def validate_contact_number(cls, value: str) -> str:
-    if not re.fullmatch(r"\d{11}", value):
-      raise ValueError("Contact number must be exactly 11 digits")
-    return value
-
-  @field_validator("first_name", "last_name")
-  @classmethod
-  def validate_name(cls, value: str) -> str:
-    value = value.strip()
-    if not value or len(value) > 50:
-      raise ValueError("Name must be between 1 and 50 characters")
-    return value
-
-
 class UserResponse(UserBase):
   model_config = ConfigDict(from_attributes=True)
 

@@ -25,9 +25,6 @@ const targetTableOptions = [
   { value: "accounts", label: "Accounts" },
   { value: "users", label: "Driver profiles" },
   { value: "vehicles", label: "Vehicles" },
-  { value: "incidents", label: "Incidents" },
-  { value: "dispatch_logs", label: "Dispatch logs" },
-  { value: "dispatcher_assignments", label: "Dispatch assignments" },
   { value: "routes", label: "Routes" },
 ];
 

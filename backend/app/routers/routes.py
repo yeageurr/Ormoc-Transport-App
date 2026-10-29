@@ -36,7 +36,7 @@ def update_route_geometry(
   route_id: int,
   payload: RouteGeometry,
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   """Replace a route's verified outbound GeoJSON line without changing its history."""
   route = db.query(Route).filter(Route.route_id == route_id).first()
@@ -48,7 +48,7 @@ def update_route_geometry(
   db.refresh(route)
   log_action(
     db,
-    ticketing_officer.account_id,
+    admin.account_id,
     AuditAction.UPDATE,
     "routes",
     route.route_id,
@@ -62,7 +62,7 @@ def generate_route_geometry(
   route_id: int,
   payload: RouteDirectionsRequest,
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   """Generate and save a road-following route via Mapbox Directions.
 
@@ -98,7 +98,7 @@ def generate_route_geometry(
   db.refresh(route)
   log_action(
     db,
-    ticketing_officer.account_id,
+    admin.account_id,
     AuditAction.UPDATE,
     "routes",
     route.route_id,

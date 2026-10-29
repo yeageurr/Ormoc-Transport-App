@@ -1,12 +1,12 @@
 import axiosClient from "./axiosClient";
 
 export const login = async (username, password) => {
-  const response = await axiosClient.post("/auth/login", { username, password, portal: "ticketing_officer" });
+  const response = await axiosClient.post("/auth/login", { username, password, portal: "admin" });
   return response.data; 
 };
 
 export const getCurrentUser = async () => {
-  const response = await axiosClient.get("/auth/me?portal=ticketing_officer");
+  const response = await axiosClient.get("/auth/me?portal=admin");
   return response.data; 
 };
 

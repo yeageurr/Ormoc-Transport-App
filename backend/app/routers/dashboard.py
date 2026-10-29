@@ -2,16 +2,14 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.account import Account
 from app.models.user import User
 from app.models.trip import Trip
-from app.models.incident_log import Incident
-from app.models.dispatch_log import DispatchLog
 from app.core.permissions import require_role
 from app.enums import AccountRole
 
@@ -23,160 +21,61 @@ class DashboardStats(BaseModel):
   total_trips_yesterday: int
   avg_trip_duration_minutes: float | None
   avg_trip_duration_previous_period_minutes: float | None
-  incidents_reported_total: int
-  incidents_reported_previous_period: int
   drivers_total: int
   drivers_total_previous_month: int
 
 
 class TripVolumeDay(BaseModel):
-  day_label: str  # "MON", "TUE", etc.
+  day_label: str
   count: int
-
-
-class RecentIncidentSummary(BaseModel):
-  incident_id: int
-  incident_type: str
-  reporter_name: str
-  route_label: str
-  vehicle_plate: str | None = None
 
 
 @router.get("/stats", response_model=DashboardStats)
 def get_dashboard_stats(
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
   now = datetime.now(ZoneInfo("Asia/Manila"))
   today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
   yesterday_start = today_start - timedelta(days=1)
   tomorrow_start = today_start + timedelta(days=1)
 
-  total_trips_today = (
-    db.query(Trip)
-    .filter(Trip.time_departed >= today_start, Trip.time_departed < tomorrow_start)
-    .count()
-  )
-  total_trips_yesterday = (
-    db.query(Trip)
-    .filter(Trip.time_departed >= yesterday_start, Trip.time_departed < today_start)
-    .count()
-  )
+  total_trips_today = db.query(Trip).filter(Trip.time_departed >= today_start, Trip.time_departed < tomorrow_start).count()
+  total_trips_yesterday = db.query(Trip).filter(Trip.time_departed >= yesterday_start, Trip.time_departed < today_start).count()
 
   current_duration_start = now - timedelta(days=7)
   previous_duration_start = now - timedelta(days=14)
-  avg_duration = (
-    db.query(func.avg(Trip.trip_duration_minutes))
-    .filter(
-      Trip.is_complete.is_(True),
-      Trip.time_arrived >= current_duration_start,
-      Trip.time_arrived < now,
-    )
-    .scalar()
-  )
-  previous_avg_duration = (
-    db.query(func.avg(Trip.trip_duration_minutes))
-    .filter(
-      Trip.is_complete.is_(True),
-      Trip.time_arrived >= previous_duration_start,
-      Trip.time_arrived < current_duration_start,
-    )
-    .scalar()
-  )
+  avg_duration = db.query(func.avg(Trip.trip_duration_minutes)).filter(
+    Trip.is_complete.is_(True), Trip.time_arrived >= current_duration_start, Trip.time_arrived < now,
+  ).scalar()
+  previous_avg_duration = db.query(func.avg(Trip.trip_duration_minutes)).filter(
+    Trip.is_complete.is_(True), Trip.time_arrived >= previous_duration_start, Trip.time_arrived < current_duration_start,
+  ).scalar()
 
   current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-  previous_month_start = (current_month_start - timedelta(days=1)).replace(day=1)
-  previous_month_cutoff = min(
-    previous_month_start + (now - current_month_start),
-    current_month_start,
-  )
-  incidents_total = (
-    db.query(Incident)
-    .filter(Incident.reported_at >= current_month_start, Incident.reported_at < now)
-    .count()
-  )
-  previous_incidents_total = (
-    db.query(Incident)
-    .filter(
-      Incident.reported_at >= previous_month_start,
-      Incident.reported_at < previous_month_cutoff,
-    )
-    .count()
-  )
   drivers_query = db.query(User).join(Account).filter(Account.role == AccountRole.DRIVER)
-  drivers_total = drivers_query.count()
-  # accounts.created_on is stored without a timezone; compare it to the
-  # equivalent UTC wall time for the Manila month boundary.
   month_start_utc = current_month_start.astimezone(timezone.utc).replace(tzinfo=None)
-  drivers_total_previous_month = drivers_query.filter(Account.created_on < month_start_utc).count()
-
   return DashboardStats(
     total_trips_today=total_trips_today,
     total_trips_yesterday=total_trips_yesterday,
     avg_trip_duration_minutes=round(avg_duration, 2) if avg_duration is not None else None,
-    avg_trip_duration_previous_period_minutes=(
-      round(previous_avg_duration, 2) if previous_avg_duration is not None else None
-    ),
-    incidents_reported_total=incidents_total,
-    incidents_reported_previous_period=previous_incidents_total,
-    drivers_total=drivers_total,
-    drivers_total_previous_month=drivers_total_previous_month,
+    avg_trip_duration_previous_period_minutes=round(previous_avg_duration, 2) if previous_avg_duration is not None else None,
+    drivers_total=drivers_query.count(),
+    drivers_total_previous_month=drivers_query.filter(Account.created_on < month_start_utc).count(),
   )
 
 
 @router.get("/trip-volume", response_model=list[TripVolumeDay])
 def get_trip_volume_last_7_days(
   db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
+  admin: Account = Depends(require_role(AccountRole.ADMIN)),
 ):
-  """Completed trip count per day, last 7 days, oldest first — matches
-  the Mon-Sun bar chart in the dashboard mockup."""
   results = []
   today = datetime.now(ZoneInfo("Asia/Manila")).date()
-
   for i in range(6, -1, -1):
     day = today - timedelta(days=i)
     day_start = datetime.combine(day, datetime.min.time(), tzinfo=ZoneInfo("Asia/Manila"))
     day_end = day_start + timedelta(days=1)
-
-    count = (
-      db.query(Trip)
-      .filter(Trip.time_departed >= day_start, Trip.time_departed < day_end)
-      .count()
-    )
-
+    count = db.query(Trip).filter(Trip.time_departed >= day_start, Trip.time_departed < day_end).count()
     results.append(TripVolumeDay(day_label=day.strftime("%a").upper(), count=count))
-
   return results
-
-
-@router.get("/recent-incidents", response_model=list[RecentIncidentSummary])
-def get_recent_incidents(
-  limit: int = 5,
-  db: Session = Depends(get_db),
-  ticketing_officer: Account = Depends(require_role(AccountRole.TICKETING_OFFICER)),
-):
-  incidents = (
-    db.query(Incident)
-    .order_by(Incident.reported_at.desc())
-    .limit(limit)
-    .all()
-  )
-
-  summaries = []
-  for incident in incidents:
-    reporter = incident.reported_by_user
-    trip = incident.trip
-    dispatch = trip.dispatch_log if trip else None
-    route = dispatch.route if dispatch else None
-    vehicle = dispatch.vehicle if dispatch else None
-
-    summaries.append(RecentIncidentSummary(
-      incident_id=incident.incident_id,
-      incident_type=incident.incident_type.value,
-      reporter_name=f"{reporter.first_name} {reporter.last_name}" if reporter else "Unknown",
-      route_label=route.destination.name if route and route.destination else "Unknown",
-      vehicle_plate=vehicle.plate_number if vehicle else None,
-    ))
-
-  return summaries

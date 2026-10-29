@@ -9,21 +9,7 @@ class AccountStatus(str, enum.Enum):
 
 class AccountRole(str, enum.Enum):
   DRIVER = "driver"
-  DISPATCHER = "dispatcher"
-  TICKETING_OFFICER = "ticketing_officer"
-
-
-class ReservationApprovalStatus(str, enum.Enum):
-  PENDING = "pending"
-  APPROVED = "approved"
-  CANCELLED = "cancelled"
-  EXPIRED = "expired"
-
-
-class QueueProgressStatus(str, enum.Enum):
-  ON_QUEUE = "on_queue"
-  LOADING = "loading"
-  DEPARTED = "departed"
+  ADMIN = "admin"
 
 
 class VehicleCondition(str, enum.Enum):
@@ -60,21 +46,3 @@ class NotificationType(str, enum.Enum):
   SUSPENSION = "suspension"
   WARNING = "warning"
   UPDATED = "updated"
-
-
-class BroadcastType(str, enum.Enum):
-  PASSENGER_QUEUE = "passenger_queue"
-  INCIDENT = "incident"
-
-
-class IncidentType(str, enum.Enum):
-  VEHICLE_BREAKDOWN = "vehicle_breakdown"
-  FLOODED_ROAD = "flooded_road"
-  CRIME_INCIDENT = "crime_incident"
-  ROAD_ACCIDENT = "road_accident"
-
-
-class IncidentStatus(str, enum.Enum):
-  OPEN = "open"
-  UNDER_REVIEW = "under_review"
-  RESOLVED = "resolved"

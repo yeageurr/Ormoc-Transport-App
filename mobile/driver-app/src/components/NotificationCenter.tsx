@@ -171,7 +171,7 @@ function NotificationPanel({
             <View style={styles.emptyState}>
               <Ionicons name="notifications-off-outline" size={32} color="#7AA8A2" />
               <Text style={styles.emptyTitle}>No notifications yet</Text>
-              <Text style={styles.emptyText}>Account and dispatch updates will appear here.</Text>
+              <Text style={styles.emptyText}>Account and trip updates will appear here.</Text>
             </View>
           ) : (
             <ScrollView contentContainerStyle={styles.list}>

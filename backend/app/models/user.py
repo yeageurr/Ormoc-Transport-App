@@ -8,10 +8,7 @@ from app.database import Base
 if TYPE_CHECKING:
   from app.models.account import Account
   from app.models.vehicle import Vehicle
-  from app.models.dispatch_log import DispatchLog
-  from app.models.incident_log import Incident
   from app.models.trip import Trip
-  from app.models.queue_reservation import QueueReservation
 
 
 class User(Base):
@@ -39,10 +36,7 @@ class User(Base):
   borrowed_vehicle: Mapped["Vehicle | None"] = relationship(
     back_populates="borrower", foreign_keys="Vehicle.borrower_id", uselist=False
   )
-  dispatch_logs: Mapped[list["DispatchLog"]] = relationship(back_populates="driver")
-  incidents: Mapped[list["Incident"]] = relationship(back_populates="reported_by_user")
   direct_trips: Mapped[list["Trip"]] = relationship(back_populates="driver", foreign_keys="Trip.driver_id")
-  queue_reservations: Mapped[list["QueueReservation"]] = relationship(back_populates="driver")
 
   @property
   def active_vehicle(self):
