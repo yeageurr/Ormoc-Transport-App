@@ -1,5 +1,6 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.enums import TripStatus
 
@@ -16,6 +17,30 @@ class TripPauseEventResponse(BaseModel):
   pause_event_id: int
   paused_at: datetime
   resumed_at: datetime | None = None
+  delay_reason: str | None = None
+  delay_details: str | None = None
+  broadcast_to_commuters: bool = False
+
+
+class TripPauseRequest(BaseModel):
+  broadcast_to_commuters: bool = False
+  delay_reason: Literal["accident", "road_incident", "traffic", "other"] | None = None
+  delay_details: str | None = Field(default=None, max_length=500)
+
+  @model_validator(mode="after")
+  def validate_broadcast(self):
+    if self.broadcast_to_commuters and self.delay_reason is None:
+      raise ValueError("Choose a delay reason before broadcasting")
+    if self.delay_reason == "other" and self.broadcast_to_commuters and not (self.delay_details or "").strip():
+      raise ValueError("Describe the delay before broadcasting")
+    if self.delay_reason != "other":
+      self.delay_details = None
+    if not self.broadcast_to_commuters:
+      self.delay_reason = None
+      self.delay_details = None
+    elif self.delay_details is not None:
+      self.delay_details = self.delay_details.strip()
+    return self
 
 
 class TripEnd(BaseModel):

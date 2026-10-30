@@ -6,7 +6,7 @@ import { ActivityIndicator, Animated, BackHandler, Modal, PanResponder, Pressabl
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { joinPassengerQueue, restorePassengerQueue, updatePassengerQueuePresence, type PassengerQueueSession } from '@/api/passengerQueueAPI';
-import { getCommuterRoutes, getLiveCommuterVehicles, getTerminalGeofence, type CommuterRoute, type CommuterVehicle, type TerminalGeofence } from '@/api/publicAPI';
+import { getActiveDelayNotices, getCommuterRoutes, getLiveCommuterVehicles, getTerminalGeofence, type CommuterDelayNotice, type CommuterRoute, type CommuterVehicle, type TerminalGeofence } from '@/api/publicAPI';
 import CommuterLiveMap from '@/components/CommuterLiveMap';
 import PassengerQueueFlow from '@/components/PassengerQueueFlow';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +16,15 @@ const SKY = '#A9E4FF';
 function formatCity(city?: string) {
   if (city && /^ormoc(?: city)?$/i.test(city)) return 'Ormoc City';
   return city;
+}
+
+function delayNoticeLabel(reason: string) {
+  switch (reason) {
+    case 'accident': return 'The driver reported an accident causing a delay.';
+    case 'road_incident': return 'The driver reported a road incident causing a delay.';
+    case 'traffic': return 'The driver reported traffic causing a delay.';
+    default: return 'The driver reported a delay on this route.';
+  }
 }
 
 function isPlusCode(value: string) {
@@ -117,6 +126,7 @@ export default function LiveMapScreen() {
   const { height: screenHeight } = useWindowDimensions();
   const [routes, setRoutes] = useState<CommuterRoute[]>([]);
   const [vehicles, setVehicles] = useState<CommuterVehicle[]>([]);
+  const [delayNotices, setDelayNotices] = useState<CommuterDelayNotice[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
@@ -208,12 +218,22 @@ export default function LiveMapScreen() {
     }
   }, []);
 
+  const loadDelayNotices = useCallback(async () => {
+    try {
+      setDelayNotices(await getActiveDelayNotices());
+    } catch {
+      // Delay notices are secondary to the live map; retry on the next poll.
+    }
+  }, []);
+
   useEffect(() => {
     void loadRoutes();
     void loadVehicles(true);
+    void loadDelayNotices();
     const refresh = setInterval(() => void loadVehicles(), 10_000);
-    return () => clearInterval(refresh);
-  }, [loadRoutes, loadVehicles]);
+    const noticeRefresh = setInterval(() => void loadDelayNotices(), 10_000);
+    return () => { clearInterval(refresh); clearInterval(noticeRefresh); };
+  }, [loadDelayNotices, loadRoutes, loadVehicles]);
 
   useEffect(() => {
     let isActive = true;
@@ -317,6 +337,7 @@ export default function LiveMapScreen() {
 
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.vehicle_id === selectedVehicleId) ?? null;
+  const visibleDelayNotices = delayNotices.filter((notice) => notice.route_id === (queueRouteId ?? selectedRouteId));
   const routeVehicles = useMemo(
     () => vehicles.filter((vehicle) => vehicle.route_id === selectedRouteId),
     [vehicles, selectedRouteId]
@@ -471,6 +492,18 @@ export default function LiveMapScreen() {
         </View>
       )}
 
+      {visibleDelayNotices.length > 0 && (
+        <View style={[styles.delayNotice, { top: insets.top + 105 }]} accessibilityLiveRegion="polite">
+          <Ionicons name="alert-circle" size={17} color="#8A4A00" />
+          <View style={styles.delayNoticeCopy}>
+            <Text style={styles.delayNoticeTitle}>Delay on {visibleDelayNotices[0].route_name} route</Text>
+            <Text style={styles.delayNoticeText} numberOfLines={2}>
+              {visibleDelayNotices[0].details || delayNoticeLabel(visibleDelayNotices[0].reason)}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <Pressable style={[styles.routesButton, { bottom: Math.max(insets.bottom, 12) + 14 }]} onPress={() => setRoutePickerOpen(true)} accessibilityRole="button" accessibilityLabel="Search routes">
         <View style={styles.routesButtonContent}>
           <View style={styles.routesButtonLabel}>
@@ -481,7 +514,7 @@ export default function LiveMapScreen() {
         </View>
       </Pressable>
 
-      {error ? <View style={[styles.errorBanner, { top: insets.top + 112 }]}><Text style={styles.errorText}>{error}</Text><Pressable onPress={() => { void loadRoutes(); void loadVehicles(true); }}><Text style={styles.retryText}>Retry</Text></Pressable></View> : null}
+      {error ? <View style={[styles.errorBanner, { top: insets.top + (visibleDelayNotices.length > 0 ? 164 : 112) }]}><Text style={styles.errorText}>{error}</Text><Pressable onPress={() => { void loadRoutes(); void loadVehicles(true); }}><Text style={styles.retryText}>Retry</Text></Pressable></View> : null}
       {mapLoading && <View style={styles.mapLoadingScreen} accessibilityRole="progressbar" accessibilityLabel="Loading map">
         <View style={styles.loadingMessage}>
           <View style={styles.loadingSpinner}>
@@ -577,6 +610,10 @@ const styles = StyleSheet.create({
   approachingNoticeText: { color: '#17634E', fontFamily: 'Poppins_500Medium', fontSize: 11 },
   passengerQueueNotice: { position: 'absolute', left: 16, right: 16, minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 12, borderWidth: 1, borderColor: '#B9E7D6', borderRadius: 20, backgroundColor: '#F2FFF9', elevation: 4 },
   passengerQueueNoticeText: { color: '#17634E', fontFamily: 'Poppins_500Medium', fontSize: 11 },
+  delayNotice: { position: 'absolute', left: 12, right: 12, minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 12, paddingVertical: 8, borderWidth: 1, borderColor: '#F1C27C', borderRadius: 11, backgroundColor: '#FFF8E9', elevation: 4 },
+  delayNoticeCopy: { flex: 1 },
+  delayNoticeTitle: { color: '#704000', fontFamily: 'Poppins_600SemiBold', fontSize: 11 },
+  delayNoticeText: { marginTop: 1, color: '#7F5722', fontFamily: 'Poppins_400Regular', fontSize: 10 },
   routesButton: { position: 'absolute', left: 16, right: 16, height: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15, borderWidth: 1, borderColor: '#D4E4EB', borderRadius: 12, backgroundColor: '#FFFFFF', elevation: 4 },
   routesButtonContent: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   routesButtonLabel: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 },

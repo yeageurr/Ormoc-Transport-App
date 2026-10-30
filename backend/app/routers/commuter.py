@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.permissions import get_driver_profile, require_role
@@ -17,6 +17,7 @@ from app.models.terminal import Terminal
 from app.models.trip import Trip
 from app.models.vehicle import Vehicle
 from app.models.passenger_queue_entry import PassengerQueueEntry
+from app.models.trip_pause_event import TripPauseEvent
 from app.models.user import User
 from app.services.geofence_service import is_inside_geofence
 from app.websocket.connection_manager import manager
@@ -125,6 +126,17 @@ class PassengerQueueCountResponse(BaseModel):
   count: int
 
 
+class PublicDelayNotice(BaseModel):
+  trip_id: int
+  route_id: int
+  route_name: str
+  direction: str
+  paused_at: datetime
+  resumed_at: datetime | None = None
+  reason: str
+  details: str | None = None
+
+
 @router.get("/routes", response_model=list[CommuterRouteResponse])
 def list_public_routes(db: Session = Depends(get_db)):
   routes = (
@@ -188,6 +200,36 @@ def list_public_live_vehicles(db: Session = Depends(get_db)):
       recorded_at=location.recorded_at,
     ))
   return results
+
+
+@router.get("/delay-notices", response_model=list[PublicDelayNotice])
+def list_active_delay_notices(db: Session = Depends(get_db)):
+  """Return open notices and recently resumed ones so commuter polling can receive them."""
+  recently_resumed_after = datetime.now(timezone.utc) - timedelta(minutes=5)
+  rows = (
+    db.query(TripPauseEvent, Trip, Route)
+    .join(Trip, Trip.trip_id == TripPauseEvent.trip_id)
+    .join(Route, Route.route_id == Trip.route_id)
+    .filter(
+      TripPauseEvent.broadcast_to_commuters.is_(True),
+      or_(TripPauseEvent.resumed_at.is_(None), TripPauseEvent.resumed_at >= recently_resumed_after),
+    )
+    .order_by(TripPauseEvent.paused_at.desc())
+    .all()
+  )
+  return [
+    PublicDelayNotice(
+      trip_id=trip.trip_id,
+      route_id=route.route_id,
+      route_name=route.destination.name if route.destination else "Selected route",
+      direction=trip.status.value,
+      paused_at=event.paused_at,
+      resumed_at=event.resumed_at,
+      reason=event.delay_reason or "other",
+      details=event.delay_details,
+    )
+    for event, trip, route in rows
+  ]
 
 
 @router.get("/terminal-geofence", response_model=TerminalGeofenceResponse)

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getDriverRoutes, getMyDriverVehicle, type DriverRoute, type DriverVehicleStatus } from '@/api/routesAPI';
@@ -122,6 +122,9 @@ export default function RecordTripScreen() {
   const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [isUpdatingPause, setIsUpdatingPause] = useState(false);
+  const [pausePromptOpen, setPausePromptOpen] = useState(false);
+  const [selectedPauseReason, setSelectedPauseReason] = useState<'accident' | 'road_incident' | 'traffic' | 'other' | null>(null);
+  const [pauseDetails, setPauseDetails] = useState('');
   const [now, setNow] = useState(Date.now());
   const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
   const [etaSource, setEtaSource] = useState<string>('unavailable');
@@ -340,17 +343,19 @@ export default function RecordTripScreen() {
 
   const handleTogglePause = useCallback(async () => {
     if (!activeTrip || isUpdatingPause) return;
+    if (!isTripPaused) {
+      setSelectedPauseReason(null);
+      setPauseDetails('');
+      setPausePromptOpen(true);
+      return;
+    }
     setIsUpdatingPause(true);
     setMessage(null);
     try {
-      const event = isTripPaused
-        ? await resumeTrip(String(activeTrip.trip_id))
-        : await pauseTrip(String(activeTrip.trip_id));
+      const event = await resumeTrip(String(activeTrip.trip_id));
       setActiveTrip((current) => current ? ({
         ...current,
-        pause_events: isTripPaused
-          ? (current.pause_events ?? []).map((item) => item.pause_event_id === event.pause_event_id ? event : item)
-          : [...(current.pause_events ?? []), event],
+        pause_events: (current.pause_events ?? []).map((item) => item.pause_event_id === event.pause_event_id ? event : item),
       }) : current);
     } catch (error: any) {
       setMessage(error?.response?.data?.detail || 'Unable to update the trip pause. Try again.');
@@ -358,6 +363,28 @@ export default function RecordTripScreen() {
       setIsUpdatingPause(false);
     }
   }, [activeTrip, isTripPaused, isUpdatingPause]);
+
+  const submitPause = useCallback(async (broadcast: boolean) => {
+    if (!activeTrip || isUpdatingPause) return;
+    setIsUpdatingPause(true);
+    setMessage(null);
+    try {
+      const event = await pauseTrip(String(activeTrip.trip_id), broadcast ? {
+        broadcast_to_commuters: true,
+        delay_reason: selectedPauseReason,
+        delay_details: selectedPauseReason === 'other' ? pauseDetails : null,
+      } : { broadcast_to_commuters: false });
+      setActiveTrip((current) => current ? ({ ...current, pause_events: [...(current.pause_events ?? []), event] }) : current);
+      setPausePromptOpen(false);
+      setSelectedPauseReason(null);
+      setPauseDetails('');
+      setMessage(broadcast ? 'Trip paused. Delay notice sent to commuters on this route.' : 'Trip paused. GPS location logging remains active.');
+    } catch (error: any) {
+      setMessage(error?.response?.data?.detail || 'Unable to pause the trip. Try again.');
+    } finally {
+      setIsUpdatingPause(false);
+    }
+  }, [activeTrip, isUpdatingPause, pauseDetails, selectedPauseReason]);
 
   const handleFinish = useCallback(async () => {
     if (!activeTrip) return;
@@ -523,6 +550,49 @@ export default function RecordTripScreen() {
             <Pressable onPress={() => setFinishOpen(false)} style={styles.cancelButton}><Text style={styles.cancelText}>Keep trip active</Text></Pressable>
           </Pressable>
         </Pressable>
+      </Modal>
+      <Modal transparent visible={pausePromptOpen} animationType="fade" onRequestClose={() => setPausePromptOpen(false)}>
+        <View style={styles.pauseBackdrop}>
+          <View style={styles.pausePrompt}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close pause prompt" onPress={() => setPausePromptOpen(false)} style={styles.pauseCloseButton}>
+              <Ionicons name="close" size={22} color="#526A68" />
+            </Pressable>
+            <Ionicons name="megaphone-outline" size={30} color="#087C73" />
+            <Text style={styles.pausePromptTitle}>Something happened?</Text>
+            <Text style={styles.pausePromptSubtitle}>Share a delay notice with commuters on this route.</Text>
+            {([
+              ['accident', 'Caught an accident', 'car-outline'],
+              ['road_incident', 'Road incident', 'warning-outline'],
+              ['traffic', 'Traffic', 'navigate-outline'],
+              ['other', 'Others', 'ellipsis-horizontal-circle-outline'],
+            ] as const).map(([reason, label, icon]) => (
+              <Pressable key={reason} accessibilityRole="radio" accessibilityState={{ checked: selectedPauseReason === reason }} onPress={() => setSelectedPauseReason(reason)} style={[styles.pauseReasonOption, selectedPauseReason === reason && styles.pauseReasonSelected]}>
+                <Ionicons name={icon} size={18} color={selectedPauseReason === reason ? '#087C73' : '#657B77'} />
+                <Text style={[styles.pauseReasonText, selectedPauseReason === reason && styles.pauseReasonTextSelected]}>{label}</Text>
+                {selectedPauseReason === reason && <Ionicons name="checkmark-circle" size={18} color="#087C73" />}
+              </Pressable>
+            ))}
+            {selectedPauseReason === 'other' && (
+              <TextInput
+                value={pauseDetails}
+                onChangeText={setPauseDetails}
+                placeholder="Tell commuters what happened"
+                placeholderTextColor="#8A9A97"
+                multiline
+                maxLength={500}
+                textAlignVertical="top"
+                style={styles.pauseDetailsInput}
+              />
+            )}
+            <Pressable disabled={isUpdatingPause || selectedPauseReason == null || (selectedPauseReason === 'other' && !pauseDetails.trim())} onPress={() => void submitPause(true)} style={[styles.pauseBroadcastButton, (isUpdatingPause || selectedPauseReason == null || (selectedPauseReason === 'other' && !pauseDetails.trim())) && styles.disabledButton]}>
+              {isUpdatingPause ? <ActivityIndicator color="#FFFFFF" /> : <><Ionicons name="megaphone" size={17} color="#FFFFFF" /><Text style={styles.pauseBroadcastText}>Pause & Broadcast</Text></>}
+            </Pressable>
+            <Pressable disabled={isUpdatingPause} onPress={() => void submitPause(false)} style={styles.pauseNoIssueButton}>
+              <Text style={styles.pauseNoIssueText}>Nothing's wrong</Text>
+            </Pressable>
+            <Text style={styles.pauseGpsDisclaimer}>GPS logging continues while your trip is paused.</Text>
+          </View>
+        </View>
       </Modal>
       <Modal transparent visible={completedTripSummary !== null} animationType="fade" onRequestClose={() => setCompletedTripSummary(null)}>
         <View style={styles.summaryBackdrop}>
@@ -692,6 +762,21 @@ const styles = StyleSheet.create({
   confirmText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   cancelButton: { height: 43, justifyContent: 'center' },
   cancelText: { color: '#087C73', fontWeight: '700' },
+  pauseBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 24, backgroundColor: 'rgba(0,0,0,0.5)' },
+  pausePrompt: { width: '100%', maxWidth: 440, borderRadius: 16, paddingHorizontal: 20, paddingTop: 25, paddingBottom: 17, backgroundColor: '#F6FAF8' },
+  pauseCloseButton: { position: 'absolute', top: 11, right: 11, zIndex: 1, width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: '#E8F0ED' },
+  pausePromptTitle: { marginTop: 8, color: '#153E3B', fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  pausePromptSubtitle: { marginTop: 5, marginBottom: 14, color: '#607772', fontSize: 12, textAlign: 'center' },
+  pauseReasonOption: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 7, borderWidth: 1, borderColor: '#D4E0DC', borderRadius: 8, paddingHorizontal: 12, backgroundColor: '#FFFFFF' },
+  pauseReasonSelected: { borderColor: '#00A694', backgroundColor: '#EAF7F3' },
+  pauseReasonText: { flex: 1, color: '#3D5652', fontSize: 13, fontWeight: '600' },
+  pauseReasonTextSelected: { color: '#087C73' },
+  pauseDetailsInput: { minHeight: 78, marginTop: 9, borderWidth: 1, borderColor: '#BFCFCB', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 9, color: '#183D3A', fontSize: 13, backgroundColor: '#FFFFFF' },
+  pauseBroadcastButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 15, borderRadius: 8, backgroundColor: '#00A694' },
+  pauseBroadcastText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+  pauseNoIssueButton: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 3 },
+  pauseNoIssueText: { color: '#087C73', fontSize: 13, fontWeight: '700' },
+  pauseGpsDisclaimer: { marginTop: 1, color: '#758782', fontSize: 10, textAlign: 'center' },
   directionBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.48)' },
   directionPicker: { width: '100%', borderRadius: 16, padding: 18, backgroundColor: '#F2F7F5' },
   directionPickerTitle: { marginBottom: 10, color: '#153E3B', fontSize: 17, fontWeight: '800' },

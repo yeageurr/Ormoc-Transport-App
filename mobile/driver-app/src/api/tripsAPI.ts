@@ -20,6 +20,15 @@ export interface TripPauseEvent {
   pause_event_id: number;
   paused_at: string;
   resumed_at: string | null;
+  delay_reason: 'accident' | 'road_incident' | 'traffic' | 'other' | null;
+  delay_details: string | null;
+  broadcast_to_commuters: boolean;
+}
+
+export interface TripPauseOptions {
+  broadcast_to_commuters?: boolean;
+  delay_reason?: TripPauseEvent['delay_reason'];
+  delay_details?: string | null;
 }
 
 export interface DriverTrip extends Trip {
@@ -63,8 +72,8 @@ export async function endTrip(tripId: string): Promise<Trip> {
   return data;
 }
 
-export async function pauseTrip(tripId: string): Promise<TripPauseEvent> {
-  const { data } = await authClient.post<TripPauseEvent>(`/trips/${tripId}/pause`);
+export async function pauseTrip(tripId: string, options: TripPauseOptions = {}): Promise<TripPauseEvent> {
+  const { data } = await authClient.post<TripPauseEvent>(`/trips/${tripId}/pause`, options);
   return data;
 }
 

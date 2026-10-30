@@ -23,6 +23,7 @@ from app.schemas.trip import (
   TripDriverSummary,
   TripResponse,
   TripPauseEventResponse,
+  TripPauseRequest,
   TripStart,
 )
 
@@ -135,6 +136,7 @@ def start_trip(
 @router.post("/{trip_id}/pause", response_model=TripPauseEventResponse, status_code=status.HTTP_201_CREATED)
 def pause_trip(
   trip_id: int,
+  payload: TripPauseRequest | None = None,
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
@@ -157,13 +159,23 @@ def pause_trip(
   if open_pause:
     raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This trip is already paused")
 
-  pause_event = TripPauseEvent(trip_id=trip_id, paused_at=datetime.now(timezone.utc))
+  payload = payload or TripPauseRequest()
+  pause_event = TripPauseEvent(
+    trip_id=trip_id,
+    paused_at=datetime.now(timezone.utc),
+    delay_reason=payload.delay_reason,
+    delay_details=payload.delay_details,
+    broadcast_to_commuters=payload.broadcast_to_commuters,
+  )
   db.add(pause_event)
   db.commit()
   db.refresh(pause_event)
   from app.services.audit_service import log_action
   from app.enums import AuditAction
-  log_action(db, current_driver.account_id, AuditAction.UPDATE, "trips", trip_id, "Paused trip; GPS recording continues")
+  remark = "Paused trip; GPS recording continues"
+  if payload.broadcast_to_commuters:
+    remark += f"; commuter delay notice: {payload.delay_reason}"
+  log_action(db, current_driver.account_id, AuditAction.UPDATE, "trips", trip_id, remark)
   return pause_event
 
 
