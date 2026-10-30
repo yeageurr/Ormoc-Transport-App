@@ -28,7 +28,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, onError }) {
     setIsLoadingVehicles(true);
     setVehicleLoadError("");
     getBorrowableVehicles()
-      .then((vehicles) => { if (!cancelled) setBorrowableVehicles(vehicles); })
+      .then((vehicles) => { if (!cancelled) setBorrowableVehicles(vehicles.filter((vehicle) => /^multicab$/i.test(vehicle.vehicle_type || ""))); })
       .catch((err) => {
         if (!cancelled) setVehicleLoadError(err?.response?.data?.detail || err.message || "Could not load available vehicles.");
       })
@@ -56,7 +56,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, onError }) {
       if (!form.vehicle_id) return "Select an existing vehicle for this driver.";
       return "";
     }
-    if (!form.plate_number.trim() || !form.body_number.trim() || !form.vehicle_type.trim() || !form.registry_expiration) return "Complete all vehicle details.";
+    if (!form.plate_number.trim() || !form.body_number.trim() || !form.registry_expiration) return "Complete all vehicle details.";
     return "";
   };
 
@@ -94,7 +94,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, onError }) {
           plate_number: form.plate_number.trim().toUpperCase(),
           body_number: form.body_number.trim(),
           body_color: form.body_color,
-          vehicle_type: form.vehicle_type.trim(),
+          vehicle_type: "Multicab",
           registry_expiration: dateAsIso(form.registry_expiration),
         } }),
       });
@@ -168,7 +168,7 @@ export default function AddUserModal({ isOpen, onClose, onSuccess, onError }) {
               ) : <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
                 <label className={labelClass}>Plate number<input className={inputClass} name="plate_number" value={form.plate_number} onChange={updateField} maxLength={8} required /></label>
                 <label className={labelClass}>Body number<input className={inputClass} name="body_number" value={form.body_number} onChange={updateField} maxLength={10} required /></label>
-                <label className={labelClass}>Vehicle type<input className={inputClass} name="vehicle_type" value={form.vehicle_type} onChange={updateField} placeholder="e.g. Multicab" required /></label>
+                <label className={labelClass}>Vehicle type<input className={`${inputClass} cursor-not-allowed bg-[#f5f8f9]`} name="vehicle_type" value="Multicab" disabled readOnly /></label>
                 <label className={labelClass}>Body color<span className="flex h-[38px] items-center gap-3 rounded-md border border-[#becbd1] bg-white px-2"><input className="h-7 w-9 cursor-pointer border-0 bg-transparent p-0" type="color" name="body_color" value={form.body_color} onChange={updateField} /><span className="text-xs text-[#405f6d]">{form.body_color.toUpperCase()}</span></span></label>
                 <label className={`${labelClass} col-span-2 max-sm:col-span-1`}>Vehicle registration expiry<input className={inputClass} type="date" name="registry_expiration" value={form.registry_expiration} onChange={updateField} min={new Date().toISOString().slice(0, 10)} required /></label>
               </div>}

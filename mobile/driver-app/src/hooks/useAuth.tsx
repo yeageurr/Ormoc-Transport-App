@@ -45,7 +45,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const user = await getCurrentUser();
       const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
-      console.info('[AUTH_DIAGNOSTIC] Refreshed password-change flag', user.must_change_password);
       setFullName(name || null);
       const requiresPasswordChange = Boolean(user.must_change_password);
       setMustChangePassword(requiresPasswordChange);
@@ -62,18 +61,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     const restoreSession = async () => {
-      const token = await getStoredToken();
-      if (!token) {
-        if (mounted) setIsLoading(false);
-        return;
-      }
-
-      if (mounted) setIsAuthenticated(true);
       try {
+        const token = await getStoredToken();
+        if (!token) return;
+
+        if (mounted) setIsAuthenticated(true);
         const user = await getCurrentUser();
         if (mounted) {
           const name = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
-          console.info('[AUTH_DIAGNOSTIC] Restored-session password-change flag', user.must_change_password);
           setFullName(name || null);
           setMustChangePassword(Boolean(user.must_change_password));
         }

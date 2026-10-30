@@ -4,4 +4,10 @@ branch: noDispatchTicketing
 synced with main
 
 Newly Created Branch: delayNotice
-Features: create a delay notice/broadcasting for drivers when pausing a trip.
+Unique Feature/s: create a delay notice/broadcasting for drivers when pausing a trip.
+
+Other Branch Details:
+  - Removed Incident Reporting (replaced with delay broadcasting instead);
+  - Removed features related to ticketing officer role, trip dispatch, and dispatcher role;
+  - Dispatch-dependent code refactored, no dispatch ticketing for both outgoing and returning trips;
+  - Database migrations for removing incident, irrelevant roles (for this current branch), and dispatch related database data

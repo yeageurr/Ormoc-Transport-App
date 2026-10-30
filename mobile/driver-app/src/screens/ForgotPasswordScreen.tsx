@@ -338,9 +338,9 @@ const COLORS = {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   keyboardView: { flex: 1 },
-  content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 15, paddingBottom: 28 },
+  content: { flexGrow: 1, width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingBottom: 28 },
   logo: { width: 104, height: 104, marginBottom: 25 },
-  title: { color: COLORS.ink, fontFamily: 'Poppins_600SemiBold', fontSize: 17, lineHeight: 25, textAlign: 'center', marginBottom: 50 },
+  title: { width: '100%', paddingHorizontal: 8, color: COLORS.ink, fontFamily: 'Poppins_600SemiBold', fontSize: 17, lineHeight: 29, includeFontPadding: false, textAlign: 'center', marginBottom: 40 },
   card: { width: '100%', backgroundColor: COLORS.white, borderRadius: 9, paddingHorizontal: 15, paddingTop: 24, paddingBottom: 24 },
   fieldLabel: { color: COLORS.ink, fontFamily: 'Poppins_500Medium', fontSize: 12, lineHeight: 16, marginBottom: 8 },
   inputWrapper: { height: 50, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 7, paddingHorizontal: 12, marginBottom: 10 },

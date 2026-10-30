@@ -49,12 +49,6 @@ export default function LoginScreen() {
       const requiresPasswordChange = Boolean(
         account.must_change_password ?? response.must_change_password,
       );
-      console.info('[AUTH_DIAGNOSTIC] Login password-change flags', {
-        responseFlag: response.must_change_password,
-        userFlag: response.user.must_change_password,
-        currentAccountFlag: account.must_change_password,
-        requiresPasswordChange,
-      });
       signIn(account.first_name, requiresPasswordChange);
       router.replace((requiresPasswordChange ? '/change-password' : '/tabs') as never);
     } catch (loginError) {
@@ -231,9 +225,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flexGrow: 1,
+    width: '100%',
     alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingTop: 66,
+    paddingHorizontal: 18,
+    paddingTop: 38,
   },
   logoWrap: {
     width: 108,
@@ -244,12 +239,15 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   title: {
+    width: '100%',
     marginTop: 25,
-    marginBottom: 65,
+    marginBottom: 46,
+    paddingHorizontal: 8,
     color: COLORS.ink,
     fontFamily: 'Poppins_600SemiBold',
     fontSize: 17,
-    lineHeight: 25,
+    lineHeight: 29,
+    includeFontPadding: false,
     textAlign: 'center',
   },
   card: {
@@ -317,8 +315,9 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   loginButton: {
-    height: 42,
+    minHeight: 48,
     marginTop: 29,
+    paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 5,
@@ -341,17 +340,24 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: COLORS.white,
     fontFamily: 'Poppins_500Medium',
-    fontSize: 18,
+    fontSize: 17,
+    lineHeight: 25,
+    includeFontPadding: false,
   },
   forgotWrap: {
+    width: '100%',
     alignItems: 'center',
     marginTop: 10,
+    paddingHorizontal: 8,
   },
   forgotText: {
+    width: '100%',
     color: COLORS.ink,
     fontFamily: 'Poppins_500Medium',
     fontSize: 13,
-    lineHeight: 15,
+    lineHeight: 22,
+    includeFontPadding: false,
+    textAlign: 'center',
     marginBottom: 10
   },
 });

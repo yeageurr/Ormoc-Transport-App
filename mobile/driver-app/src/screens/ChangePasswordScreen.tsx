@@ -112,7 +112,7 @@ export default function ChangePasswordScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#D3DFEB" />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {mustChangePassword ? <Text style={styles.title}>Set your password</Text> : <Pressable style={styles.back} onPress={leave}>
           <Ionicons name="arrow-back" size={21} color="#26383E" />
           <Text style={styles.title}>Change password</Text>

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Eye, EyeClosed, User, Key } from 'lucide-react';
 import setTitle from "../../components/pageTitle";
-import ormocDriverMark from "../../../../OTA-Ticketing/src/assets/ormoc-driver-mark.png";
+import ormocDriverMark from "../../assets/ormoc-driver-mark.png";
 
 export default function Login() {
   setTitle('Admin Login');

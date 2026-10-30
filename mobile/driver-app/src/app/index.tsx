@@ -4,11 +4,12 @@ import { useAuth } from '@/hooks/useAuth';
 
 /** Resolves the app's root deep link to the appropriate authenticated route. */
 export default function Index() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, mustChangePassword } = useAuth();
 
   if (isLoading) {
     return null;
   }
 
-  return <Redirect href={isAuthenticated ? '/tabs' : '/entrance'} />;
+  if (!isAuthenticated) return <Redirect href="/entrance" />;
+  return <Redirect href={mustChangePassword ? '/change-password' : '/tabs'} />;
 }
