@@ -18,7 +18,19 @@ def upgrade() -> None:
   if bind.dialect.name != "postgresql":
     raise RuntimeError("This feature-removal migration currently requires PostgreSQL")
 
-  # Preserve trip identity before the dispatch records are removed.
+  # Preserve identity from the ticket first. Ticket-based trips may have no
+  # dispatch_id, so the dispatch-log-only backfill does not cover them.
+  op.execute("""
+    UPDATE trips AS t SET
+      driver_id = COALESCE(t.driver_id, dt.driver_id),
+      vehicle_id = COALESCE(t.vehicle_id, dt.vehicle_id),
+      route_id = COALESCE(t.route_id, dt.route_id)
+    FROM dispatch_tickets AS dt
+    WHERE t.dispatch_ticket_id = dt.id
+      AND (t.driver_id IS NULL OR t.vehicle_id IS NULL OR t.route_id IS NULL)
+  """)
+
+  # Older dispatch-based trips get their identity from dispatch_logs.
   op.execute("""
     UPDATE trips AS t SET
       driver_id = COALESCE(t.driver_id, d.driver_id),
@@ -28,12 +40,22 @@ def upgrade() -> None:
     WHERE t.dispatch_id = d.dispatch_id
       AND (t.driver_id IS NULL OR t.vehicle_id IS NULL OR t.route_id IS NULL)
   """)
-  unresolved = bind.execute(sa.text(
-    "SELECT count(*) FROM trips WHERE driver_id IS NULL OR vehicle_id IS NULL OR route_id IS NULL"
-  )).scalar_one()
+  unresolved = bind.execute(sa.text("""
+    SELECT trip_id, dispatch_id, dispatch_ticket_id, driver_id, vehicle_id, route_id
+    FROM trips
+    WHERE driver_id IS NULL OR vehicle_id IS NULL OR route_id IS NULL
+    ORDER BY trip_id
+  """)).mappings().all()
   if unresolved:
+    unresolved_summary = ", ".join(
+      f"trip {row['trip_id']} (dispatch_id={row['dispatch_id']}, "
+      f"dispatch_ticket_id={row['dispatch_ticket_id']}, driver_id={row['driver_id']}, "
+      f"vehicle_id={row['vehicle_id']}, route_id={row['route_id']})"
+      for row in unresolved
+    )
     raise RuntimeError(
-      f"Cannot remove dispatch data: {unresolved} trip(s) have no driver, vehicle, or route after backfill"
+      "Cannot remove dispatch data: some trips still have no driver, vehicle, or route "
+      f"after backfill: {unresolved_summary}"
     )
 
   # Remove dispatch references from route trip and last-location records.
