@@ -18,6 +18,11 @@ def upgrade() -> None:
   if bind.dialect.name != "postgresql":
     raise RuntimeError("This feature-removal migration currently requires PostgreSQL")
 
+  # The intermediate identity-source rule forbids copied driver/vehicle IDs
+  # while dispatch_id is populated. This migration is flattening that identity
+  # into trips, so remove the transitional rule before performing backfills.
+  op.execute("ALTER TABLE trips DROP CONSTRAINT IF EXISTS ck_trips_identity_source")
+
   # Preserve identity from the ticket first. Ticket-based trips may have no
   # dispatch_id, so the dispatch-log-only backfill does not cover them.
   op.execute("""
@@ -59,7 +64,6 @@ def upgrade() -> None:
     )
 
   # Remove dispatch references from route trip and last-location records.
-  op.execute("ALTER TABLE trips DROP CONSTRAINT IF EXISTS ck_trips_identity_source")
   op.execute("ALTER TABLE trips DROP CONSTRAINT IF EXISTS trips_dispatch_id_fkey")
   op.execute("ALTER TABLE trips DROP CONSTRAINT IF EXISTS trips_dispatch_ticket_id_fkey")
   op.drop_column("trips", "dispatch_ticket_id")
