@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ND-QUEUE  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Implementation baseline (reviewed 2026-10-28):** This is the intended no-dispatch product scope. The repository is transitional; status statements below distinguish implemented source behavior from legacy code and unverified deployment/database state.
+> **Current source baseline (reviewed 2026-10-31):** This folder describes the current no-dispatch application source on `main`. Status notes refer to repository code and UI; they do not establish that local or hosted databases, secrets, or deployments are current.
 
 ## 1. Introduction
 
@@ -31,10 +31,9 @@ This is an anonymous passenger-presence count, not a numbered Driver reservation
 - **SRS-ND-QUEUE-FR-006:** The queue count shall be presented as unavailable when the request fails, rather than falsely presenting an unavailable result as zero.
 - **SRS-ND-QUEUE-FR-007:** The count shall represent app sessions/passengers, not an inferred number of people travelling together.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Implementation status (source review: 2026-10-31)
 
-- **Present:** anonymous queue model and join/current/heartbeat endpoints validate terminal geofence; entries older than two minutes are excluded. Commuter app stores an opaque token and sends foreground heartbeats about every 30 seconds, plus an exit heartbeat when a GPS fix detects leaving.
-- **Present:** after a committed count-changing join/reactivation/deactivation, the backend pushes the authoritative route count to the currently assigned Driver over WebSocket. The Driver authenticates with its bearer token, updates Home immediately, and retains 15-second REST polling as fallback.
-- **Partial/blocking:** REST count lookup and WebSocket recipients still resolve the Driver's route through the latest `dispatch_logs` row for today's Manila date. The count therefore depends on legacy dispatch data and blocks a fully dispatch-independent queue flow. WebSocket connections are in-process; multi-worker/instance deployment needs shared pub/sub. Stale entries stop counting after two minutes, but no event fires exactly at timeout; fallback polling catches that.
-- **Operational limits:** the count represents app queue sessions, not verified headcount. Background suspension, network loss, or unavailable GPS delays leave detection. Apply the queue migration to the intended PostgreSQL database.
-
+- **Present in source:** anonymous queue model and public join/current/heartbeat APIs validate the terminal geofence. The Commuter stores an opaque session token and sends foreground heartbeats about every 30 seconds. Sessions older than two minutes are excluded from the authoritative count.
+- **Present in source:** committed count changes are broadcast to connected Driver accounts over an authenticated WebSocket; Driver Home also polls REST about every 15 seconds as a fallback. The backend associates a Driver with a route using that Driver's latest trip for the current Manila day, not a dispatch log.
+- **Partial:** there is no immediate event at the exact two-minute expiry; polling or a later count-changing operation refreshes the value. WebSocket connections are held in process, so multiple backend workers/instances need shared pub/sub for cross-worker delivery. A session represents an app presence, not a verified passenger headcount.
+- **Operational limit:** foreground app execution, GPS permission, and network access affect timely join/leave updates. Apply the current Alembic chain to the target database.

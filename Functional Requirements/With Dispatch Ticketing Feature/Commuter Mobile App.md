@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-COMM  
 **Version:** 1.1  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Baseline note (reviewed 2026-10-28):** This folder documents the earlier/alternate dispatch-ticketing design. It is not the current no-dispatch product baseline. The status below describes repository source and known gaps; it does not imply deployed functionality.
+> **Historical baseline (reviewed 2026-10-31):** This document records the former dispatch-ticketing design for reference only. It is superseded by the current requirements in `../No Dispatch Ticketing/`; do not use its requirements as current application behavior.
 
 ## 1. Introduction
 
@@ -32,9 +32,8 @@ The commuter application provides route and vehicle information and lets a commu
 - **SRS-COMM-FR-007:** The system shall associate no personally identifying account data with anonymous passenger queue entries. Each device queue session represents one commuter entry.
 - **SRS-COMM-FR-008:** The system shall not treat commuter passenger queue entries as driver reservation requests or dispatch tickets. Commuter QR ticketing and payment are outside this flow.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Status in current source (reviewed 2026-10-31)
 
-- **Present:** commuter route/vehicle map, terminal prompt, anonymous passenger queue, foreground presence heartbeat, and Driver queue count. Count-changing queue events now push the authoritative count to the assigned Driver over WebSocket; REST polling remains a fallback.
-- **Partial:** this is a separate anonymous passenger-presence count, not the Driver numbered reservation/ticket queue. Push requires a live in-process WebSocket and the current dispatch-log route mapping. Background/offline presence and OS push notifications are absent.
-- **Not implemented:** ETA prediction remains a placeholder.
-
+- **Superseded:** the requirements in Sections 1–3 describe the former dispatch-ticketing product direction and are not requirements of the current application baseline.
+- **Current-source disposition:** dispatchers, ticketing officers, dispatch operations, reservations, QR dispatch tickets, and incident reporting were removed from current ORM registration, API routers, and account-role enum by migration `4e9f2b7c1d63` and the associated source cleanup.
+- **Data/deployment caveat:** migration source head is `5a8d2c4f7b91`; this does not prove that any particular local or hosted database has applied the migration. Historical data removal/retention and downgrade behavior must be evaluated against the target database before use.

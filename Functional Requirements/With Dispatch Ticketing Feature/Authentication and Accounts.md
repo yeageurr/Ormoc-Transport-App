@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-AUTH  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Baseline note (reviewed 2026-10-28):** This folder documents the earlier/alternate dispatch-ticketing design. It is not the current no-dispatch product baseline. The status below describes repository source and known gaps; it does not imply deployed functionality.
+> **Historical baseline (reviewed 2026-10-31):** This document records the former dispatch-ticketing design for reference only. It is superseded by the current requirements in `../No Dispatch Ticketing/`; do not use its requirements as current application behavior.
 
 ## 1. Introduction
 
@@ -32,14 +32,8 @@ Authentication, account state, credential recovery, and role access for Drivers,
 - **SRS-AUTH-FR-007:** The system shall ensure that only Ticketing Officers create driver and dispatcher accounts. There is no separate Admin or generic Staff role in the target operating model.
 - **SRS-AUTH-FR-008:** The system shall ensure that every newly created account has `must_change_password = true` and cannot use protected application features until its account holder changes the temporary password. A successful initial password change shall set the flag to `false`. Routine password changes shall not be available afterward; forgotten-password recovery remains a separate account-recovery flow.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Status in current source (reviewed 2026-10-31)
 
-- **Present:** Driver, Dispatcher, and Ticketing Officer roles; portal-specific login/session checks; generic invalid-login response; account status handling; first-login password setup; email reset and profile-verification OTP flows.
-- **Partial:** Ticketing Officer and Driver clients exist; Dispatcher mobile client does not. OTP sends enforce a 60-second resend cooldown but not the agreed three-send/three-minute extended cooldown. Login has no three-failure lockout. SMS OTP is unavailable. Selected account emails depend on SMTP configuration.
-- **Pending:** shared throttling, Dispatcher client and endpoint-scope verification, bootstrap procedure, and deployed-service validation. The no-dispatch product direction is documented separately.
-
-## 5. Additional constraints and open decisions
-
-- Preserve legacy terminal/account references when converting existing Admin accounts to Ticketing Officer.
-- Confirm how the OTP-send counter resets after the three-minute cooldown.
-- Ensure secrets and OTP values are never returned in API responses or stored as plaintext.
+- **Superseded:** the requirements in Sections 1–3 describe the former dispatch-ticketing product direction and are not requirements of the current application baseline.
+- **Current-source disposition:** dispatchers, ticketing officers, dispatch operations, reservations, QR dispatch tickets, and incident reporting were removed from current ORM registration, API routers, and account-role enum by migration `4e9f2b7c1d63` and the associated source cleanup.
+- **Data/deployment caveat:** migration source head is `5a8d2c4f7b91`; this does not prove that any particular local or hosted database has applied the migration. Historical data removal/retention and downgrade behavior must be evaluated against the target database before use.

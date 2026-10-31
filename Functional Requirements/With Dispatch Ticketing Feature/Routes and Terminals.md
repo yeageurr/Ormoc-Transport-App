@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ROUTE  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Baseline note (reviewed 2026-10-28):** This folder documents the earlier/alternate dispatch-ticketing design. It is not the current no-dispatch product baseline. The status below describes repository source and known gaps; it does not imply deployed functionality.
+> **Historical baseline (reviewed 2026-10-31):** This document records the former dispatch-ticketing design for reference only. It is superseded by the current requirements in `../No Dispatch Ticketing/`; do not use its requirements as current application behavior.
 
 ## 1. Introduction
 
@@ -28,9 +28,8 @@ Route catalog and terminal data used by reservations, dispatch, trip tracking, a
 - **SRS-ROUTE-FR-003:** The system shall ensure that terminal records provide the location/boundary used by outgoing-trip geofence checks.
 - **SRS-ROUTE-FR-004:** The system shall ensure that route and terminal references used by assignments, reservations, dispatch records, and trips shall remain stable and referentially valid.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Status in current source (reviewed 2026-10-31)
 
-- **Present:** terminal/destination/route models, queue prefixes, route geometry, public/management APIs, and geofence data for trip readiness and commuter queue prompt.
-- **Partial:** route/terminal values and schema must be verified per environment. Driver trips now use direct route IDs, but some live vehicle and passenger-count paths retain dispatch associations.
-- **Pending:** geofence operation verification, route-catalog verification, target database revision, and dispatch-independent cleanup where it is still needed.
-
+- **Superseded:** the requirements in Sections 1–3 describe the former dispatch-ticketing product direction and are not requirements of the current application baseline.
+- **Current-source disposition:** dispatchers, ticketing officers, dispatch operations, reservations, QR dispatch tickets, and incident reporting were removed from current ORM registration, API routers, and account-role enum by migration `4e9f2b7c1d63` and the associated source cleanup.
+- **Data/deployment caveat:** migration source head is `5a8d2c4f7b91`; this does not prove that any particular local or hosted database has applied the migration. Historical data removal/retention and downgrade behavior must be evaluated against the target database before use.

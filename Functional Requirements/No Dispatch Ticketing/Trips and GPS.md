@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ND-TRIP  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Implementation baseline (reviewed 2026-10-28):** This is the intended no-dispatch product scope. The repository is transitional; status statements below distinguish implemented source behavior from legacy code and unverified deployment/database state.
+> **Current source baseline (reviewed 2026-10-31):** This folder describes the current no-dispatch application source on `main`. Status notes refer to repository code and UI; they do not establish that local or hosted databases, secrets, or deployments are current.
 
 ## 1. Introduction
 
@@ -33,13 +33,12 @@ Each trip is a one-way leg associated directly with a Driver, vehicle, route, an
 - **SRS-ND-TRIP-FR-008:** GPS samples shall be accepted only for an active trip owned by the authenticated Driver; completed trips shall reject further samples.
 - **SRS-ND-TRIP-FR-009:** The app shall not treat an old location as a new fix when the operating system cannot provide a current position.
 - **SRS-ND-TRIP-FR-010:** During an active trip, the app shall display an ETA based on route-matched current location when the required data is available. It shall identify a distance/speed fallback as an estimate, reserve “trained model” labeling for a validated trained model, and show unavailable state when the GPS fix or route geometry is missing or stale.
+- **SRS-ND-TRIP-FR-011:** A Driver may pause and resume an active trip. A pause may store one of the supported delay reasons and optional details, and may be broadcast to commuters; GPS sampling shall continue during the pause whenever the app can obtain a location fix.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Implementation status (source review: 2026-10-31)
 
-- **Present:** new one-way trips store Driver, vehicle, route, direction, start/end, completion, and measurements directly; outgoing readiness checks vehicle `loading` state and returning may start outside the terminal. Pause/resume markers are stored while GPS capture continues. Trip history exposes ordered GPS samples.
-- **Present with limits:** while the active-trip screen is foregrounded and location permission/services are available, the app requests high-accuracy fixes about every five seconds and posts them. Backend checks trip ownership and rejects completed-trip samples; distance calculation ignores small stationary drift and implausible jumps.
-- **Known operational issue:** outgoing readiness requires geofence/vehicle processing to reach `loading`. A reported test stayed at “Waiting for the terminal” while physically inside; this is not verified resolved.
-- **Partial:** failed GPS uploads are discarded; no durable offline queue, idempotent retry, background/screen-off capture, or automatic reconnect sync exists.
-- **ETA status:** authenticated `GET /eta/trip/{trip_id}` now map-matches the latest trip GPS fix to route geometry and returns a clearly labeled distance/speed baseline. The Driver shows it in the collapsed trip card and displays `--` when the fix is stale or route data is unavailable. This is not a trained ML prediction.
-- **Legacy/pending:** nullable dispatch/ticket columns and code paths remain, though new trip start is direct route-based and does not consume tickets. Training and serving the learned ETA model remains pending until sufficient reviewed real data is available.
-
+- **Present in source:** one-way outgoing/returning trips directly reference Driver, vehicle, and route. Completion is separate from direction. Outgoing trip start checks terminal vehicle readiness; returning trips do not require starting within the terminal geofence. The app supports pause/resume, trip summary, and GPS-path history.
+- **Present with limits:** while the trip screen is foregrounded and location permission/services are available, the app requests high-accuracy fixes about every five seconds and uploads them. Backend ownership checks protect trip GPS writes; implausible jumps and small stationary drift are excluded from distance totals. Pause records may carry a reason and commuter-broadcast flag while GPS continues.
+- **Not implemented:** GPS upload failure has no durable local queue, automatic replay, idempotency key, or guaranteed background/screen-off capture. The system cannot promise capture when the device cannot obtain a fresh GNSS fix.
+- **ETA status:** the endpoint provides a route/distance-speed baseline when recent location and geometry are available. A trained and validated AI/ML ETA model is not implemented.
+- **Environment caveat:** outgoing readiness and route/geofence configuration must be verified on the target device/database; this document does not certify a deployment's data state.

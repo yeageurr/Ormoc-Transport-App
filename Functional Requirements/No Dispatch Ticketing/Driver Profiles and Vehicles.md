@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ND-PROFILE  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Implementation baseline (reviewed 2026-10-28):** This is the intended no-dispatch product scope. The repository is transitional; status statements below distinguish implemented source behavior from legacy code and unverified deployment/database state.
+> **Current source baseline (reviewed 2026-10-31):** This folder describes the current no-dispatch application source on `main`. Status notes refer to repository code and UI; they do not establish that local or hosted databases, secrets, or deployments are current.
 
 ## 1. Introduction
 
@@ -30,9 +30,9 @@ Driver identity and contact details, license information, associated vehicle, an
 - **SRS-ND-PROFILE-FR-005:** Vehicle data shall include plate, body number, color, vehicle type, registration expiry, condition, and current activity status as applicable.
 - **SRS-ND-PROFILE-FR-006:** The system shall validate phone numbers as strings containing exactly 11 numeric digits and validate email structure before submission.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Implementation status (source review: 2026-10-31)
 
-- **Present:** Driver profile lookup includes the associated vehicle plate; account creation supports a new vehicle or an eligible existing vehicle; vehicle model has separate owner and borrower fields. Driver profile flows support phone/email updates and email OTP verification. The admin portal can edit Driver license and vehicle plate/registration details.
-- **Partial:** backend management actions remain authorized as `ticketing_officer`. Verify every field-level rule and audit path before treating Driver-versus-management permissions as complete. Current profile vehicle display primarily exposes the plate, not the full vehicle detail set.
-- **Pending:** verify shared borrowed-vehicle edits propagate consistently to owner and borrower views and confirm the target database has the borrower migration.
-
+- **Present in source:** each Driver account has a linked profile. Driver profile response includes the associated vehicle plate. Admin driver creation supports a new vehicle or an eligible existing multicab; a new vehicle is created as a multicab in this workflow. Vehicle ownership and borrowing are represented separately.
+- **Present in source:** Drivers can update permitted personal/contact fields; email changes are OTP-verified. Admin endpoints support Driver license and vehicle regulatory edits. Driver profile currently displays the associated plate, not every vehicle attribute.
+- **Partial:** verify vehicle selection/ownership and field-level authorization using the deployed database, especially for borrowed vehicles. The current source review does not establish that every cross-account vehicle edit is propagated to every client immediately.
+- **Environment caveat:** uniqueness constraints and migration state must be checked on the target database.

@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-REPORT  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Baseline note (reviewed 2026-10-28):** This folder documents the earlier/alternate dispatch-ticketing design. It is not the current no-dispatch product baseline. The status below describes repository source and known gaps; it does not imply deployed functionality.
+> **Historical baseline (reviewed 2026-10-31):** This document records the former dispatch-ticketing design for reference only. It is superseded by the current requirements in `../No Dispatch Ticketing/`; do not use its requirements as current application behavior.
 
 ## 1. Introduction
 
@@ -29,9 +29,8 @@ Driver and staff dashboard metrics and operational reporting.
 - **SRS-REPORT-FR-004:** The system shall ensure that values and trend indicators must be derived from the selected comparison periods and actual data; do not show hard-coded trends as if calculated.
 - **SRS-REPORT-FR-005:** The system shall ensure that identify unavailable metrics or placeholders clearly; do not fabricate passenger counts or ETA values.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Status in current source (reviewed 2026-10-31)
 
-- **Present:** Driver dashboard derives trip metrics from trip data; admin dashboard, live map, trip/dispatch/audit/incident pages and APIs remain in source. Driver passenger count receives WebSocket updates on count transitions and retains a 15-second REST fallback.
-- **Partial:** complete ticket/queue reporting and Dispatcher dashboard are not end-to-end. Passenger count route remains dispatch-derived; GPS distance can be incomplete when sample uploads fail. Some web pages belong to the older broad-admin scope.
-- **Pending:** define report periods and data sources, complete ticket/departure reconciliation, and implement ETA if approved.
-
+- **Superseded:** the requirements in Sections 1–3 describe the former dispatch-ticketing product direction and are not requirements of the current application baseline.
+- **Current-source disposition:** dispatchers, ticketing officers, dispatch operations, reservations, QR dispatch tickets, and incident reporting were removed from current ORM registration, API routers, and account-role enum by migration `4e9f2b7c1d63` and the associated source cleanup.
+- **Data/deployment caveat:** migration source head is `5a8d2c4f7b91`; this does not prove that any particular local or hosted database has applied the migration. Historical data removal/retention and downgrade behavior must be evaluated against the target database before use.

@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-PROFILE  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Baseline note (reviewed 2026-10-28):** This folder documents the earlier/alternate dispatch-ticketing design. It is not the current no-dispatch product baseline. The status below describes repository source and known gaps; it does not imply deployed functionality.
+> **Historical baseline (reviewed 2026-10-31):** This document records the former dispatch-ticketing design for reference only. It is superseded by the current requirements in `../No Dispatch Ticketing/`; do not use its requirements as current application behavior.
 
 ## 1. Introduction
 
@@ -29,14 +29,8 @@ Driver profile fields, vehicle records, ownership, borrowing, and authorized upd
 - **SRS-PROFILE-FR-004:** The system shall ensure that vehicle data includes identifiers and operational details needed by dispatch and trip records. Vehicle activity state must be checked during dispatch and trip start.
 - **SRS-PROFILE-FR-005:** The system shall ensure that phone numbers remain strings in storage, contain digits only, and have exactly 11 digits. Email input must have a valid structure; ownership is confirmed through OTP.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Status in current source (reviewed 2026-10-31)
 
-- **Present:** Driver/account/vehicle APIs; create a Driver with a new or eligible borrowed vehicle; explicit owner/borrower fields; profile and email OTP; management updates for Driver license, plate, and registration expiry; associated vehicle plate in Driver profile.
-- **Partial:** field permissions and shared owner/borrower edits require action-by-action verification, including audit coverage and the target database migration.
-- **Pending:** deployed-schema and full authorization/audit verification.
-
-## 5. Additional constraints and open decisions
-
-- Account creation with a new vehicle should commit or roll back as one transaction.
-- A vehicle should have an unambiguous owner and explicit borrower/assignment relationships; borrowing must not silently transfer ownership.
-- Plate, license, and expiry changes should be auditable and validated before persistence.
+- **Superseded:** the requirements in Sections 1–3 describe the former dispatch-ticketing product direction and are not requirements of the current application baseline.
+- **Current-source disposition:** dispatchers, ticketing officers, dispatch operations, reservations, QR dispatch tickets, and incident reporting were removed from current ORM registration, API routers, and account-role enum by migration `4e9f2b7c1d63` and the associated source cleanup.
+- **Data/deployment caveat:** migration source head is `5a8d2c4f7b91`; this does not prove that any particular local or hosted database has applied the migration. Historical data removal/retention and downgrade behavior must be evaluated against the target database before use.

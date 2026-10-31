@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-TRIP  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Baseline note (reviewed 2026-10-28):** This folder documents the earlier/alternate dispatch-ticketing design. It is not the current no-dispatch product baseline. The status below describes repository source and known gaps; it does not imply deployed functionality.
+> **Historical baseline (reviewed 2026-10-31):** This document records the former dispatch-ticketing design for reference only. It is superseded by the current requirements in `../No Dispatch Ticketing/`; do not use its requirements as current application behavior.
 
 ## 1. Introduction
 
@@ -44,10 +44,8 @@ The phone determines location from satellite GNSS signals; mobile data is not re
 - **SRS-TRIP-FR-015:** The system shall reject GPS fixes associated with a trip or Driver other than the authenticated Driver's active trip.
 - **SRS-TRIP-FR-016:** The system shall prevent duplicate trip starts and completion by an unrelated Driver. Ticket validation, ticket consumption, and outgoing trip creation shall be atomic.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Status in current source (reviewed 2026-10-31)
 
-- **Present:** one-way direction, completion field, trip start/end, direct Driver/vehicle/route links, readiness checks, current location, ordered GPS history, five-second foreground GPS uploads, and pause/resume records while GPS continues.
-- **Current-flow difference:** the Driver app starts route-based trips without ticket scanning; legacy dispatch/ticket fields remain for historical compatibility, and scan-to-trip is not atomic.
-- **Partial:** failed uploads are dropped; no durable offline queue, idempotent replay, or background/screen-off capture. A reported outgoing start remained waiting inside the terminal and is not confirmed resolved.
-- **Pending:** offline/background sync, operational readiness verification, preserving historical data before schema cleanup, and ETA prediction.
-
+- **Superseded:** the requirements in Sections 1–3 describe the former dispatch-ticketing product direction and are not requirements of the current application baseline.
+- **Current-source disposition:** dispatchers, ticketing officers, dispatch operations, reservations, QR dispatch tickets, and incident reporting were removed from current ORM registration, API routers, and account-role enum by migration `4e9f2b7c1d63` and the associated source cleanup.
+- **Data/deployment caveat:** migration source head is `5a8d2c4f7b91`; this does not prove that any particular local or hosted database has applied the migration. Historical data removal/retention and downgrade behavior must be evaluated against the target database before use.

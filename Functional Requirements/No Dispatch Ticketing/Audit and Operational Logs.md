@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ND-AUD  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Implementation baseline (reviewed 2026-10-28):** This is the intended no-dispatch product scope. The repository is transitional; status statements below distinguish implemented source behavior from legacy code and unverified deployment/database state.
+> **Current source baseline (reviewed 2026-10-31):** This folder describes the current no-dispatch application source on `main`. Status notes refer to repository code and UI; they do not establish that local or hosted databases, secrets, or deployments are current.
 
 ## 1. Introduction
 
@@ -28,9 +28,9 @@ Account, vehicle, and trip activity that remains within the no-dispatch-ticketin
 - **SRS-ND-AUD-FR-003:** Audit history shall remain distinct from trip history; a trip record shall describe a transport operation, while an audit record shall describe a system/account action.
 - **SRS-ND-AUD-FR-004:** The management portal shall restrict audit-log access to authorized accounts.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Implementation status (source review: 2026-10-31)
 
-- **Present:** audit records have a model, API, and admin audit page. Trip records and GPS samples are stored and viewed separately from audit events.
-- **Partial:** audit writes exist for selected account, profile, vehicle, trip, and security actions, but coverage and context fields are not uniform. The audit API is still restricted to `ticketing_officer`.
-- **Pending:** verify every management mutation is audited, establish retention/export policy, and decide how to handle legacy dispatch/incident audit records. The deployed database revision was not inspected during this review.
-
+- **Present in source:** audit records are stored separately from trips and GPS history. Admin audit pages query the backend; trip history and ordered GPS samples have separate Driver and Admin views.
+- **Partial:** account, vehicle, authentication, and trip operations emit audit records where implemented. The API/page do not establish that every read or mutation is logged, nor that records are exported or retained under a finalized retention policy.
+- **Removed from current source:** dispatch departure logs, ticket/reservation history, dispatcher assignment records, and incident reports.
+- **Environment caveat:** verify the target database migration and deployed audit configuration before relying on production completeness.

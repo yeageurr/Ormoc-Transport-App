@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ND-DRIVER  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Implementation baseline (reviewed 2026-10-28):** This is the intended no-dispatch product scope. The repository is transitional; status statements below distinguish implemented source behavior from legacy code and unverified deployment/database state.
+> **Current source baseline (reviewed 2026-10-31):** This folder describes the current no-dispatch application source on `main`. Status notes refer to repository code and UI; they do not establish that local or hosted databases, secrets, or deployments are current.
 
 ## 1. Introduction
 
@@ -30,13 +30,12 @@ Driver sign-in and password setup, home dashboard, route-based trip start/end, t
 - **SRS-ND-DRIVER-FR-005:** Trip Logs shall list the Driver's own trips, support date filtering, and open a trip detail overlay with the recorded GPS path when samples exist.
 - **SRS-ND-DRIVER-FR-006:** The app shall refresh relevant profile, trip, notification, and queue data when screens are revisited or refreshed, and communicate unavailable data without presenting it as valid zero data.
 - **SRS-ND-DRIVER-FR-007:** The Driver shall be able to view in-app notifications and mark them as read.
+- **SRS-ND-DRIVER-FR-008:** During an active trip, the Driver shall be able to pause and resume the trip. Before pausing, the Driver may select a delay reason, provide details for “Others,” and choose whether to broadcast a delay notice to commuters; GPS tracking shall continue during the pause when the app can obtain location fixes.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Implementation status (source review: 2026-10-31)
 
-- **Present:** Driver authentication/recovery, initial-password gate, dashboard, route/direction trip selection, trip completion/summary, trip logs with GPS-path overlay, profile editing, notifications, and foreground trip tracking.
-- **Present:** trip screen records pause/resume markers while GPS sampling continues. Home receives passenger-count WebSocket events and retains a 15-second REST refresh fallback.
-- **Present:** the collapsed active-trip card requests an ETA endpoint and can display a labeled distance/speed baseline. It shows `--` if no recent trip GPS fix or usable route geometry is available; this is not trained ML.
-- **Partial:** passenger count still depends on a legacy dispatch-log route. GPS samples are attempted about every five seconds while the trip screen is active, but failed uploads are dropped; background/offline replay is absent. The profile still exposes a Change Password action although the backend restricts that endpoint to initial setup.
-- **Legacy UI:** reservation/My Tickets and incident screens/code remain in the source despite being outside the intended no-dispatch scope.
-- **Pending:** resolve route source and password-screen mismatch, implement durable/background GPS, and remove or formally retain legacy screens.
-
+- **Present in source:** Driver entrance/login, password recovery and mandatory initial password setup, Home metrics, route/direction trip start, trip pause/resume and completion, trip-history list/detail map, profile editing, notifications, and passenger-count display. No dispatch-ticket scan, My Tickets, reservation, or incident-reporting workflow is part of the current app.
+- **Present with limits:** active trips request and upload GPS fixes about every five seconds while the trip screen is foregrounded. Pause events can store a reason and broadcast a delay notice to commuters; GPS sampling continues during pauses. Trip summary and route trace depend on the data returned by the backend.
+- **Partial:** failed GPS uploads are not durably queued; background/screen-off capture and offline replay are not implemented. Passenger count depends on route activity inferred from trip records and is unavailable if no matching route activity exists.
+- **ETA status:** the displayed estimate is a route/distance-speed baseline when recent GPS and route geometry are available; it is not a trained ML result.
+- **Policy caveat:** the regular profile change-password entry conflicts with the backend's one-time initial-password endpoint policy; password recovery handles subsequent replacement.

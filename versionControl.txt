@@ -11,3 +11,8 @@ Other Branch Details:
   - Removed features related to ticketing officer role, trip dispatch, and dispatcher role;
   - Dispatch-dependent code refactored, no dispatch ticketing for both outgoing and returning trips;
   - Database migrations for removing incident, irrelevant roles (for this current branch), and dispatch related database data
+
+
+
+Other Branche Related: noDispatchTicketing
+  - Branch has no delay broadcasting yet

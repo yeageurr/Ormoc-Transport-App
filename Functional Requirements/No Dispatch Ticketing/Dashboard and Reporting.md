@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ND-REPORT  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Implementation baseline (reviewed 2026-10-28):** This is the intended no-dispatch product scope. The repository is transitional; status statements below distinguish implemented source behavior from legacy code and unverified deployment/database state.
+> **Current source baseline (reviewed 2026-10-31):** This folder describes the current no-dispatch application source on `main`. Status notes refer to repository code and UI; they do not establish that local or hosted databases, secrets, or deployments are current.
 
 ## 1. Introduction
 
@@ -29,10 +29,9 @@ Driver trip metrics and account/audit visibility. Dispatch, reservation, ticket,
 - **SRS-ND-REPORT-FR-004:** Account-management reporting shall show audit information relevant to driver/account actions, not dispatch-operation summaries.
 - **SRS-ND-REPORT-FR-005:** The system shall distinguish unavailable data from a measured value of zero and shall not fabricate ETA or passenger counts.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Implementation status (source review: 2026-10-31)
 
-- **Present:** Driver Home derives current Manila-day completed-trip count, measured distance, and average speed from trip records; it shows today's trip list and passenger count. Admin dashboard and reporting APIs/pages remain in the repository.
-- **Present:** passenger count changes are pushed to the Driver dashboard over WebSocket when commuters join or leave the active geofence queue; the existing 15-second REST refresh remains a recovery/freshness fallback.
-- **Partial:** the count's route is still selected from the Driver's latest dispatch log for the current Manila day, so this feature is not fully dispatch-independent. GPS distance reflects accepted samples and may be incomplete after upload failure.
-- **Pending/out of scope:** define final no-dispatch management reports, remove dispatch/incident metrics from the current product surface where appropriate, and train/validate the learned ETA model. The current Driver ETA is a transparent distance/speed baseline, not an ML prediction. The WebSocket manager is in-process; multiple backend workers/instances would need shared pub/sub.
-
+- **Present in source:** Driver Home calculates today's completed one-way trip count, measured distance, average speed from trip records with speed data, recent trips, and a passenger queue count where available. Admin web includes dashboard metrics/charts, live map, and trip-history pages.
+- **Present with limits:** passenger-count changes can be pushed to connected Drivers over WebSocket, with REST polling as a fallback. Route selection for this count is derived from the Driver's latest trip for the current Manila day; a Driver without a qualifying trip may have no associated current route.
+- **Partial:** measured distance depends on successfully uploaded GPS samples and may be incomplete. The ETA endpoint provides a labeled distance/speed baseline, not a trained ML prediction. Dashboard availability and comparison periods depend on the returned backend data.
+- **Not implemented:** trained ETA model serving and a dedicated downloadable reporting/export workflow for the current Admin portal.

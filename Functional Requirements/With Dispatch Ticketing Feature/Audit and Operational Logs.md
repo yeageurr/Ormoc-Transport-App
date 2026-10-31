@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-AUD  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Baseline note (reviewed 2026-10-28):** This folder documents the earlier/alternate dispatch-ticketing design. It is not the current no-dispatch product baseline. The status below describes repository source and known gaps; it does not imply deployed functionality.
+> **Historical baseline (reviewed 2026-10-31):** This document records the former dispatch-ticketing design for reference only. It is superseded by the current requirements in `../No Dispatch Ticketing/`; do not use its requirements as current application behavior.
 
 ## 1. Introduction
 
@@ -29,9 +29,8 @@ Audit events, dispatch departure logs, ticket history, reservation history, and 
 - **SRS-AUD-FR-004:** The system shall ensure that account administration, reservation approval/cancellation, ticket use/cancellation/expiry, assignment closure, and trip lifecycle actions should retain actor and timestamp where applicable.
 - **SRS-AUD-FR-005:** The system shall ensure that authorized users can inspect relevant logs; access must respect role and assignment scope.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Status in current source (reviewed 2026-10-31)
 
-- **Present:** distinct audit, dispatch-log, reservation, ticket, trip, and GPS entities/APIs. Ticketing portal has audit and dispatch-history pages, details, password-confirmed masterlist export, and print flows.
-- **Partial:** not every lifecycle transition is proven to create a consistent immutable audit trail; dispatcher-facing client surfaces are incomplete. Dispatch-history exports need database-backed verification in the deployed environment.
-- **Pending:** verify fields, correction/reissue treatment, retention, actor attribution, and live export data. This is the prior/alternate dispatch-ticketing design, not the current no-dispatch baseline.
-
+- **Superseded:** the requirements in Sections 1–3 describe the former dispatch-ticketing product direction and are not requirements of the current application baseline.
+- **Current-source disposition:** dispatchers, ticketing officers, dispatch operations, reservations, QR dispatch tickets, and incident reporting were removed from current ORM registration, API routers, and account-role enum by migration `4e9f2b7c1d63` and the associated source cleanup.
+- **Data/deployment caveat:** migration source head is `5a8d2c4f7b91`; this does not prove that any particular local or hosted database has applied the migration. Historical data removal/retention and downgrade behavior must be evaluated against the target database before use.

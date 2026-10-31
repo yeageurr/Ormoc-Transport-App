@@ -2,10 +2,10 @@
 
 **Document ID:** SRS-ND-COMM  
 **Version:** 1.0  
-**Review date:** 2026-10-28
+**Review date:** 2026-10-31
 
 
-> **Implementation baseline (reviewed 2026-10-28):** This is the intended no-dispatch product scope. The repository is transitional; status statements below distinguish implemented source behavior from legacy code and unverified deployment/database state.
+> **Current source baseline (reviewed 2026-10-31):** This folder describes the current no-dispatch application source on `main`. Status notes refer to repository code and UI; they do not establish that local or hosted databases, secrets, or deployments are current.
 
 ## 1. Introduction
 
@@ -31,11 +31,11 @@ The Commuter app does not require a Driver or staff account. It has no reservati
 - **SRS-ND-COMM-FR-006:** While the Commuter remains within the geofence, the app shall send periodic presence heartbeats. Leaving the geofence shall deactivate the queue entry; stale entries shall not contribute to the active count.
 - **SRS-ND-COMM-FR-007:** The app shall identify nearby approaching vehicles in the map UI when current location and sufficiently fresh vehicle positions support that determination.
 - **SRS-ND-COMM-FR-008:** Anonymous queue entries shall not contain commuter account or personal identity data; each app queue session currently represents one passenger.
+- **SRS-ND-COMM-FR-009:** The live map shall display a route-matched driver delay notice when the driver broadcasts a pause reason, and cease displaying it after the notice is resumed or otherwise no longer active/recent.
 
-## 4. Implementation status (source review: 2026-10-28)
+## 4. Implementation status (source review: 2026-10-31)
 
-- **Present:** entrance/introduction, public routes, live vehicle map/details, current-device location display, terminal-geofence route prompt, “No thanks,” anonymous queue join/success flow, and approaching-vehicle visual cue.
-- **Present:** queue presence is renewed while the app is foregrounded. GPS fixes are watched at roughly 10-second/10-meter intervals; leaving the geofence sends a deactivation heartbeat. After a committed queue-count transition, the backend pushes the route's absolute count to the assigned Driver over an authenticated WebSocket.
-- **Partial:** vehicle route association can still fall back to legacy dispatch data. Queue presence needs foreground location permission and network access; background suspension/offline movement cannot be reported immediately. The approach cue is in-app, not an OS push notification.
-- **Pending:** make vehicle-to-route association independent of dispatch records, define background/offline queue behavior and retention, and verify WebSocket delivery in the deployed topology. Learned ETA prediction remains untrained and is not shown in the Commuter app.
-
+- **Present in source:** entrance/introduction, public active routes, live vehicle map/details, device GPS with human-readable location, terminal geofence route prompt, “No thanks,” anonymous passenger queue join/success flow, and an in-map approaching-vehicle cue.
+- **Present in source:** the map polls live vehicles and delay notices; route-matched broadcast notices appear to commuters. Queue heartbeats run while the app is foregrounded, and leaving the geofence deactivates the session when the device reports it.
+- **Partial:** public vehicle updates and delay notices are polling-based, not OS push notifications. Queue presence requires location permission and network access; background suspension and connectivity loss can delay updates. Each anonymous queue session represents one app session, not verified human headcount.
+- **Not implemented:** commuter login, payment, reservations/QR tickets, background/offline queue synchronization, and trained ETA prediction.
