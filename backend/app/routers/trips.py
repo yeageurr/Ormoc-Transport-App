@@ -69,6 +69,8 @@ def _route_label(trip: Trip, terminal_name: str) -> str | None:
     return terminal_name if trip.status == TripStatus.RETURNING else None
   origin = route.origin.terminal_name if route.origin else terminal_name
   destination = route.destination.name if route.destination else "Assigned route"
+  if trip.status == TripStatus.RETURNING:
+    return f"{destination} → {origin}"
   return f"{origin} → {destination}"
 
 
