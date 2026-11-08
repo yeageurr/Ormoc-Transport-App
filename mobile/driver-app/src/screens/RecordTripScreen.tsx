@@ -321,7 +321,9 @@ export default function RecordTripScreen() {
   const tripDirection = activeTrip?.status ?? selectedDirection;
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const routeLabel = selectedRoute?.destination?.name
-    ? `Ormoc City Terminal ↔ ${selectedRoute.destination.name}`
+    ? tripDirection === 'returning'
+      ? `${selectedRoute.destination.name} → Ormoc City Terminal`
+      : `Ormoc City Terminal → ${selectedRoute.destination.name}`
     : 'Select a route';
   const isReady = vehicle?.activity_status === 'loading';
   const isTripPaused = Boolean(activeTrip?.pause_events?.some((event) => event.resumed_at == null));
