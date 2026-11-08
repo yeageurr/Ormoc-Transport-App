@@ -3,8 +3,7 @@ from fastapi import WebSocket
 
 class ConnectionManager:
   """Single in-memory manager — no Redis. Tracks connections by account_id
-  (not a flat list) so broadcasts can be selectively targeted, e.g. only
-  to drivers whose current trip uses a specific route."""
+  so notifications and route-scoped passenger-count updates can be targeted."""
 
   def __init__(self):
     self.active_connections: dict[int, WebSocket] = {}
