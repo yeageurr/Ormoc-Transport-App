@@ -60,7 +60,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
   try:
     while True:
-      # Currently server -> client only (GPS/notification pushes).
+      # Server -> client channel for targeted notifications and driver queue updates.
       # Still need to receive to detect disconnects properly.
       await websocket.receive_text()
   except WebSocketDisconnect:

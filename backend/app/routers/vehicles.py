@@ -1,19 +1,12 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
-from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.account import Account
 from app.models.user import User
 from app.models.vehicle import Vehicle
-from app.models.gps_log import GpsLog
 from app.models.trip import Trip
-from app.models.driver_location import DriverLocation
-from app.models.terminal import Terminal
 from app.schemas.vehicle import VehicleCreate, VehicleUpdate, VehicleResponse
 from app.schemas.user import UserResponse
 from app.core.permissions import require_role
@@ -46,89 +39,6 @@ def list_eligible_owners(
     )
     .all()
   )
-
-
-class LiveVehicleSummary(BaseModel):
-  vehicle_id: int
-  plate_number: str
-  activity_status: str
-  body_color: str
-  driver_name: str | None = None
-  route_id: int | None = None
-  route_label: str | None = None
-  current_speed_kmh: float | None = None
-  current_latitude: float | None = None
-  current_longitude: float | None = None
-
-
-@router.get("/live", response_model=list[LiveVehicleSummary])
-def get_live_vehicle_overview(
-  db: Session = Depends(get_db),
-  admin: Account = Depends(require_role(AccountRole.ADMIN)),
-):
-  """REST snapshot for the Live Map's initial page load, before any
-  WebSocket pings have arrived yet. WS handles updates after this;
-  this endpoint just establishes the starting state."""
-  vehicles = db.query(Vehicle).all()
-
-  results = []
-  now = datetime.now(ZoneInfo("Asia/Manila"))
-  day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-  terminal = db.query(Terminal).first()
-  terminal_name = terminal.terminal_name if terminal else "Ormoc City Terminal"
-  for vehicle in vehicles:
-    driver_name = None
-    route_id = None
-    route_label = None
-    current_speed = None
-    current_lat = None
-    current_lng = None
-
-    current_location = db.query(DriverLocation).filter(
-      DriverLocation.vehicle_id == vehicle.vehicle_id
-    ).first()
-
-    active_trip = (
-      db.query(Trip)
-      .filter(
-        Trip.is_complete.is_(False),
-        Trip.vehicle_id == vehicle.vehicle_id,
-      )
-      .order_by(Trip.time_departed.desc())
-      .first()
-    )
-    if active_trip:
-      if active_trip.driver:
-        driver_name = f"{active_trip.driver.first_name} {active_trip.driver.last_name}"
-      route = active_trip.route
-      route_id = route.route_id if route else None
-      route_label = route.destination.name if route and route.destination else terminal_name
-
-    if current_location:
-      if driver_name is None:
-        location_driver = db.query(User).filter(User.user_id == current_location.driver_id).first()
-        driver_name = (
-          f"{location_driver.first_name} {location_driver.last_name}"
-          if location_driver else None
-        )
-      current_speed = float(current_location.speed_kmh)
-      current_lat = float(current_location.latitude)
-      current_lng = float(current_location.longitude)
-
-    results.append(LiveVehicleSummary(
-      vehicle_id=vehicle.vehicle_id,
-      plate_number=vehicle.plate_number,
-      activity_status=vehicle.activity_status.value,
-      body_color=vehicle.body_color,
-      driver_name=driver_name,
-      route_id=route_id,
-      route_label=route_label,
-      current_speed_kmh=current_speed,
-      current_latitude=current_lat,
-      current_longitude=current_lng,
-    ))
-
-  return results
 
 
 @router.post("", response_model=VehicleResponse, status_code=status.HTTP_201_CREATED)

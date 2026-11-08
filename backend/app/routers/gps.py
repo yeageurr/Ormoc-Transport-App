@@ -12,14 +12,13 @@ from app.models.driver_location import DriverLocation
 from app.schemas.gps_log import CurrentLocationPing, GpsPing, GpsLogResponse
 from app.core.permissions import get_driver_profile, require_role
 from app.enums import AccountRole
-from app.websocket.connection_manager import manager
 
 router = APIRouter()
 
 
 @router.post("/current")
-async def update_current_location( payload: CurrentLocationPing, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)), ):
-  """Store and broadcast the latest foreground fix for the driver's vehicle."""
+def update_current_location( payload: CurrentLocationPing, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)), ):
+  """Store the latest foreground fix for the Commuter live map."""
   driver = get_driver_profile(db, current_driver)
 
   active_trip = (
@@ -52,28 +51,11 @@ async def update_current_location( payload: CurrentLocationPing, db: Session = D
   location.speed_kmh = payload.speed_kmh
   location.recorded_at = datetime.now(ZoneInfo("UTC"))
   db.commit()
-  db.refresh(location)
-
-  admin_ids = [
-    account_id for (account_id,) in db.query(Account.account_id)
-    .filter(Account.role == AccountRole.ADMIN).all()
-  ]
-
-  await manager.broadcast_to(admin_ids, {
-  "type": "gps_update",
-    "data": {
-      "vehicle_id": location.vehicle_id,
-      "latitude": float(location.latitude),
-      "longitude": float(location.longitude),
-      "speed_kmh": float(location.speed_kmh),
-      "recorded_at": location.recorded_at.isoformat(),
-    },
-  })
   return {"detail": "Current location updated"}
 
 
 @router.post("", response_model=GpsLogResponse, status_code=status.HTTP_201_CREATED)
-async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)),):
+def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_driver: Account = Depends(require_role(AccountRole.DRIVER)),):
 
   trip = db.query(Trip).filter(Trip.trip_id == payload.trip_id).first()
   if trip is None:
@@ -104,28 +86,6 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
   db.add(gps_log)
   db.commit()
   db.refresh(gps_log)
-
-
-  admin_ids = [
-    acc.account_id
-    for acc in db.query(Account).filter(Account.role == AccountRole.ADMIN).all()
-  ]
-
-  await manager.broadcast_to(admin_ids, {
-    "type": "gps_update",
-    "data": {
-      # vehicle_id added so the Live Map can update the right marker
-      # directly — the frontend has no trip_id -> vehicle_id mapping of
-      # its own (LiveVehicleSummary doesn't expose trip_id).
-      "vehicle_id": trip.vehicle_id,
-      "trip_id": gps_log.trip_id,
-      "latitude": float(gps_log.latitude),
-      "longitude": float(gps_log.longitude),
-      "speed_kmh": float(gps_log.speed_kmh),
-      "recorded_at": gps_log.recorded_at.isoformat(),
-    },
-  })
-
   return gps_log
 
 
@@ -133,7 +93,7 @@ async def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_
 def get_trip_path(
   trip_id: int,
   db: Session = Depends(get_db),
-  current_account: Account = Depends(require_role(AccountRole.ADMIN, AccountRole.DRIVER)),
+  current_account: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
   """Full GPS trail for a trip — used to draw the route path after the fact."""
   trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
@@ -143,10 +103,9 @@ def get_trip_path(
       detail = "Trip not found"
     )
 
-  if current_account.role == AccountRole.DRIVER:
-    driver = get_driver_profile(db, current_account)
-    if trip.driver_id != driver.user_id:
-      raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+  driver = get_driver_profile(db, current_account)
+  if trip.driver_id != driver.user_id:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
 
   return (
     db.query(GpsLog)
