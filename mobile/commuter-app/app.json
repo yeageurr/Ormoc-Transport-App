@@ -4,18 +4,16 @@
     "slug": "commuter-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ota-app-icon.png",
     "scheme": "commuterapp",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/ota-app-icon.png"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#009CE5",
+        "foregroundImage": "./assets/images/ota-adaptive-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.zizoworks.commuterapp",
