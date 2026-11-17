@@ -120,7 +120,6 @@ def start_trip(
     )
 
   trip = Trip(
-    dispatch_id=None,
     driver_id=driver.user_id,
     vehicle_id=vehicle.vehicle_id,
     route_id=route.route_id,

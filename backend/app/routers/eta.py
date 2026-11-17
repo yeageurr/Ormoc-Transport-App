@@ -73,12 +73,24 @@ def get_trip_eta(
   )
   now = datetime.now(timezone.utc)
   if fix is None:
-    return EtaResponse(trip.trip_id, None, "unavailable", None, None)
+    return EtaResponse(
+      trip_id=trip.trip_id,
+      eta_minutes=None,
+      source="unavailable",
+      remaining_distance_km=None,
+      location_recorded_at=None,
+    )
   recorded_at = fix.recorded_at
   if recorded_at.tzinfo is None:
     recorded_at = recorded_at.replace(tzinfo=timezone.utc)
   if (now - recorded_at.astimezone(timezone.utc)).total_seconds() > MAX_FIX_AGE_SECONDS:
-    return EtaResponse(trip.trip_id, None, "unavailable", None, recorded_at)
+    return EtaResponse(
+      trip_id=trip.trip_id,
+      eta_minutes=None,
+      source="unavailable",
+      remaining_distance_km=None,
+      location_recorded_at=recorded_at,
+    )
 
   route_distance = float(route.distance or 0)
   progress = remaining_route_distance_km(
@@ -89,7 +101,13 @@ def get_trip_eta(
     returning=trip.status == TripStatus.RETURNING,
   )
   if progress is None:
-    return EtaResponse(trip.trip_id, None, "unavailable", None, recorded_at)
+    return EtaResponse(
+      trip_id=trip.trip_id,
+      eta_minutes=None,
+      source="unavailable",
+      remaining_distance_km=None,
+      location_recorded_at=recorded_at,
+    )
 
   remaining_km, _snap_distance_m = progress
   average_duration_minutes = float(route.average_travel_duration or 0)
