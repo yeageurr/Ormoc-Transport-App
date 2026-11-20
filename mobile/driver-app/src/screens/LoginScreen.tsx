@@ -16,12 +16,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { getCurrentUser, loginDriver } from '@/api/authAPI';
 import { useAuth } from '@/hooks/useAuth';
-
-const riseIn = (delay: number) => FadeInDown.duration(460).delay(delay);
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -87,21 +84,21 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Animated.View entering={riseIn(440)} style={styles.logoWrap}>
+          <View style={styles.logoWrap}>
             <Image
               source={require('@/assets/images/ormoc-driver-mark.png')}
               style={styles.logo}
               resizeMode="contain"
               accessibilityLabel="Ormoc City bus logo"
             />
-          </Animated.View>
+          </View>
 
-          <Animated.Text entering={riseIn(360)} style={styles.title}>
+          <Text style={styles.title}>
             Login your Driver Account
-          </Animated.Text>
+          </Text>
 
-          <Animated.View entering={riseIn(40)} style={styles.card}>
-            <Animated.View entering={riseIn(260)}>
+          <View style={styles.card}>
+            <View>
               <Text style={styles.fieldLabel}>Username or Phone</Text>
               <View style={[styles.inputWrapper, error && styles.inputError]}>
                 <Ionicons name="person-outline" size={17} color={COLORS.ink} style={styles.inputIcon} />
@@ -120,9 +117,9 @@ export default function LoginScreen() {
                   accessibilityLabel="Username or phone"
                 />
               </View>
-            </Animated.View>
+            </View>
 
-            <Animated.View entering={riseIn(180)} style={styles.passwordGroup}>
+            <View style={styles.passwordGroup}>
               <Text style={styles.fieldLabel}>Password</Text>
               <View style={[styles.inputWrapper, error && styles.inputError]}>
                 <Ionicons name="key-outline" size={17} color={COLORS.ink} style={styles.inputIcon} />
@@ -156,16 +153,16 @@ export default function LoginScreen() {
                   />
                 </Pressable>
               </View>
-            </Animated.View>
+            </View>
 
             {error ? (
-              <Animated.View entering={FadeIn.duration(180)} style={styles.errorBanner} accessibilityRole="alert">
+              <View style={styles.errorBanner} accessibilityRole="alert">
                 <Ionicons name="close-outline" size={16} color={COLORS.error} />
                 <Text style={styles.errorText}>{error}</Text>
-              </Animated.View>
+              </View>
             ) : null}
 
-            <Animated.View entering={riseIn(100)}>
+            <View>
               <Pressable
                 onPress={handleLogin}
                 disabled={loading}
@@ -184,9 +181,9 @@ export default function LoginScreen() {
                   </View>
                 )}
               </Pressable>
-            </Animated.View>
+            </View>
 
-            <Animated.View entering={riseIn(0)} style={styles.forgotWrap}>
+            <View style={styles.forgotWrap}>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => router.push('/forgot-password')}
@@ -194,8 +191,8 @@ export default function LoginScreen() {
               >
                 <Text style={styles.forgotText}>Forgot password?</Text>
               </Pressable>
-            </Animated.View>
-          </Animated.View>
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

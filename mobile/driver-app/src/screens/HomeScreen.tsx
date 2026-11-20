@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getTripLogs, type DriverTrip } from '@/api/tripsAPI';
@@ -48,12 +48,9 @@ export default function HomeScreen() {
     setPassengerQueueCount(count);
   }, []));
 
-  const checkGpsStatus = useCallback(async (requestPermission = false) => {
+  const checkGpsStatus = useCallback(async () => {
     try {
-      let permission = await Location.getForegroundPermissionsAsync();
-      if (permission.status !== 'granted' && requestPermission && permission.canAskAgain) {
-        permission = await Location.requestForegroundPermissionsAsync();
-      }
+      const permission = await Location.getForegroundPermissionsAsync();
 
       if (permission.status !== 'granted') {
         setGpsStatus('denied');
@@ -77,26 +74,34 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [checkGpsStatus, loadPassengerQueueCount, loadTrips, refreshUser]);
 
-  const handleGpsPress = useCallback(() => {
-    if (gpsStatus === 'denied') {
-      void checkGpsStatus(true).then(() => {
-        void Location.getForegroundPermissionsAsync().then((permission) => {
-          if (permission.status !== 'granted' && !permission.canAskAgain) void Linking.openSettings();
-        });
-      });
-      return;
+  const handleGpsPress = useCallback(async () => {
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        setGpsStatus('denied');
+        return;
+      }
+
+      setGpsStatus(await Location.hasServicesEnabledAsync() ? 'connected' : 'unavailable');
+    } catch {
+      setGpsStatus('unavailable');
     }
-    void checkGpsStatus(true);
-  }, [checkGpsStatus, gpsStatus]);
+  }, []);
 
   useFocusEffect(useCallback(() => {
     void loadTrips();
     void loadPassengerQueueCount();
+    void checkGpsStatus();
     const refreshQueueCount = setInterval(() => void loadPassengerQueueCount(), 15_000);
     return () => clearInterval(refreshQueueCount);
-  }, [loadPassengerQueueCount, loadTrips]));
+  }, [checkGpsStatus, loadPassengerQueueCount, loadTrips]));
 
-  useEffect(() => { void checkGpsStatus(true); }, [checkGpsStatus]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void checkGpsStatus();
+    });
+    return () => subscription.remove();
+  }, [checkGpsStatus]);
 
   const todayTrips = useMemo(
     () => trips.filter((trip) => trip.is_complete && trip.time_arrived && isTodayInManila(trip.time_arrived)),
@@ -130,7 +135,13 @@ export default function HomeScreen() {
             <NotificationBell />
           </View>
 
-          <Pressable onPress={handleGpsPress} accessibilityRole="button" style={styles.gpsStatus}>
+          <Pressable
+            onPress={() => void handleGpsPress()}
+            disabled={gpsStatus === 'connected' || gpsStatus === 'checking'}
+            accessibilityRole={gpsStatus === 'connected' || gpsStatus === 'checking' ? 'text' : 'button'}
+            accessibilityLabel={gpsStatusLabel(gpsStatus)}
+            style={({ pressed }) => [styles.gpsStatus, pressed && styles.gpsStatusPressed]}
+          >
             <View style={[styles.gpsDot, gpsStatus !== 'connected' && styles.gpsDotInactive]} />
             <Text style={styles.gpsStatusText}>{gpsStatusLabel(gpsStatus)}</Text>
           </Pressable>
@@ -256,8 +267,8 @@ function isTodayInManila(timestamp: string) {
 function gpsStatusLabel(status: GpsStatus) {
   if (status === 'connected') return 'GPS connected';
   if (status === 'checking') return 'Checking GPS';
-  if (status === 'denied') return 'GPS permission needed · tap to enable';
-  return 'GPS unavailable · tap to retry';
+  if (status === 'denied') return 'Location permission off · tap to enable';
+  return 'Phone location is off · tap to enable';
 }
 
 const POPPINS = {
@@ -277,6 +288,7 @@ const styles = StyleSheet.create({
   greetingSubtitle: { marginTop: 2, color: '#B8D9D5', fontSize: 11 },
 
   gpsStatus: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 5, marginTop: 9 },
+  gpsStatusPressed: { opacity: 0.72 },
   gpsDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#54E18D' },
   gpsDotInactive: { backgroundColor: '#FFC15E' },
   gpsStatusText: { color: '#C2E4DF', fontSize: 10 },
