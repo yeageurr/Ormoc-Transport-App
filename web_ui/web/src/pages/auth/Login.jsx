@@ -73,7 +73,7 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="w-full flex flex-col gap-[11px]">
             <div>
-              <label className="mb-1.5 block text-[12px] text-[#405f6d]">Username or Email</label>
+              <label className="mb-1.5 block text-[12px] text-[#405f6d]">Phone Number</label>
               <div className="relative">
                 <input
                   type="text"
@@ -82,7 +82,7 @@ export default function Login() {
                   required
                   autoComplete="username"
                   className="w-full rounded-md border border-[#becbd1] bg-white px-10 py-2.5 text-sm text-[#203f4f] outline-none transition-colors placeholder:text-[#718792] focus:border-[#168dff]"
-                  placeholder="Enter your username"
+                  placeholder="09xxxxxxxxx"
                 />
 
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer">
