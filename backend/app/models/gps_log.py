@@ -18,6 +18,7 @@ class GpsLog(Base):
   longitude: Mapped[float] = mapped_column(Numeric(9, 6), nullable=False)
   recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
   speed_kmh: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+  accuracy_meters: Mapped[float | None] = mapped_column(Numeric(7, 2), nullable=True)
 
   # Relationships
   trip: Mapped["Trip"] = relationship(back_populates="gps_logs")

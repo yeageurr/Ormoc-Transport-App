@@ -81,6 +81,7 @@ def log_gps_ping(payload: GpsPing, db: Session = Depends(get_db), current_driver
     latitude=payload.latitude,
     longitude=payload.longitude,
     speed_kmh=payload.speed_kmh,
+    accuracy_meters=payload.accuracy_meters,
   )
 
   db.add(gps_log)

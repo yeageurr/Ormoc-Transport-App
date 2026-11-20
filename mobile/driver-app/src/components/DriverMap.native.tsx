@@ -25,18 +25,24 @@ export default function DriverMap({
   followDriver = false,
   isReturning = false,
   historyPath = false,
+  historyLocation = null,
 }: {
   fullScreen?: boolean;
   routeGeometry?: RouteGeometry | null;
   followDriver?: boolean;
   isReturning?: boolean;
   historyPath?: boolean;
+  historyLocation?: { latitude: number; longitude: number } | null;
 }) {
   const location = useDriverLocation();
   const coordinates = routeGeometry?.coordinates ?? [];
   const centerCoordinate: [number, number] = historyPath && coordinates.length
     ? coordinates[0]
-    : location
+    : historyPath && historyLocation
+      ? [historyLocation.longitude, historyLocation.latitude]
+      : historyPath
+        ? ORMOC_CENTER
+        : location
       ? [location.longitude, location.latitude]
       : ORMOC_CENTER;
   const routeBounds = useMemo(() => {
@@ -83,7 +89,7 @@ export default function DriverMap({
       <Mapbox.MapView style={styles.map} styleURL={Mapbox.StyleURL.Street}>
         <Mapbox.Camera
           key={historyPath ? 'fit-trip-history' : followDriver ? 'follow-driver' : 'fit-route'}
-          {...(routeBounds ? { bounds: routeBounds, animationMode: 'easeTo' as const } : { centerCoordinate, zoomLevel: followDriver ? 16 : 12 })}
+          {...(routeBounds ? { bounds: routeBounds, animationMode: 'easeTo' as const } : { centerCoordinate, zoomLevel: followDriver ? 16 : historyPath && coordinates.length < 2 && historyLocation ? 15 : 12 })}
           animationDuration={500}
         />
         {routeGeometry && (
@@ -118,6 +124,16 @@ export default function DriverMap({
             </View>
           </Mapbox.PointAnnotation>
         )}
+        {historyPath && coordinates.length === 0 && historyLocation && (
+          <Mapbox.PointAnnotation
+            id="trip-history-single-fix"
+            coordinate={[historyLocation.longitude, historyLocation.latitude]}
+            title="Recorded trip location"
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View style={styles.historyPoint} collapsable={false} />
+          </Mapbox.PointAnnotation>
+        )}
         {!historyPath && location && (
           <Mapbox.ShapeSource
             id="driver-current-location"
@@ -146,6 +162,7 @@ const styles = StyleSheet.create({
   fullScreenContainer: { flex: 1, height: undefined, marginTop: 0, borderRadius: 0, borderWidth: 0 },
   map: { flex: 1 },
   pin: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
+  historyPoint: { width: 16, height: 16, borderRadius: 8, backgroundColor: '#15966F', borderColor: '#FFFFFF', borderWidth: 3 },
   label: { position: 'absolute', top: 10, left: 10, flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: 'rgba(4, 47, 46, 0.88)' },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#41EA43' },
   labelText: { color: '#E7FFFB', fontSize: 11, fontWeight: '700' },

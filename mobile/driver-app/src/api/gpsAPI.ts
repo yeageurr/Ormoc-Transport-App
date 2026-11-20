@@ -8,6 +8,7 @@ export interface TripGpsLog {
   longitude: number;
   recorded_at: string;
   speed_kmh: number;
+  accuracy_meters?: number | null;
 }
 
 export interface GpsPing {
@@ -42,12 +43,14 @@ export async function logTripGpsPing(tripId: number, ping: {
   latitude: number;
   longitude: number;
   speedKph?: number | null;
+  accuracyMeters?: number | null;
 }): Promise<void> {
   await authClient.post('/gps', {
     trip_id: tripId,
     latitude: ping.latitude,
     longitude: ping.longitude,
     speed_kmh: Math.max(0, ping.speedKph ?? 0),
+    accuracy_meters: ping.accuracyMeters ?? null,
   });
 }
 

@@ -8,6 +8,7 @@ export default function DriverMap({ fullScreen = false }: {
   followDriver?: boolean;
   isReturning?: boolean;
   historyPath?: boolean;
+  historyLocation?: { latitude: number; longitude: number } | null;
 }) {
   return (
     <View style={[styles.card, fullScreen && styles.fullScreenCard]}>

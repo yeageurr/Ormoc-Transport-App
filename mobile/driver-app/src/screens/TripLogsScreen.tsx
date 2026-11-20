@@ -125,6 +125,45 @@ function measureGpsPathKm(points: TripGpsLog[]) {
   return distanceKm;
 }
 
+function filterDisplayGpsPoints(points: TripGpsLog[]) {
+  const filtered: TripGpsLog[] = [];
+  const toRadians = (degrees: number) => degrees * Math.PI / 180;
+  const distanceMeters = (a: TripGpsLog, b: TripGpsLog) => {
+    const latitude1 = toRadians(a.latitude);
+    const latitude2 = toRadians(b.latitude);
+    const latitudeDelta = latitude2 - latitude1;
+    const longitudeDelta = toRadians(b.longitude - a.longitude);
+    const haversine = Math.sin(latitudeDelta / 2) ** 2
+      + Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(longitudeDelta / 2) ** 2;
+    return 6371008.8 * 2 * Math.asin(Math.sqrt(Math.min(1, haversine)));
+  };
+
+  for (const point of points) {
+    if (!Number.isFinite(point.latitude) || !Number.isFinite(point.longitude)) continue;
+    if (point.accuracy_meters != null && point.accuracy_meters > 50) continue;
+    const previous = filtered[filtered.length - 1];
+    if (previous) {
+      const elapsedSeconds = Math.max(1, (Date.parse(point.recorded_at) - Date.parse(previous.recorded_at)) / 1000);
+      const segmentMeters = distanceMeters(previous, point);
+      if (segmentMeters / elapsedSeconds * 3.6 > 150) continue;
+
+      // Coalesce movements within the GPS fix uncertainty so a stationary
+      // vehicle's location drift does not become a visible zigzagging route.
+      const previousAccuracy = previous.accuracy_meters ?? 8;
+      const currentAccuracy = point.accuracy_meters ?? 8;
+      const bothFixesReportLowSpeed = previous.speed_kmh <= 3 && point.speed_kmh <= 3;
+      const accuracyThresholdMeters = Math.max(7, Math.min(25, Math.max(previousAccuracy, currentAccuracy) * 0.75));
+      const jitterThresholdMeters = bothFixesReportLowSpeed
+        ? Math.max(18, accuracyThresholdMeters)
+        : accuracyThresholdMeters;
+      if (segmentMeters < jitterThresholdMeters) continue;
+    }
+    filtered.push(point);
+  }
+
+  return filtered;
+}
+
 export default function TripLogsScreen() {
   const [trips, setTrips] = useState<DriverTrip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,14 +224,15 @@ export default function TripLogsScreen() {
     setPathLoading(false);
   }, []);
 
+  const displayTripPath = useMemo(() => filterDisplayGpsPoints(selectedTripPath), [selectedTripPath]);
   const historyGeometry = useMemo<RouteGeometry | null>(() => {
-    if (selectedTripPath.length < 2) return null;
+    if (displayTripPath.length < 2) return null;
     return {
       type: 'LineString',
-      coordinates: selectedTripPath.map((point) => [point.longitude, point.latitude]),
+      coordinates: displayTripPath.map((point) => [point.longitude, point.latitude]),
     };
-  }, [selectedTripPath]);
-  const historyDistanceKm = selectedTrip?.distance_traveled_km ?? measureGpsPathKm(selectedTripPath);
+  }, [displayTripPath]);
+  const historyDistanceKm = selectedTrip?.distance_traveled_km ?? measureGpsPathKm(displayTripPath);
 
   const { today, yesterday } = getRelativeDateKeys();
   const groups = useMemo(() => {
@@ -355,11 +395,22 @@ export default function TripLogsScreen() {
                 {!pathLoading && historyGeometry && (
                   <DriverMap fullScreen routeGeometry={historyGeometry} historyPath />
                 )}
-                {!pathLoading && !historyGeometry && (
+                {!pathLoading && !historyGeometry && displayTripPath.length > 0 && (
+                  <DriverMap
+                    fullScreen
+                    routeGeometry={null}
+                    historyPath
+                    historyLocation={{
+                      latitude: displayTripPath[0].latitude,
+                      longitude: displayTripPath[0].longitude,
+                    }}
+                  />
+                )}
+                {!pathLoading && displayTripPath.length === 0 && (
                   <View style={styles.mapEmptyState}>
                     <Ionicons name="map-outline" size={34} color="#7B8A8E" />
                     <Text style={styles.mapEmptyText}>
-                      {pathError ? 'Couldn’t load this trip’s GPS route.' : selectedTripPath.length === 1 ? 'Only one GPS point was saved for this trip.' : 'No GPS route was saved for this trip.'}
+                      {pathError ? 'Couldn’t load this trip’s GPS route.' : selectedTripPath.length ? 'GPS fixes were too inaccurate to draw a reliable route.' : 'No GPS route was saved for this trip.'}
                     </Text>
                     {pathError && <Pressable onPress={() => void openTrip(selectedTrip)}><Text style={styles.mapRetry}>Try again</Text></Pressable>}
                   </View>

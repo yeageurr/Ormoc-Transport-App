@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class GpsPing(BaseModel):
@@ -8,6 +8,7 @@ class GpsPing(BaseModel):
   latitude: float
   longitude: float
   speed_kmh: float
+  accuracy_meters: float | None = Field(default=None, ge=0)
 
   @field_validator("latitude")
   @classmethod
@@ -33,6 +34,7 @@ class GpsLogResponse(BaseModel):
   longitude: float
   recorded_at: datetime
   speed_kmh: float
+  accuracy_meters: float | None = None
 
 
 class CurrentLocationPing(BaseModel):

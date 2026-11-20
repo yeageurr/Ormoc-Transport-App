@@ -260,6 +260,7 @@ export default function RecordTripScreen() {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         speedKph: position.coords.speed == null ? 0 : Math.max(0, position.coords.speed * 3.6),
+        accuracyMeters: position.coords.accuracy,
       }).catch(() => {
         // Location tracking continues if the network is temporarily unavailable.
       });
