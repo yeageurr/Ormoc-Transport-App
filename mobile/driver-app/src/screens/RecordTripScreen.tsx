@@ -119,6 +119,7 @@ export default function RecordTripScreen() {
   const [tripLogs, setTripLogs] = useState<DriverTrip[]>([]);
   const [finishOpen, setFinishOpen] = useState(false);
   const [completedTripSummary, setCompletedTripSummary] = useState<DriverTrip | null>(null);
+  const [wasTripAutoEnded, setWasTripAutoEnded] = useState(false);
   const [directionPickerOpen, setDirectionPickerOpen] = useState(false);
   const [isFinishing, setIsFinishing] = useState(false);
   const [isUpdatingPause, setIsUpdatingPause] = useState(false);
@@ -136,6 +137,7 @@ export default function RecordTripScreen() {
   const insets = useSafeAreaInsets();
   const lastGeocodeRef = useRef<{ latitude: number; longitude: number; at: number } | null>(null);
   const geocodeRequestRef = useRef(0);
+  const activeTripIdRef = useRef<number | null>(null);
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const gestureStartY = useRef(0);
   const collapsedOffset = Math.max(0, sheetHeight - 76);
@@ -197,8 +199,23 @@ export default function RecordTripScreen() {
       setRoutes(availableRoutes);
       setVehicle(ownVehicle);
       const inProgressTrip = trips.find((trip) => !trip.is_complete);
+      const previousActiveTripId = activeTripIdRef.current;
+      const autoCompletedTrip = previousActiveTripId == null || inProgressTrip
+        ? null
+        : trips.find((trip) => {
+          if (trip.trip_id !== previousActiveTripId || !trip.is_complete || !trip.time_arrived) return false;
+          return new Date(trip.time_arrived).getTime() - new Date(trip.time_departed).getTime() >= (24 * 60 - 1) * 60_000;
+        }) ?? null;
+      activeTripIdRef.current = inProgressTrip?.trip_id ?? null;
       setActiveTrip(inProgressTrip ?? null);
       setSelectedRouteId((current) => current ?? inProgressTrip?.route_id ?? null);
+      if (autoCompletedTrip) {
+        setCompletedTripSummary(autoCompletedTrip);
+        setWasTripAutoEnded(true);
+        setFinishOpen(false);
+        setSelectedDirection(autoCompletedTrip.status === 'outgoing' ? 'returning' : 'outgoing');
+        setMessage('Trip automatically ended after reaching the 24-hour limit.');
+      }
     } catch {
       setMessage('Unable to refresh your trip. Check your connection and try again.');
     } finally {
@@ -306,7 +323,9 @@ export default function RecordTripScreen() {
     setIsStarting(true);
     setMessage(null);
     try {
-      setActiveTrip(await startTrip(selectedRouteId, selectedDirection));
+      const startedTrip = await startTrip(selectedRouteId, selectedDirection);
+      activeTripIdRef.current = startedTrip.trip_id;
+      setActiveTrip(startedTrip);
       setNow(Date.now());
     } catch (error: any) {
       setMessage(
@@ -405,10 +424,12 @@ export default function RecordTripScreen() {
       // Suggest the opposite direction for the next leg of a round trip.
       // The driver can still change it with the direction selector.
       setSelectedDirection(finished.status === 'outgoing' ? 'returning' : 'outgoing');
+      activeTripIdRef.current = null;
       setTripLogs((logs) => [completedTrip, ...logs.filter((trip) => trip.trip_id !== finished.trip_id)]);
       setActiveTrip(null);
       setFinishOpen(false);
       setCompletedTripSummary(completedTrip);
+      setWasTripAutoEnded(false);
       setMessage(`Trip completed${finished.trip_duration_minutes ? ` in ${Math.round(finished.trip_duration_minutes)} mins` : ''}.`);
     } catch (error: any) {
       setMessage(error?.response?.data?.detail || 'Unable to finish this trip.');
@@ -481,7 +502,11 @@ export default function RecordTripScreen() {
               </View>
               <View style={styles.metricsRow}>
                 <Metric icon="time-outline" value={formatElapsed(activeTrip.time_departed, now)} label="Elapsed time" />
-                <Metric icon="map-outline" value={routeDistanceText} label="Distance from terminal" />
+                <Metric
+                  icon="speedometer-outline"
+                  value={location?.speedKph != null && Number.isFinite(location.speedKph) ? `${Math.round(location.speedKph)} km/h` : '— km/h'}
+                  label="Current speed"
+                />
                 <Metric icon="time-outline" value={averageDurationText} label="Average trip duration" />
               </View>
             </View>
@@ -603,8 +628,8 @@ export default function RecordTripScreen() {
             <View style={styles.summaryCheckCircle}>
               <Ionicons name="checkmark" size={26} color="#FFFFFF" />
             </View>
-            <Text style={styles.summaryTitle}>Trip completed!</Text>
-            <Text style={styles.summarySubtitle}>Here’s a summary of your trip.</Text>
+            <Text style={styles.summaryTitle}>{wasTripAutoEnded ? 'Trip automatically ended' : 'Trip completed!'}</Text>
+            <Text style={styles.summarySubtitle}>{wasTripAutoEnded ? 'The trip reached the 24-hour time limit.' : 'Here’s a summary of your trip.'}</Text>
             <View style={styles.summaryRoute}>
               <Text style={styles.summaryRouteLabel}>ROUTE</Text>
               <Text style={styles.summaryRouteValue} numberOfLines={2}>{completedTripSummary?.route_label || 'Route unavailable'}</Text>

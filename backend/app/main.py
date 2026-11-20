@@ -1,10 +1,13 @@
 import os
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from app.routers import auth, accounts, vehicles, trips, gps, geofence, notifications, audit_logs, terminals, routes, users, commuter, eta
 from app.websocket import ws_router
 from app.core.exceptions import register_exception_handlers
+from app.jobs.auto_end_trips import run_trip_auto_end_job
 
 load_dotenv()
 
@@ -15,10 +18,24 @@ ALLOWED_ORIGINS = [
   for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
   if origin.strip()
 ]
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+  trip_auto_end_task = asyncio.create_task(run_trip_auto_end_job())
+  try:
+    yield
+  finally:
+    trip_auto_end_task.cancel()
+    try:
+      await trip_auto_end_task
+    except asyncio.CancelledError:
+      pass
+
+
 app = FastAPI(
   title = APP_NAME,
   debug = DEBUG,
   version = "0.1.0",
+  lifespan=lifespan,
 )
 
 app.add_middleware(

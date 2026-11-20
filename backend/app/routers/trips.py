@@ -9,13 +9,13 @@ from app.core.permissions import get_driver_profile, require_role
 from app.database import get_db
 from app.enums import AccountRole, TripStatus, VehicleActivityStatus, VehicleCondition
 from app.models.account import Account
-from app.models.gps_log import GpsLog
 from app.models.terminal import Terminal
 from app.models.trip import Trip
 from app.models.user import User
 from app.models.route import Route
 from app.models.vehicle import Vehicle
 from app.models.trip_pause_event import TripPauseEvent
+from app.services.trip_completion import complete_trip
 from app.schemas.trip import (
   AdminTripResponse,
   DriverDailySummary,
@@ -29,26 +29,6 @@ from app.schemas.trip import (
 
 router = APIRouter()
 PH = ZoneInfo("Asia/Manila")
-
-
-def _gps_distance_km(points: list[GpsLog]) -> float:
-  """Sum plausible GPS segments, ignoring small stationary-position drift."""
-  from math import asin, cos, radians, sin, sqrt
-
-  distance_km = 0.0
-  ordered = sorted(points, key=lambda point: point.recorded_at)
-  for previous, current in zip(ordered, ordered[1:]):
-    lat1, lon1 = radians(float(previous.latitude)), radians(float(previous.longitude))
-    lat2, lon2 = radians(float(current.latitude)), radians(float(current.longitude))
-    dlat, dlon = lat2 - lat1, lon2 - lon1
-    haversine = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    segment_km = 6371.0088 * 2 * asin(sqrt(min(1.0, haversine)))
-    elapsed_seconds = max(1.0, (current.recorded_at - previous.recorded_at).total_seconds())
-    # Ignore sub-10m GPS drift while stationary and impossible jumps caused by
-    # poor fixes. Real trip distance is measured from the accepted GPS trail.
-    if segment_km >= 0.01 and segment_km / elapsed_seconds * 3600 <= 150:
-      distance_km += segment_km
-  return round(distance_km, 3)
 
 
 def _driver_for_trip(trip: Trip) -> User | None:
@@ -220,7 +200,7 @@ def end_trip(
   db: Session = Depends(get_db),
   current_driver: Account = Depends(require_role(AccountRole.DRIVER)),
 ):
-  trip = db.query(Trip).filter(Trip.trip_id == trip_id).first()
+  trip = db.query(Trip).filter(Trip.trip_id == trip_id).with_for_update().first()
   if trip is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
 
@@ -231,33 +211,7 @@ def end_trip(
   if trip.is_complete:
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Trip is already complete")
 
-  trip.time_arrived = datetime.now(timezone.utc)
-  departed = trip.time_departed
-  if departed.tzinfo is None:
-    departed = departed.replace(tzinfo=timezone.utc)
-  trip.trip_duration_minutes = round((trip.time_arrived - departed).total_seconds() / 60, 2)
-
-  avg_speed = db.query(func.avg(GpsLog.speed_kmh)).filter(GpsLog.trip_id == trip_id).scalar()
-  trip.average_speed_km = round(avg_speed, 2) if avg_speed is not None else None
-  gps_points = (
-    db.query(GpsLog)
-    .filter(GpsLog.trip_id == trip_id)
-    .order_by(GpsLog.recorded_at.asc())
-    .all()
-  )
-  trip.distance_traveled_km = _gps_distance_km(gps_points)
-  trip.is_complete = True
-
-  open_pause = db.query(TripPauseEvent).filter(
-    TripPauseEvent.trip_id == trip_id,
-    TripPauseEvent.resumed_at.is_(None),
-  ).first()
-  if open_pause:
-    open_pause.resumed_at = trip.time_arrived
-
-  vehicle = _vehicle_for_trip(trip)
-  if vehicle is not None:
-    vehicle.activity_status = VehicleActivityStatus.ACTIVE
+  complete_trip(db, trip, datetime.now(timezone.utc))
   db.commit()
   db.refresh(trip)
   return trip

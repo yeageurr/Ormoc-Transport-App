@@ -48,9 +48,10 @@ export default function ChangePasswordModal({ isOpen, onClose, onSuccess, isRequ
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0c1f2a]/45 px-4">
       <div className="w-full max-w-sm rounded-xl border border-[#d4e4eb] bg-white p-6 shadow-[0_18px_55px_rgba(10,44,63,0.2)]">
-        <h3 className="mb-1 text-lg font-semibold text-[#173b4e]">Change your password</h3>
+        <h3 className="mb-1 text-lg font-semibold text-[#173b4e]">{isRequired ? "Set your password" : "Change your password"}</h3>
         <p className="mb-5 text-sm text-[#647c87]">
-          For your security, please set a new password before continuing. {PASSWORD_REQUIREMENT}
+          {isRequired ? "For your security, set a new password before continuing. " : "Confirm your current password to update it. "}
+          {PASSWORD_REQUIREMENT}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-3">

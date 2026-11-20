@@ -3,7 +3,8 @@ import {
   Users,
   History,
   LogOut,
-  UserCircle
+  UserCircle,
+  UserRound,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ormocDriverMark from "../../assets/ormoc-driver-mark.png";
@@ -12,6 +13,7 @@ import ormocDriverMark from "../../assets/ormoc-driver-mark.png";
 const mainLinks = [
   { to: "/users", label: "Driver Accounts", icon: Users },
   { to: "/audit-logs", label: "Audit Trail", icon: History },
+  { to: "/account", label: "My Account", icon: UserRound },
 ];
 
 export default function Sidebar({ onOpenLogout }) {

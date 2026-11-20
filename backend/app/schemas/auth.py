@@ -51,6 +51,22 @@ class VerifyPasswordRequest(BaseModel):
   password: str
 
 
+class AdminEmailChangeRequest(BaseModel):
+  current_password: str
+  new_email: EmailStr
+
+
+class AdminEmailChangeVerify(BaseModel):
+  code: str
+
+  @field_validator("code")
+  @classmethod
+  def validate_code(cls, value: str) -> str:
+    if not re.fullmatch(r"\d{6}", value):
+      raise ValueError("Code must be exactly 6 digits")
+    return value
+
+
 class ForgotPasswordRequest(BaseModel):
   email: EmailStr
 

@@ -42,9 +42,16 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const refreshAccount = async () => {
+    const userData = await getCurrentUser();
+    setAccount(userData);
+    setMustChangePassword(Boolean(userData.must_change_password));
+    return userData;
+  };
+
   return (
     <AuthContext.Provider
-      value={{ account, isLoading, mustChangePassword, setMustChangePassword, login, logout }}
+      value={{ account, isLoading, mustChangePassword, setMustChangePassword, login, logout, refreshAccount }}
     >
       {children}
     </AuthContext.Provider>

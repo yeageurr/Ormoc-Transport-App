@@ -12,8 +12,11 @@ from app.database import get_db
 from app.models.account import Account
 from app.models.user import User
 from app.models.password_reset_otp import PasswordResetOtp
+from app.models.email_verification import EmailVerification
 from app.schemas.auth import (
   ChangePasswordRequest,
+  AdminEmailChangeRequest,
+  AdminEmailChangeVerify,
   ForgotPasswordRequest,
   LoginRequest,
   PasswordResetCodeRequest,
@@ -26,7 +29,7 @@ from app.core.security import verify_password, hash_password, create_access_toke
 from app.core.permissions import get_account_for_password_setup, require_role
 from app.enums import AccountRole, AccountStatus, AuditAction
 from app.services.audit_service import log_action
-from app.services.email_service import EmailDeliveryError, send_password_reset_code, send_password_reset_email
+from app.services.email_service import EmailDeliveryError, send_email_verification_code, send_password_reset_code, send_password_reset_email
 from app.services.sms_service import SmsDeliveryError, send_password_reset_sms
 from app.services.account_activity_email import notify_password_changed
 
@@ -144,6 +147,7 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
       "account_id": account.account_id,
       "role": account.role,
       "username": account.username,
+      "email": account.email,
       "display_name": account.display_name,
       "first_name": account.user.first_name if account.user else None,
       "last_name": account.user.last_name if account.user else None,
@@ -165,11 +169,145 @@ def get_me(
     "account_id": current_account.account_id,
     "role": current_account.role,
     "username": current_account.username,
+    "email": current_account.email,
     "display_name": current_account.display_name,
     "first_name": current_account.user.first_name if current_account.user else None,
     "last_name": current_account.user.last_name if current_account.user else None,
     "must_change_password": current_account.must_change_password,
   }
+
+
+@router.post("/me/email/request")
+def request_admin_email_change(
+  payload: AdminEmailChangeRequest,
+  db: Session = Depends(get_db),
+  current_account: Account = Depends(require_role(AccountRole.ADMIN)),
+):
+  if not verify_password(payload.current_password, current_account.password_hash):
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+  new_email = str(payload.new_email).strip().lower()
+  if new_email == (current_account.email or "").lower():
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That email is already on your account")
+
+  existing_account = db.query(Account).filter(
+    func.lower(Account.email) == new_email,
+    Account.account_id != current_account.account_id,
+  ).first()
+  existing_user = db.query(User).filter(func.lower(User.email) == new_email).first()
+  if existing_account or existing_user:
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="That email address is already in use")
+
+  code = f"{secrets.randbelow(900000) + 100000:06d}"
+  salt = secrets.token_hex(16)
+  verification = db.query(EmailVerification).filter(
+    EmailVerification.account_id == current_account.account_id
+  ).first()
+  now = datetime.now(timezone.utc)
+  if verification is not None:
+    last_sent_at = verification.last_sent_at
+    if last_sent_at.tzinfo is None:
+      last_sent_at = last_sent_at.replace(tzinfo=timezone.utc)
+    if now - last_sent_at < timedelta(seconds=60):
+      raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait 60 seconds before requesting another code")
+  if verification is None:
+    verification = EmailVerification(account_id=current_account.account_id)
+    db.add(verification)
+  verification.pending_email = new_email
+  verification.code_salt = salt
+  verification.code_hash = hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
+  verification.expires_at = now + timedelta(minutes=10)
+  verification.attempts = 0
+  verification.last_sent_at = now
+  try:
+    send_email_verification_code(new_email, code)
+  except EmailDeliveryError as exc:
+    db.rollback()
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Email verification could not be sent") from exc
+
+  db.commit()
+  return {"detail": "A verification code was sent to the new email address."}
+
+
+@router.post("/me/email/resend")
+def resend_admin_email_change_code(
+  db: Session = Depends(get_db),
+  current_account: Account = Depends(require_role(AccountRole.ADMIN)),
+):
+  verification = db.query(EmailVerification).filter(
+    EmailVerification.account_id == current_account.account_id
+  ).first()
+  if verification is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pending email verification")
+
+  last_sent_at = verification.last_sent_at
+  if last_sent_at.tzinfo is None:
+    last_sent_at = last_sent_at.replace(tzinfo=timezone.utc)
+  now = datetime.now(timezone.utc)
+  if now - last_sent_at < timedelta(seconds=60):
+    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait 60 seconds before requesting another code")
+
+  code = f"{secrets.randbelow(900000) + 100000:06d}"
+  salt = secrets.token_hex(16)
+  verification.code_salt = salt
+  verification.code_hash = hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
+  verification.expires_at = now + timedelta(minutes=10)
+  verification.attempts = 0
+  verification.last_sent_at = now
+  try:
+    send_email_verification_code(verification.pending_email, code)
+  except EmailDeliveryError as exc:
+    db.rollback()
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Email verification could not be sent") from exc
+  db.commit()
+  return {"detail": "A new verification code was sent."}
+
+
+@router.post("/me/email/verify")
+def verify_admin_email_change(
+  payload: AdminEmailChangeVerify,
+  db: Session = Depends(get_db),
+  current_account: Account = Depends(require_role(AccountRole.ADMIN)),
+):
+  verification = db.query(EmailVerification).filter(
+    EmailVerification.account_id == current_account.account_id
+  ).first()
+  if verification is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pending email verification")
+
+  now = datetime.now(timezone.utc)
+  expires_at = verification.expires_at
+  if expires_at.tzinfo is None:
+    expires_at = expires_at.replace(tzinfo=timezone.utc)
+  if expires_at <= now:
+    db.delete(verification)
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification code expired. Request a new code.")
+  if verification.attempts >= 5:
+    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many incorrect codes. Request a new code.")
+
+  submitted_hash = hashlib.sha256(f"{verification.code_salt}:{payload.code}".encode()).hexdigest()
+  if not hmac.compare_digest(submitted_hash, verification.code_hash):
+    verification.attempts += 1
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That verification code is incorrect.")
+
+  new_email = verification.pending_email.strip().lower()
+  conflicting_account = db.query(Account).filter(
+    func.lower(Account.email) == new_email,
+    Account.account_id != current_account.account_id,
+  ).first()
+  conflicting_user = db.query(User).filter(func.lower(User.email) == new_email).first()
+  if conflicting_account or conflicting_user:
+    db.delete(verification)
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="That email address is already in use")
+
+  current_account.email = new_email
+  db.delete(verification)
+  db.commit()
+  log_action(db, current_account.account_id, AuditAction.UPDATE, "accounts", current_account.account_id, "Verified and updated own account email")
+  return {"detail": "Email address updated successfully.", "email": new_email}
 
 
 @router.post("/logout")
@@ -394,10 +532,11 @@ def change_password(
   db: Session = Depends(get_db),
   current_account: Account = Depends(get_account_for_password_setup),
 ):
-  if not current_account.must_change_password:
+  initial_password_setup = current_account.must_change_password
+  if not initial_password_setup and current_account.role != AccountRole.ADMIN:
     raise HTTPException(
       status_code=status.HTTP_403_FORBIDDEN,
-      detail="The initial password has already been set. Password changes are unavailable.",
+      detail="The initial password has already been set. Contact an administrator to reset it.",
     )
 
   if not verify_password(payload.current_password, current_account.password_hash):
@@ -415,11 +554,12 @@ def change_password(
   if verify_password(payload.new_password, current_account.password_hash):
     raise HTTPException(
       status_code=status.HTTP_400_BAD_REQUEST,
-      detail="Choose a password different from the temporary password.",
+      detail="Choose a password different from your current password.",
     )
 
   current_account.password_hash = hash_password(payload.new_password)
-  current_account.must_change_password = False
+  if initial_password_setup:
+    current_account.must_change_password = False
   db.commit()
 
   log_action(

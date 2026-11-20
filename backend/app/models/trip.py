@@ -28,7 +28,7 @@ class Trip(Base):
   time_arrived: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
   # NOTE: ERD types this TIMESTAMPTZ, but "duration in minutes" is a numeric value,
   # not a timestamp — kept as Numeric here since that matches what the column name says.
-  trip_duration_minutes: Mapped[float | None] = mapped_column(Numeric(6, 2))
+  trip_duration_minutes: Mapped[float | None] = mapped_column(Numeric(10, 2))
   average_speed_km: Mapped[float | None] = mapped_column(Numeric(6, 2))
   distance_traveled_km: Mapped[float | None] = mapped_column(Numeric(8, 3))
   is_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

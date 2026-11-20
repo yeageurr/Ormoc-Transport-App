@@ -9,6 +9,7 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import Users from "./pages/admin/Users"
 import AuditLogs from "./pages/admin/AuditLogs";
+import AdminAccount from "./pages/admin/AdminAccount";
 
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
             <Route index element={<Navigate to="/users" replace />} />
             <Route path="users" element={<Users />} />
             <Route path="audit-logs" element={<AuditLogs />} />
+            <Route path="account" element={<AdminAccount />} />
             <Route path="*" element={<Navigate to="/users" replace />} />
           </Route>
         </Routes>
