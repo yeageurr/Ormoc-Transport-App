@@ -51,13 +51,19 @@ export default function LoginScreen() {
     } catch (loginError) {
       if (axios.isAxiosError(loginError)) {
         const detail = loginError.response?.data?.error?.message || loginError.response?.data?.detail;
-        setError(
-          loginError.response?.status === 401
-            ? "Account doesn't exist."
-            : loginError.response?.status === 403 && detail?.toLowerCase().includes('suspended')
+        if (loginError.response?.status === 401) {
+          setError(
+            typeof detail === 'string' && detail.toLowerCase().includes('incorrect password')
+              ? 'Incorrect password. Please try again.'
+              : "Account doesn't exist.",
+          );
+        } else {
+          setError(
+            loginError.response?.status === 403 && detail?.toLowerCase().includes('suspended')
               ? 'Your account has been suspended. Please contact an administrator.'
               : detail || 'Unable to sign in. Please try again.',
-        );
+          );
+        }
       } else if (loginError instanceof Error) {
         setError(loginError.message);
       } else {

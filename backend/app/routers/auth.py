@@ -117,13 +117,18 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
 
   account = matches[0]
 
-  password_matches = verify_password(credentials.password, account.password_hash)
   expected_role = AccountRole(credentials.portal)
-  if not password_matches or account.role != expected_role:
+  # Keep portal mismatch and unavailable accounts indistinguishable, but give
+  # a useful response when this portal's active account exists and its password
+  # alone is wrong.
+  if account.role != expected_role or account.status != AccountStatus.ACTIVE:
     raise invalid_credentials
 
-  if account.status != AccountStatus.ACTIVE:
-    raise invalid_credentials
+  if not verify_password(credentials.password, account.password_hash):
+    raise HTTPException(
+      status_code=status.HTTP_401_UNAUTHORIZED,
+      detail="Incorrect password",
+    )
 
   account.last_login = datetime.now(timezone.utc)
   db.commit()
