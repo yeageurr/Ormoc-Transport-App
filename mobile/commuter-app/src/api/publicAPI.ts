@@ -20,6 +20,9 @@ export type CommuterVehicle = {
   vehicle_type: string;
   route_id: number | null;
   route_label: string | null;
+  trip_direction: 'outgoing' | 'returning' | null;
+  heading_to: string | null;
+  trip_started_at: string | null;
   latitude: number;
   longitude: number;
   speed_kmh: number;

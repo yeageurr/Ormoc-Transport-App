@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, or_
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.permissions import get_driver_profile, require_role
@@ -89,6 +89,9 @@ class CommuterVehicleResponse(BaseModel):
   vehicle_type: str
   route_id: int | None
   route_label: str | None
+  trip_direction: str | None
+  heading_to: str | None
+  trip_started_at: datetime | None
   latitude: float
   longitude: float
   speed_kmh: float
@@ -194,6 +197,13 @@ def list_public_live_vehicles(db: Session = Depends(get_db)):
       vehicle_type=vehicle.vehicle_type,
       route_id=route.route_id if route else None,
       route_label=route.destination.name if route and route.destination else None,
+      trip_direction=active_trip.status.value if active_trip else None,
+      heading_to=(
+        route.origin.terminal_name if active_trip and active_trip.status.value == "returning" and route and route.origin
+        else route.destination.name if route and route.destination
+        else None
+      ),
+      trip_started_at=active_trip.time_departed if active_trip else None,
       latitude=float(location.latitude),
       longitude=float(location.longitude),
       speed_kmh=float(location.speed_kmh),
@@ -204,15 +214,15 @@ def list_public_live_vehicles(db: Session = Depends(get_db)):
 
 @router.get("/delay-notices", response_model=list[PublicDelayNotice])
 def list_active_delay_notices(db: Session = Depends(get_db)):
-  """Return open notices and recently resumed ones so commuter polling can receive them."""
-  recently_resumed_after = datetime.now(timezone.utc) - timedelta(minutes=5)
+  """Return only currently open delay notices; resumed pauses are no longer active."""
   rows = (
     db.query(TripPauseEvent, Trip, Route)
     .join(Trip, Trip.trip_id == TripPauseEvent.trip_id)
     .join(Route, Route.route_id == Trip.route_id)
     .filter(
       TripPauseEvent.broadcast_to_commuters.is_(True),
-      or_(TripPauseEvent.resumed_at.is_(None), TripPauseEvent.resumed_at >= recently_resumed_after),
+      TripPauseEvent.resumed_at.is_(None),
+      Trip.is_complete.is_(False),
     )
     .order_by(TripPauseEvent.paused_at.desc())
     .all()

@@ -220,7 +220,8 @@ export default function LiveMapScreen() {
 
   const loadDelayNotices = useCallback(async () => {
     try {
-      setDelayNotices(await getActiveDelayNotices());
+      const notices = await getActiveDelayNotices();
+      setDelayNotices(notices.filter((notice) => notice.resumed_at == null));
     } catch {
       // Delay notices are secondary to the live map; retry on the next poll.
     }
@@ -337,7 +338,9 @@ export default function LiveMapScreen() {
 
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.vehicle_id === selectedVehicleId) ?? null;
-  const visibleDelayNotices = delayNotices.filter((notice) => notice.route_id === (queueRouteId ?? selectedRouteId));
+  const visibleDelayNotices = delayNotices.filter(
+    (notice) => notice.resumed_at == null && notice.route_id === (queueRouteId ?? selectedRouteId),
+  );
   const routeVehicles = useMemo(
     () => vehicles.filter((vehicle) => vehicle.route_id === selectedRouteId),
     [vehicles, selectedRouteId]
@@ -590,12 +593,35 @@ function RouteCard({ route, vehicleCount, onPress }: { route: CommuterRoute; veh
 }
 
 function VehicleCard({ vehicle, route, onClose }: { vehicle: CommuterVehicle; route: CommuterRoute | null; onClose: () => void }) {
-  const heading = vehicle.route_label || route?.destination_name || 'Ormoc City Public Terminal';
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const heading = vehicle.heading_to
+    || (vehicle.trip_direction === 'returning' ? route?.origin_name : route?.destination_name)
+    || 'Route information unavailable';
+  const directionCaption = vehicle.trip_direction === 'returning' ? 'Returning to' : 'Heading to';
+  const elapsedMinutes = vehicle.trip_started_at
+    ? Math.max(0, Math.floor((now - Date.parse(vehicle.trip_started_at)) / 60_000))
+    : null;
+  const elapsedLabel = elapsedMinutes == null
+    ? '—'
+    : elapsedMinutes >= 60
+      ? `${Math.floor(elapsedMinutes / 60)}h ${elapsedMinutes % 60}m`
+      : elapsedMinutes === 0 ? '<1 min' : `${elapsedMinutes} min`;
   return <View style={styles.vehicleCard}>
     <View style={styles.vehicleCardHeader}><Text style={styles.vehiclePlate}>▣  {vehicle.plate_number.toUpperCase()}</Text><Text style={styles.vehicleBodyNumber}>▰  {vehicle.body_number}</Text><Pressable onPress={onClose} style={styles.vehicleClose}><Text style={styles.vehicleCloseText}>×</Text></Pressable></View>
-    <Text style={styles.headingCaption}>Heading to</Text>
+    <Text style={styles.headingCaption}>{directionCaption}</Text>
     <Text numberOfLines={1} style={styles.headingValue}>{heading}</Text>
-    <View style={styles.vehicleMetrics}><View style={styles.vehicleMetric}><Text style={styles.vehicleMetricValue}>--</Text><Text style={styles.vehicleMetricLabel}>ETA</Text></View><View style={styles.vehicleMetricDivider} /><View style={styles.vehicleMetric}><View style={[styles.colorSwatch, { backgroundColor: vehicle.body_color }]} /><Text style={styles.vehicleMetricLabel}>Body color</Text></View></View>
+    <View style={styles.vehicleMetrics}>
+      <View style={styles.vehicleMetric}><Text style={styles.vehicleMetricValue}>--</Text><Text style={styles.vehicleMetricLabel}>ETA</Text></View>
+      <View style={styles.vehicleMetricDivider} />
+      <View style={styles.vehicleMetric}><Text style={styles.vehicleMetricValue}>{elapsedLabel}</Text><Text style={styles.vehicleMetricLabel}>Elapsed time</Text></View>
+      <View style={styles.vehicleMetricDivider} />
+      <View style={styles.vehicleMetric}><View style={[styles.colorSwatch, { backgroundColor: vehicle.body_color }]} /><Text style={styles.vehicleMetricLabel}>Body color</Text></View>
+    </View>
   </View>;
 }
 
@@ -632,27 +658,27 @@ const styles = StyleSheet.create({
   handle: { width: 68, height: 5, borderRadius: 4, backgroundColor: '#1B1B1B' },
   routeCard: { minHeight: 86, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 6, backgroundColor: '#EAE7E4' },
   routeEndpoints: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  endpointText: { flex: 1, color: '#111111', fontFamily: 'Poppins_500Medium', fontSize: 12, textAlign: 'center' },
+  endpointText: { flex: 1, color: '#111111', fontFamily: 'Poppins_500Medium', fontSize: 13, textAlign: 'center' },
   swapIcon: { color: '#385763', fontSize: 16 },
   routeMetrics: { marginTop: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   metric: { width: '45%', alignItems: 'center' },
-  metricValue: { color: '#121212', fontFamily: 'Poppins_500Medium', fontSize: 12 },
-  metricLabel: { color: '#4A4A4A', fontFamily: 'Poppins_400Regular', fontSize: 7 },
+  metricValue: { color: '#121212', fontFamily: 'Poppins_500Medium', fontSize: 13 },
+  metricLabel: { color: '#4A4A4A', fontFamily: 'Poppins_400Regular', fontSize: 8 },
   metricDivider: { width: 1, height: 26, backgroundColor: '#BEBBB8' },
   vehicleCard: { minHeight: 142, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10, borderRadius: 6, backgroundColor: '#EAE7E4' },
   vehicleCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  vehiclePlate: { flex: 1, color: '#172E37', fontFamily: 'Poppins_500Medium', fontSize: 10 },
-  vehicleBodyNumber: { color: '#172E37', fontFamily: 'Poppins_500Medium', fontSize: 10 },
+  vehiclePlate: { flex: 1, color: '#172E37', fontFamily: 'Poppins_500Medium', fontSize: 11 },
+  vehicleBodyNumber: { color: '#172E37', fontFamily: 'Poppins_500Medium', fontSize: 11 },
   vehicleClose: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   vehicleCloseText: { color: '#62757C', fontSize: 22, lineHeight: 24 },
-  headingCaption: { marginTop: 3, color: '#4A4A4A', fontFamily: 'Poppins_400Regular', fontSize: 8 },
-  headingValue: { color: '#101820', fontFamily: 'Poppins_500Medium', fontSize: 20, textAlign: 'center' },
-  vehicleMetrics: { marginTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  vehicleMetric: { width: '42%', alignItems: 'center', justifyContent: 'center' },
-  vehicleMetricValue: { color: '#111111', fontFamily: 'Poppins_500Medium', fontSize: 13 },
-  vehicleMetricLabel: { color: '#424242', fontFamily: 'Poppins_400Regular', fontSize: 7 },
+  headingCaption: { marginTop: 3, color: '#4A4A4A', fontFamily: 'Poppins_400Regular', fontSize: 9 },
+  headingValue: { color: '#101820', fontFamily: 'Poppins_500Medium', fontSize: 21, textAlign: 'center' },
+  vehicleMetrics: { marginTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  vehicleMetric: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  vehicleMetricValue: { color: '#111111', fontFamily: 'Poppins_500Medium', fontSize: 14 },
+  vehicleMetricLabel: { color: '#424242', fontFamily: 'Poppins_400Regular', fontSize: 8 },
   vehicleMetricDivider: { width: 1, height: 25, backgroundColor: '#BEBBB8' },
-  colorSwatch: { width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: '#888888', marginBottom: 2 },
+  colorSwatch: { width: 17, height: 17, borderRadius: 4, borderWidth: 1, borderColor: '#888888', marginBottom: 2 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(9, 33, 45, 0.34)' },
   routeSheet: { maxHeight: '76%', paddingTop: 8, paddingHorizontal: 18, borderTopLeftRadius: 22, borderTopRightRadius: 22, backgroundColor: '#F8FCFE' },
   routeSheetDragArea: { alignSelf: 'center', width: '100%', height: 28, alignItems: 'center', justifyContent: 'center' },

@@ -2,7 +2,7 @@
 
 **Document ID:** SRS-ND-DATA-MATRIX  
 **Version:** 1.0  
-**Review date:** 2026-10-31  
+**Review date:** 2026-11-25
 **Source of truth:** SQLAlchemy models in `backend/app/models`.
 
 > This matrix documents model columns in the current source, not an introspected local or hosted database. Types are shown in PostgreSQL-oriented form. `PK` means primary key, `FK` foreign key, `UQ` unique, and `IDX` indexed. Enum columns use PostgreSQL named enum types; labels below use the Python enum names unless noted. Defaults describe model/database defaults where declared. Confirm actual deployed columns and constraints against that database's Alembic revision.
@@ -162,6 +162,7 @@ Time-ordered GPS samples captured during a trip; used for trip path and measured
 | `longitude` | NUMERIC(9,6) | Not null | Captured longitude. |
 | `recorded_at` | TIMESTAMP WITH TIME ZONE | Not null; server default current time | Capture/persistence timestamp used to order the path. |
 | `speed_kmh` | NUMERIC(6,2) | Not null | Speed reported with the GPS sample; supports measurement and analysis. |
+| `accuracy_meters` | NUMERIC(7,2) | Nullable | Device-reported horizontal accuracy for this GPS sample, in meters; helps assess the quality of a recorded point. |
 
 ## `passenger_queue_entries`
 

@@ -2,7 +2,7 @@
 
 **Document ID:** SRS-ND-DATA-ERD  
 **Version:** 1.0  
-**Review date:** 2026-10-31  
+**Review date:** 2026-11-25
 **Source of truth:** SQLAlchemy models in `backend/app/models` and migrations in `backend/alembic/versions`.
 
 > This ERD describes the current application models in the no-dispatch source. It is not a live database introspection: verify the target PostgreSQL schema and Alembic revision separately. The repository's current Alembic source head is `5a8d2c4f7b91`.
