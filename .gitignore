@@ -14,4 +14,4 @@ ormoctransportapp
 ai_ml/data/trips_export.csv
 ai_ml/models/*.joblib
 appicons.zip
-/mobile/commuter-app/UI/
+database_backup

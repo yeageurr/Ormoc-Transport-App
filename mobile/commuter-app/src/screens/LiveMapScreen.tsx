@@ -134,6 +134,7 @@ export default function LiveMapScreen() {
   const [routesLoaded, setRoutesLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [currentLocation, setCurrentLocation] = useState('Finding your current location…');
+  const [selectedVehicleLocation, setSelectedVehicleLocation] = useState('');
   const [approachingVehicleIds, setApproachingVehicleIds] = useState<Set<number>>(() => new Set());
   const [queuePromptVisible, setQueuePromptVisible] = useState(false);
   const [queueSession, setQueueSession] = useState<PassengerQueueSession | null>(null);
@@ -145,6 +146,13 @@ export default function LiveMapScreen() {
   const vehicleDistanceSamplesRef = useRef(new Map<number, VehicleDistanceSample>());
   const terminalGeofenceRef = useRef<TerminalGeofence | null>(null);
   const queueSessionRef = useRef<PassengerQueueSession | null>(null);
+  const vehicleGeocodeRef = useRef<{
+    vehicleId: number;
+    latitude: number;
+    longitude: number;
+    requestedAt: number;
+  } | null>(null);
+  const vehicleGeocodeRequestId = useRef(0);
   const promptDismissedRef = useRef(false);
   const exitHeartbeatSentRef = useRef(false);
   const mapLoading = loading || !routesLoaded || !mapReady;
@@ -338,6 +346,40 @@ export default function LiveMapScreen() {
 
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.vehicle_id === selectedVehicleId) ?? null;
+  useEffect(() => {
+    if (!selectedVehicle) {
+      vehicleGeocodeRequestId.current += 1;
+      vehicleGeocodeRef.current = null;
+      setSelectedVehicleLocation('');
+      return;
+    }
+
+    const previous = vehicleGeocodeRef.current;
+    const movedEnough = !previous
+      || previous.vehicleId !== selectedVehicle.vehicle_id
+      || distanceMeters(
+        { latitude: previous.latitude, longitude: previous.longitude },
+        { latitude: selectedVehicle.latitude, longitude: selectedVehicle.longitude },
+      ) >= 100;
+    const lookupIsOld = !previous || Date.now() - previous.requestedAt >= 30_000;
+    if (!movedEnough && !lookupIsOld) return;
+
+    const requestId = ++vehicleGeocodeRequestId.current;
+    if (!previous || previous.vehicleId !== selectedVehicle.vehicle_id) {
+      setSelectedVehicleLocation('Finding vehicle location…');
+    }
+    vehicleGeocodeRef.current = {
+      vehicleId: selectedVehicle.vehicle_id,
+      latitude: selectedVehicle.latitude,
+      longitude: selectedVehicle.longitude,
+      requestedAt: Date.now(),
+    };
+    void resolveLocationAddress(selectedVehicle.latitude, selectedVehicle.longitude).then((address) => {
+      if (requestId === vehicleGeocodeRequestId.current) {
+        setSelectedVehicleLocation(address || 'Vehicle address unavailable');
+      }
+    });
+  }, [selectedVehicle?.vehicle_id, selectedVehicle?.latitude, selectedVehicle?.longitude]);
   const visibleDelayNotices = delayNotices.filter(
     (notice) => notice.resumed_at == null && notice.route_id === (queueRouteId ?? selectedRouteId),
   );
@@ -473,8 +515,12 @@ export default function LiveMapScreen() {
       />
 
       <View style={[styles.locationHeader, { paddingTop: insets.top + 7 }]}>
-        <Text style={styles.locationCaption}><Text style={styles.locationPin}>⌖</Text>  Your current location</Text>
-        <Text numberOfLines={1} style={styles.locationName}>{currentLocation}</Text>
+        <Text style={styles.locationCaption}>
+          <Text style={styles.locationPin}>⌖</Text>  {selectedVehicle ? 'Vehicle’s current location' : 'Your current location'}
+        </Text>
+        <Text numberOfLines={1} style={styles.locationName}>
+          {selectedVehicle ? selectedVehicleLocation || 'Finding vehicle location…' : currentLocation}
+        </Text>
       </View>
 
       {approachingVehicleIds.size > 0 && (
