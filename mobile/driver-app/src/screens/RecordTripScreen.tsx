@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Modal, PanResponder, Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, Modal, PanResponder, Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getDriverRoutes, getMyDriverVehicle, type DriverRoute, type DriverVehicleStatus } from '@/api/routesAPI';
@@ -50,6 +50,19 @@ function formatCity(city?: string) {
 function isPlusCode(value: string) {
   const leadingPart = value.split(',')[0].trim();
   return /^[23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,3}$/i.test(leadingPart);
+}
+
+type LocationAvailability = 'checking' | 'permission-denied' | 'services-disabled' | 'waiting-fix' | 'unavailable' | 'available';
+
+function locationAvailabilityMessage(status: LocationAvailability) {
+  switch (status) {
+    case 'checking': return 'Checking location availability…';
+    case 'permission-denied': return 'Allow location permission to show your position';
+    case 'services-disabled': return 'Turn on location services';
+    case 'waiting-fix': return 'Waiting for a GPS fix…';
+    case 'unavailable': return 'Current location unavailable';
+    case 'available': return '';
+  }
 }
 
 async function resolveLocationAddress(latitude: number, longitude: number) {
@@ -130,9 +143,11 @@ export default function RecordTripScreen() {
   const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
   const [etaSource, setEtaSource] = useState<string>('unavailable');
   const [locationAddress, setLocationAddress] = useState('Finding nearby address…');
+  const [locationAvailability, setLocationAvailability] = useState<LocationAvailability>('checking');
   const [sheetHeight, setSheetHeight] = useState(302);
   const [sheetCollapsed, setSheetCollapsed] = useState(false);
   const location = useDriverLocation();
+  const hasLocation = location !== null;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const lastGeocodeRef = useRef<{ latitude: number; longitude: number; at: number } | null>(null);
@@ -141,6 +156,39 @@ export default function RecordTripScreen() {
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const gestureStartY = useRef(0);
   const collapsedOffset = Math.max(0, sheetHeight - 76);
+
+  useEffect(() => {
+    let mounted = true;
+    if (hasLocation) {
+      setLocationAvailability('available');
+      return () => { mounted = false; };
+    }
+
+    const checkLocationAvailability = async () => {
+      try {
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (!mounted) return;
+        if (permission.status !== 'granted') {
+          setLocationAvailability('permission-denied');
+          return;
+        }
+        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        if (!mounted) return;
+        setLocationAvailability(servicesEnabled ? 'waiting-fix' : 'services-disabled');
+      } catch {
+        if (mounted) setLocationAvailability('unavailable');
+      }
+    };
+
+    void checkLocationAvailability();
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void checkLocationAvailability();
+    });
+    return () => {
+      mounted = false;
+      appStateSubscription.remove();
+    };
+  }, [hasLocation]);
   const sheetPanResponder = useMemo(() => PanResponder.create({
     // Capture vertical drags anywhere on the sheet, including over its buttons and route card.
     onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
@@ -451,10 +499,10 @@ export default function RecordTripScreen() {
       <SafeAreaView style={styles.locationBanner} edges={['top']} pointerEvents="none">
         <View style={styles.locationHeading}>
           <Ionicons name="location" size={12} color="#009F94" />
-          <Text style={styles.locationCaption}>{location ? 'Your location' : 'Waiting for your location'}</Text>
+          <Text style={styles.locationCaption}>{location ? 'Your location' : locationAvailability === 'checking' || locationAvailability === 'waiting-fix' ? 'Waiting for your location' : 'Location unavailable'}</Text>
         </View>
         <Text style={styles.locationValue} numberOfLines={1}>
-          {location ? locationAddress : 'Turn on location services'}
+          {location ? locationAddress : locationAvailabilityMessage(locationAvailability)}
         </Text>
       </SafeAreaView>
 
