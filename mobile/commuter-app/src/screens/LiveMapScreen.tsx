@@ -134,6 +134,7 @@ export default function LiveMapScreen() {
   const [routesLoaded, setRoutesLoaded] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [currentLocation, setCurrentLocation] = useState('Finding your current location…');
+  const [commuterMapLocation, setCommuterMapLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [selectedVehicleLocation, setSelectedVehicleLocation] = useState('');
   const [approachingVehicleIds, setApproachingVehicleIds] = useState<Set<number>>(() => new Set());
   const [queuePromptVisible, setQueuePromptVisible] = useState(false);
@@ -257,6 +258,7 @@ export default function LiveMapScreen() {
         accuracy: location.coords.accuracy,
       };
       commuterPositionRef.current = position;
+      setCommuterMapLocation({ latitude: position.latitude, longitude: position.longitude });
       const geofence = terminalGeofenceRef.current;
       const inside = Boolean(geofence && isInsideTerminal(position, geofence));
       if (inside) {
@@ -308,10 +310,12 @@ export default function LiveMapScreen() {
         }
         if (!isActive) return;
         if (permission.status !== 'granted') {
+          setCommuterMapLocation(null);
           setCurrentLocation('Allow location access to show your position');
           return;
         }
         if (!await Location.hasServicesEnabledAsync()) {
+          setCommuterMapLocation(null);
           setCurrentLocation('Turn on location services');
           return;
         }
@@ -321,7 +325,10 @@ export default function LiveMapScreen() {
           updateAddress,
         );
       } catch {
-        if (isActive) setCurrentLocation('Current location unavailable');
+        if (isActive) {
+          setCommuterMapLocation(null);
+          setCurrentLocation('Current location unavailable');
+        }
       }
     };
 
@@ -509,6 +516,7 @@ export default function LiveMapScreen() {
         selectedRouteId={selectedRouteId}
         selectedVehicleId={selectedVehicleId}
         approachingVehicleIds={approachingVehicleIds}
+        commuterLocation={commuterMapLocation}
         onSelectRoute={(routeId) => { setSelectedRouteId(routeId); setSelectedVehicleId(null); }}
         onSelectVehicle={chooseVehicle}
         onMapLoaded={handleMapLoaded}

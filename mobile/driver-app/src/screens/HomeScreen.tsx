@@ -107,6 +107,7 @@ export default function HomeScreen() {
     () => trips.filter((trip) => trip.is_complete && trip.time_arrived && isTodayInManila(trip.time_arrived)),
     [trips],
   );
+  const activeTrip = useMemo(() => trips.find((trip) => !trip.is_complete) ?? null, [trips]);
   const averageSpeed = average(todayTrips.map((trip) => trip.average_speed_km));
   const distanceToday = todayTrips.reduce((total, trip) => total + (trip.distance_traveled_km ?? 0), 0);
   const firstName = fullName?.trim().split(/\s+/)[0] || 'Driver';
@@ -150,9 +151,9 @@ export default function HomeScreen() {
         <View style={styles.dashboardBody}>
           <View style={styles.quickActions}>
             <QuickAction
-              label="Start Trip"
-              icon="navigate"
-              color="#078A17"
+              label={activeTrip ? 'View map' : 'Start Trip'}
+              icon={activeTrip ? 'eye-outline' : 'navigate'}
+              color={activeTrip ? '#137B70' : '#078A17'}
               onPress={() => router.navigate('/tabs/record-trip')}
             />
           </View>

@@ -9,6 +9,7 @@ type Props = {
   selectedRouteId: number | null;
   selectedVehicleId: number | null;
   approachingVehicleIds: ReadonlySet<number>;
+  commuterLocation: { latitude: number; longitude: number } | null;
   onMapLoaded?: () => void;
   onSelectRoute: (routeId: number) => void;
   onSelectVehicle: (vehicleId: number) => void;

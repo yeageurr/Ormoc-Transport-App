@@ -15,12 +15,13 @@ type Props = {
   selectedRouteId: number | null;
   selectedVehicleId: number | null;
   approachingVehicleIds: ReadonlySet<number>;
+  commuterLocation: { latitude: number; longitude: number } | null;
   onMapLoaded?: () => void;
   onSelectRoute: (routeId: number) => void;
   onSelectVehicle: (vehicleId: number) => void;
 };
 
-export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, selectedVehicleId, approachingVehicleIds, onSelectRoute, onSelectVehicle, onMapLoaded }: Props) {
+export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, selectedVehicleId, approachingVehicleIds, commuterLocation, onSelectRoute, onSelectVehicle, onMapLoaded }: Props) {
   const selectedRoute = routes.find((route) => route.route_id === selectedRouteId) ?? null;
   const selectedVehicle = vehicles.find((vehicle) => vehicle.vehicle_id === selectedVehicleId) ?? null;
   const coordinates = selectedRoute?.route_geometry?.coordinates ?? [];
@@ -36,7 +37,9 @@ export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, sel
     ? [selectedVehicle.longitude, selectedVehicle.latitude] as [number, number]
     : coordinates.length
       ? coordinates[Math.floor(coordinates.length / 2)]
-      : ORMOC_CENTER;
+      : commuterLocation
+        ? [commuterLocation.longitude, commuterLocation.latitude] as [number, number]
+        : ORMOC_CENTER;
 
   useEffect(() => {
     if (!mapboxToken) onMapLoaded?.();
@@ -50,7 +53,7 @@ export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, sel
     <Mapbox.MapView style={StyleSheet.absoluteFill} styleURL={Mapbox.StyleURL.Street} logoEnabled={false} attributionEnabled onDidFinishLoadingMap={onMapLoaded}>
       <Mapbox.Camera
         key={`${selectedRouteId ?? 'all'}-${selectedVehicleId ?? 'none'}`}
-        {...(selectedVehicle ? { centerCoordinate: center, zoomLevel: 15 } : bounds ? { bounds, animationMode: 'easeTo' as const } : { centerCoordinate: center, zoomLevel: 12 })}
+        {...(selectedVehicle ? { centerCoordinate: center, zoomLevel: 15 } : bounds ? { bounds, animationMode: 'easeTo' as const } : { centerCoordinate: center, zoomLevel: commuterLocation ? 14 : 12 })}
         animationDuration={450}
       />
       {routes.map((route, index) => {
@@ -76,9 +79,20 @@ export default function CommuterLiveMap({ routes, vehicles, selectedRouteId, sel
           />
         </Mapbox.MarkerView>
       ))}
+      {commuterLocation && (
+        <Mapbox.MarkerView
+          id="commuter-current-location"
+          coordinate={[commuterLocation.longitude, commuterLocation.latitude]}
+          anchor={{ x: 0.5, y: 0.5 }}
+        >
+          <View style={styles.commuterLocationMarker} accessible accessibilityLabel="Your current location">
+            <View style={styles.commuterLocationDot} />
+          </View>
+        </Mapbox.MarkerView>
+      )}
       {routes.map((route) => {
         const routeStart = route.route_geometry?.coordinates[0];
-        return routeStart ? <Mapbox.PointAnnotation key={`terminal-${route.route_id}`} id={`terminal-${route.route_id}`} coordinate={routeStart} title={route.origin_name}><View style={styles.terminalPin} collapsable={false}><View style={styles.terminalDot} /></View></Mapbox.PointAnnotation> : null;
+        return routeStart ? <Mapbox.PointAnnotation key={`terminal-${route.route_id}`} id={`terminal-${route.route_id}`} coordinate={routeStart} title={route.origin_name}><View style={styles.terminalPin} collapsable={false}><View style={styles.terminalDot}><Text style={styles.terminalLabel}>T</Text></View></View></Mapbox.PointAnnotation> : null;
       })}
     </Mapbox.MapView>
   );
@@ -123,8 +137,11 @@ const styles = StyleSheet.create({
   vehicleMarker: { width: 34, height: 34, borderRadius: 18, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: '#05A9E8', alignItems: 'center', justifyContent: 'center', elevation: 4 },
   vehicleMarkerSelected: { width: 42, height: 42, borderRadius: 22, backgroundColor: '#007FB8' },
   vehicleMarkerApproaching: { borderColor: '#D9FFF0', backgroundColor: '#0A9D74' },
-  terminalPin: { width: 28, height: 32, alignItems: 'center', justifyContent: 'center' },
-  terminalDot: { width: 15, height: 15, borderRadius: 8, borderWidth: 3, borderColor: '#FFFFFF', backgroundColor: '#0A9D74', elevation: 3 },
+  commuterLocationMarker: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 156, 229, 0.24)', borderWidth: 1, borderColor: 'rgba(0, 124, 190, 0.36)' },
+  commuterLocationDot: { width: 17, height: 17, borderRadius: 9, borderWidth: 3, borderColor: '#FFFFFF', backgroundColor: '#007FE5', elevation: 6 },
+  terminalPin: { width: 32, height: 36, alignItems: 'center', justifyContent: 'center' },
+  terminalDot: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: '#FFFFFF', backgroundColor: '#D18A27', alignItems: 'center', justifyContent: 'center', elevation: 4 },
+  terminalLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   busGlyph: { width: 18, height: 13, borderRadius: 3, backgroundColor: '#FFFFFF', position: 'relative' },
   busWindow: { position: 'absolute', left: 3, right: 3, top: 2, height: 5, borderRadius: 1, backgroundColor: '#5DC4E8' },
   busWheelOne: { position: 'absolute', left: 3, bottom: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: '#184255' },
