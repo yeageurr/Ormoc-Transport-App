@@ -12,6 +12,7 @@ from app.models.geofence_event import GeofenceEvent
 from app.models.audit_log import AuditLog
 from app.models.email_verification import EmailVerification
 from app.models.password_reset_otp import PasswordResetOtp
+from app.models.password_change_otp import PasswordChangeOtp
 from app.models.passenger_queue_entry import PassengerQueueEntry
 from app.models.trip_pause_event import TripPauseEvent
 
@@ -30,6 +31,7 @@ __all__ = [
   "AuditLog",
   "EmailVerification",
   "PasswordResetOtp",
+  "PasswordChangeOtp",
   "PassengerQueueEntry",
   "TripPauseEvent",
 ]

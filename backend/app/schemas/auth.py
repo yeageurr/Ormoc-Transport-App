@@ -47,6 +47,38 @@ class ChangePasswordRequest(BaseModel):
     return value
 
 
+class PasswordChangeOtpRequest(BaseModel):
+  current_password: str
+
+
+class PasswordChangeOtpVerify(BaseModel):
+  code: str
+
+  @field_validator("code")
+  @classmethod
+  def validate_code(cls, value: str) -> str:
+    if not re.fullmatch(r"\d{6}", value):
+      raise ValueError("Code must be exactly 6 digits")
+    return value
+
+
+class PasswordChangeComplete(BaseModel):
+  verification_token: str
+  new_password: str
+  confirm_password: str
+
+  @field_validator("new_password")
+  @classmethod
+  def validate_password_strength(cls, value: str) -> str:
+    password_pattern = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$")
+    if not password_pattern.fullmatch(value):
+      raise ValueError(
+        "Password must be at least 8 characters and include an uppercase letter, "
+        "a lowercase letter, and a number"
+      )
+    return value
+
+
 class VerifyPasswordRequest(BaseModel):
   password: str
 

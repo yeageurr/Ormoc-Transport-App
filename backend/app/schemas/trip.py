@@ -6,9 +6,19 @@ from app.enums import TripStatus
 
 
 class TripStart(BaseModel):
-  """Driver starts one route leg in the selected direction."""
+  """Driver starts a route leg; outgoing starts include a fresh GPS fix."""
   route_id: int
   status: TripStatus
+  latitude: float | None = Field(default=None, ge=-90, le=90)
+  longitude: float | None = Field(default=None, ge=-180, le=180)
+
+  @model_validator(mode="after")
+  def validate_outgoing_location(self):
+    if self.status == TripStatus.OUTGOING and (self.latitude is None or self.longitude is None):
+      raise ValueError("A current GPS location is required to start an outgoing trip")
+    if (self.latitude is None) != (self.longitude is None):
+      raise ValueError("Both latitude and longitude must be provided together")
+    return self
 
 
 class TripPauseEventResponse(BaseModel):

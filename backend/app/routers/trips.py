@@ -16,6 +16,7 @@ from app.models.route import Route
 from app.models.vehicle import Vehicle
 from app.models.trip_pause_event import TripPauseEvent
 from app.services.trip_completion import complete_trip
+from app.services.geofence_service import is_inside_geofence
 from app.schemas.trip import (
   AdminTripResponse,
   DriverDailySummary,
@@ -90,14 +91,14 @@ def start_trip(
       detail=f"Vehicle {vehicle.plate_number} already has unfinished trip #{active_trip.trip_id}.",
     )
 
-  if payload.status == TripStatus.OUTGOING and vehicle.activity_status != VehicleActivityStatus.LOADING:
-    raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail=(
-        "Cannot start the outgoing trip yet: the assigned vehicle is not ready at the terminal. "
-        "Remain inside the terminal geofence until its status changes to 'loading'."
-      ),
-    )
+  if payload.status == TripStatus.OUTGOING:
+    terminal = db.query(Terminal).first()
+    if terminal is None:
+      raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="No terminal configured")
+    if payload.latitude is None or payload.longitude is None:
+      raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A current GPS location is required to start an outgoing trip")
+    if not is_inside_geofence(payload.latitude, payload.longitude, terminal):
+      raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You must be inside the terminal geofence to start an outgoing trip")
 
   trip = Trip(
     driver_id=driver.user_id,

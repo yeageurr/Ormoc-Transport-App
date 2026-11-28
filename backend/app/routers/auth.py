@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -12,9 +13,13 @@ from app.database import get_db
 from app.models.account import Account
 from app.models.user import User
 from app.models.password_reset_otp import PasswordResetOtp
+from app.models.password_change_otp import PasswordChangeOtp
 from app.models.email_verification import EmailVerification
 from app.schemas.auth import (
   ChangePasswordRequest,
+  PasswordChangeOtpRequest,
+  PasswordChangeOtpVerify,
+  PasswordChangeComplete,
   AdminEmailChangeRequest,
   AdminEmailChangeVerify,
   ForgotPasswordRequest,
@@ -30,7 +35,7 @@ from app.core.permissions import get_account_for_password_setup, require_role
 from app.enums import AccountRole, AccountStatus, AuditAction
 from app.services.audit_service import log_action
 from app.services.email_service import EmailDeliveryError, send_email_verification_code, send_password_reset_code, send_password_reset_email
-from app.services.sms_service import SmsDeliveryError, send_password_reset_sms
+from app.services.sms_service import SmsDeliveryError, send_password_reset_sms, send_sms
 from app.services.account_activity_email import notify_password_changed
 
 router = APIRouter()
@@ -73,6 +78,24 @@ def _enforce_reset_send_cooldown(verification: PasswordResetOtp | None, now: dat
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         detail=f"Too many code requests. Try again in {wait_seconds} seconds.",
       )
+  if now - last_sent < timedelta(seconds=60):
+    raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait 60 seconds before requesting another code")
+  return 1 if verification.send_count >= 3 else verification.send_count + 1
+
+
+def _enforce_password_change_send_cooldown(verification: PasswordChangeOtp | None, now: datetime) -> int:
+  if verification is None:
+    return 1
+  last_sent = verification.last_sent_at
+  if last_sent.tzinfo is None:
+    last_sent = last_sent.replace(tzinfo=timezone.utc)
+  cooldown_until = verification.cooldown_until
+  if cooldown_until is not None:
+    if cooldown_until.tzinfo is None:
+      cooldown_until = cooldown_until.replace(tzinfo=timezone.utc)
+    if cooldown_until > now:
+      wait_seconds = int((cooldown_until - now).total_seconds()) + 1
+      raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=f"Too many code requests. Try again in {wait_seconds} seconds.")
   if now - last_sent < timedelta(seconds=60):
     raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Please wait 60 seconds before requesting another code")
   return 1 if verification.send_count >= 3 else verification.send_count + 1
@@ -530,6 +553,128 @@ def reset_password(payload: ResetPasswordRequest, request: Request, response: Re
   return {"detail": "Password reset successfully. Please sign in with your new password."}
 
 
+@router.post("/change-password/request-otp")
+def request_password_change_otp(
+  payload: PasswordChangeOtpRequest,
+  db: Session = Depends(get_db),
+  current_account: Account = Depends(get_account_for_password_setup),
+):
+  if current_account.role != AccountRole.DRIVER:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This password-change flow is for driver accounts")
+  if not verify_password(payload.current_password, current_account.password_hash):
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+  driver = db.query(User).filter(User.account_id == current_account.account_id).first()
+  if driver is None or not driver.contact_number:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No mobile number is registered for SMS verification")
+
+  now = datetime.now(timezone.utc)
+  verification = db.query(PasswordChangeOtp).filter(
+    PasswordChangeOtp.account_id == current_account.account_id
+  ).first()
+  next_send_count = _enforce_password_change_send_cooldown(verification, now)
+  code = f"{secrets.randbelow(900000) + 100000:06d}"
+  salt = secrets.token_hex(16)
+  if verification is None:
+    verification = PasswordChangeOtp(account_id=current_account.account_id)
+    db.add(verification)
+  verification.code_salt = salt
+  verification.code_hash = hashlib.sha256(f"{salt}:{code}".encode()).hexdigest()
+  verification.expires_at = now + timedelta(minutes=10)
+  verification.attempts = 0
+  verification.send_count = next_send_count
+  verification.last_sent_at = now
+  verification.cooldown_until = now + timedelta(minutes=3) if next_send_count >= 3 else None
+  verification.verification_token_hash = None
+  verification.verification_token_expires_at = None
+  try:
+    send_sms(
+      driver.contact_number,
+      f"Your Ormoc Transport App password change code is {code}. It expires in 10 minutes. If you did not request this, ignore this message.",
+    )
+  except SmsDeliveryError as exc:
+    db.rollback()
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Password verification SMS is temporarily unavailable") from exc
+  db.commit()
+  return {"detail": "A verification code was sent to your registered mobile number."}
+
+
+@router.post("/change-password/verify-otp")
+def verify_password_change_otp(
+  payload: PasswordChangeOtpVerify,
+  db: Session = Depends(get_db),
+  current_account: Account = Depends(get_account_for_password_setup),
+):
+  if current_account.role != AccountRole.DRIVER:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This password-change flow is for driver accounts")
+  verification = db.query(PasswordChangeOtp).filter(
+    PasswordChangeOtp.account_id == current_account.account_id
+  ).first()
+  if verification is None:
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Request a password verification code first")
+
+  now = datetime.now(timezone.utc)
+  expires_at = verification.expires_at
+  if expires_at.tzinfo is None:
+    expires_at = expires_at.replace(tzinfo=timezone.utc)
+  if expires_at <= now:
+    db.delete(verification)
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification code expired. Request a new code.")
+
+  submitted_hash = hashlib.sha256(f"{verification.code_salt}:{payload.code}".encode()).hexdigest()
+  if not hmac.compare_digest(submitted_hash, verification.code_hash):
+    # Failed-code attempts are recorded but remain unlimited while the flow is being tested.
+    verification.attempts += 1
+    db.commit()
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That verification code is incorrect")
+
+  raw_token = secrets.token_urlsafe(32)
+  verification.verification_token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+  verification.verification_token_expires_at = now + timedelta(minutes=10)
+  db.commit()
+  return {"verification_token": raw_token}
+
+
+@router.post("/change-password/complete")
+def complete_driver_password_change(
+  payload: PasswordChangeComplete,
+  request: Request,
+  db: Session = Depends(get_db),
+  current_account: Account = Depends(get_account_for_password_setup),
+):
+  if current_account.role != AccountRole.DRIVER:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This password-change flow is for driver accounts")
+  if payload.new_password != payload.confirm_password:
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password and confirmation do not match")
+  if verify_password(payload.new_password, current_account.password_hash):
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose a password different from your current password.")
+
+  verification = db.query(PasswordChangeOtp).filter(
+    PasswordChangeOtp.account_id == current_account.account_id
+  ).first()
+  token_hash = hashlib.sha256(payload.verification_token.encode()).hexdigest()
+  token_expires_at = verification.verification_token_expires_at if verification else None
+  if token_expires_at is not None and token_expires_at.tzinfo is None:
+    token_expires_at = token_expires_at.replace(tzinfo=timezone.utc)
+  if (
+    verification is None
+    or verification.verification_token_hash is None
+    or not hmac.compare_digest(token_hash, verification.verification_token_hash)
+    or token_expires_at is None
+    or token_expires_at <= datetime.now(timezone.utc)
+  ):
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="SMS verification expired. Request a new code.")
+
+  current_account.password_hash = hash_password(payload.new_password)
+  current_account.must_change_password = False
+  db.delete(verification)
+  db.commit()
+  log_action(db, current_account.account_id, AuditAction.UPDATE, "accounts", current_account.account_id, "Changed driver password after SMS verification")
+  notify_password_changed(current_account, request)
+  return {"detail": "Password updated successfully.", "must_change_password": False}
+
+
 @router.post("/change-password")
 def change_password(
   payload: ChangePasswordRequest,
@@ -537,44 +682,21 @@ def change_password(
   db: Session = Depends(get_db),
   current_account: Account = Depends(get_account_for_password_setup),
 ):
-  initial_password_setup = current_account.must_change_password
-  if not initial_password_setup and current_account.role != AccountRole.ADMIN:
-    raise HTTPException(
-      status_code=status.HTTP_403_FORBIDDEN,
-      detail="The initial password has already been set. Contact an administrator to reset it.",
-    )
-
+  # Preserve the administrator's existing password-change flow. Drivers must
+  # use the OTP-protected flow above, including for their initial setup.
+  if current_account.role != AccountRole.ADMIN:
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Drivers must verify a code by SMS to change their password")
   if not verify_password(payload.current_password, current_account.password_hash):
-    raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail="Current password is incorrect",
-    )
-
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
   if payload.new_password != payload.confirm_password:
-    raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail="New password and confirmation do not match",
-    )
-
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password and confirmation do not match")
   if verify_password(payload.new_password, current_account.password_hash):
-    raise HTTPException(
-      status_code=status.HTTP_400_BAD_REQUEST,
-      detail="Choose a password different from your current password.",
-    )
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose a password different from your current password.")
 
   current_account.password_hash = hash_password(payload.new_password)
-  if initial_password_setup:
+  if current_account.must_change_password:
     current_account.must_change_password = False
   db.commit()
-
-  log_action(
-    db,
-    current_account.account_id,
-    AuditAction.UPDATE,
-    "accounts",
-    current_account.account_id,
-    "Changed account password",
-  )
+  log_action(db, current_account.account_id, AuditAction.UPDATE, "accounts", current_account.account_id, "Changed account password")
   notify_password_changed(current_account, request)
-
   return {"detail": "Password updated successfully.", "must_change_password": False}

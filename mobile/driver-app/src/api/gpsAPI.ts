@@ -60,15 +60,12 @@ export async function getTripGpsLogs(tripId: number): Promise<TripGpsLog[]> {
   return data;
 }
 
-/** Sends an idle vehicle's position so the backend can detect terminal loading. */
+/** Sends an idle vehicle's position so the backend can detect terminal entry/loading. */
 export interface GeofencePingResult {
   currently_inside?: boolean;
   status_changed?: boolean;
   event?: string;
   vehicle_status?: string;
-  elapsed_seconds?: number;
-  remaining_seconds?: number;
-  dwell_threshold_seconds?: number;
 }
 
 export async function pingGeofence(ping: {

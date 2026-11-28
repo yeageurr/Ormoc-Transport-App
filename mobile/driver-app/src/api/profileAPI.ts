@@ -41,13 +41,22 @@ export async function resendMyEmailOtp(): Promise<void> {
   await authClient.post('/users/me/verify-email/resend');
 }
 
+export async function requestPasswordChangeOtp(currentPassword: string): Promise<void> {
+  await authClient.post('/auth/change-password/request-otp', { current_password: currentPassword });
+}
+
+export async function verifyPasswordChangeOtp(code: string): Promise<string> {
+  const { data } = await authClient.post<{ verification_token: string }>('/auth/change-password/verify-otp', { code });
+  return data.verification_token;
+}
+
 export async function changePassword(
-  currentPassword: string,
+  verificationToken: string,
   newPassword: string,
   confirmPassword: string,
 ): Promise<void> {
-  await authClient.post('/auth/change-password', {
-    current_password: currentPassword,
+  await authClient.post('/auth/change-password/complete', {
+    verification_token: verificationToken,
     new_password: newPassword,
     confirm_password: confirmPassword,
   });

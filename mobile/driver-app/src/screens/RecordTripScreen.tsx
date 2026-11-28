@@ -371,7 +371,15 @@ export default function RecordTripScreen() {
     setIsStarting(true);
     setMessage(null);
     try {
-      const startedTrip = await startTrip(selectedRouteId, selectedDirection);
+      let currentFix: { latitude: number; longitude: number } | undefined;
+      if (selectedDirection === 'outgoing') {
+        const permission = await Location.getForegroundPermissionsAsync();
+        if (permission.status !== 'granted') throw new Error('Allow location permission before starting an outgoing trip.');
+        if (!await Location.hasServicesEnabledAsync()) throw new Error('Turn on location services before starting an outgoing trip.');
+        const gpsFix = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        currentFix = { latitude: gpsFix.coords.latitude, longitude: gpsFix.coords.longitude };
+      }
+      const startedTrip = await startTrip(selectedRouteId, selectedDirection, currentFix);
       activeTripIdRef.current = startedTrip.trip_id;
       setActiveTrip(startedTrip);
       setNow(Date.now());
@@ -393,9 +401,8 @@ export default function RecordTripScreen() {
       ? `${selectedRoute.destination.name} → Ormoc City Terminal`
       : `Ormoc City Terminal → ${selectedRoute.destination.name}`
     : 'Select a route';
-  const isReady = vehicle?.activity_status === 'loading';
   const isTripPaused = Boolean(activeTrip?.pause_events?.some((event) => event.resumed_at == null));
-  const canStart = selectedRouteId != null && vehicle != null && (selectedDirection === 'returning' || isReady);
+  const canStart = selectedRouteId != null && vehicle != null && (selectedDirection === 'returning' || location != null);
   const averageDuration = selectedRoute?.average_travel_duration ?? null;
   const routeDistance = selectedRoute?.distance ?? null;
   const averageDurationText = averageDuration == null ? '— min' : `${Math.round(averageDuration)} min`;
@@ -404,12 +411,10 @@ export default function RecordTripScreen() {
   const terminalReadinessMessage = location?.geofence?.error
     ? `Terminal check failed: ${location.geofence.error}`
     : location?.geofence?.currently_inside === false
-      ? 'GPS reports you outside the terminal geofence. Check the device location and terminal boundary.'
-      : location?.geofence?.currently_inside && (location.geofence.remaining_seconds ?? 0) > 0
-        ? `Inside the terminal geofence. Keep the vehicle here for ${Math.ceil(location.geofence.remaining_seconds ?? 0)} more seconds.`
-        : location?.geofence?.currently_inside
-          ? 'Inside the terminal geofence. Waiting for the vehicle readiness status.'
-          : 'Waiting for a GPS check from the terminal geofence.';
+      ? 'Your last GPS check was outside the terminal. The current location will be checked when you start.'
+      : location?.geofence?.currently_inside
+        ? 'Inside the terminal geofence. You can start the outgoing trip now.'
+        : 'Waiting for your current GPS location.';
 
   const handleTogglePause = useCallback(async () => {
     if (!activeTrip || isUpdatingPause) return;
@@ -570,7 +575,7 @@ export default function RecordTripScreen() {
         ) : (
           <>
             <Text style={styles.sheetTitle}>Heads up!</Text>
-            <Text style={styles.sheetSubtitle}>{selectedDirection === 'returning' ? 'Returning trips can start from your current location.' : isReady ? 'Your vehicle is ready at the terminal.' : terminalReadinessMessage}</Text>
+            <Text style={styles.sheetSubtitle}>{selectedDirection === 'returning' ? 'Returning trips can start from your current location.' : terminalReadinessMessage}</Text>
             <View style={styles.routeCard}>
               <Pressable disabled={Boolean(activeTrip)} onPress={() => setRoutePickerOpen(true)} accessibilityRole="button" style={styles.routeSelectButton}>
                 <Text style={styles.routeTitle} numberOfLines={1}>{routeLabel}</Text>
@@ -603,7 +608,7 @@ export default function RecordTripScreen() {
                 onPress={() => void handleStart()}
                 disabled={isLoading || isStarting || !canStart}
                 style={[styles.startButton, (!canStart || isStarting) && styles.disabledButton]}>
-                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{selectedRouteId == null ? 'Select a route' : !vehicle ? 'Vehicle unavailable' : selectedDirection === 'outgoing' && !isReady ? 'Waiting for terminal' : 'Start Trip'}</Text>}
+                {isLoading || isStarting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.startText}>{selectedRouteId == null ? 'Select a route' : !vehicle ? 'Vehicle unavailable' : selectedDirection === 'outgoing' && !location ? 'Waiting for GPS' : 'Start Trip'}</Text>}
               </Pressable>
             </View>
           </>

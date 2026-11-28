@@ -58,11 +58,16 @@ export async function getTripDetail(tripId: string): Promise<Trip> {
   return data;
 }
 
-/** Starts a route-based trip leg; outgoing still requires terminal readiness. */
-export async function startTrip(routeId: number, direction: Trip['status']): Promise<Trip> {
+/** Starts a route-based trip; outgoing starts include a fresh device GPS fix. */
+export async function startTrip(
+  routeId: number,
+  direction: Trip['status'],
+  location?: { latitude: number; longitude: number },
+): Promise<Trip> {
   const { data } = await authClient.post<Trip>('/trips/start', {
     route_id: routeId,
     status: direction,
+    ...(direction === 'outgoing' && location ? location : {}),
   });
   return data;
 }

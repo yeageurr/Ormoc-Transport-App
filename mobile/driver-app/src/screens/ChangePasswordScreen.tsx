@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { changePassword } from '@/api/profileAPI';
+import { changePassword, requestPasswordChangeOtp, verifyPasswordChangeOtp } from '@/api/profileAPI';
 import { useAuth } from '@/hooks/useAuth';
 
 const passwordRequirement = 'New password must be at least 8 characters and include an uppercase letter, a lowercase letter, and a number.';
@@ -12,16 +12,22 @@ const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
-  const { mustChangePassword, completePasswordChange, refreshUser } = useAuth();
+  const { mustChangePassword, completePasswordChange } = useAuth();
+  const [step, setStep] = useState<'current' | 'otp' | 'new-password'>('current');
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [verificationToken, setVerificationToken] = useState('');
+  const [error, setError] = useState('');
   const [currentTouched, setCurrentTouched] = useState(false);
   const [nextTouched, setNextTouched] = useState(false);
   const [confirmTouched, setConfirmTouched] = useState(false);
   const [validationAttempted, setValidationAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
-  const dirty = Boolean(current || next || confirm);
+  const dirty = Boolean(current || next || confirm || otp.some(Boolean));
+  const otpInputs = useRef<Array<TextInput | null>>([]);
+  const otpVerifyInFlight = useRef(false);
   const passwordsMatch = Boolean(next && confirm && next === confirm);
   const passwordsDiffer = Boolean(next && confirm && next !== confirm);
   const currentError = (currentTouched || validationAttempted) && !current ? 'Enter your current password.' : undefined;
@@ -52,14 +58,76 @@ export default function ChangePasswordScreen() {
     ]);
   };
 
+  const errorMessage = (reason: any, fallback: string) =>
+    reason?.response?.data?.detail ?? reason?.response?.data?.error?.message ?? fallback;
+
+  const sendOtp = async () => {
+    if (!current) {
+      setCurrentTouched(true);
+      setError('Enter your current password first.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await requestPasswordChangeOtp(current);
+      setOtp(['', '', '', '', '', '']);
+      setStep('otp');
+      requestAnimationFrame(() => otpInputs.current[0]?.focus());
+    } catch (reason) {
+      setError(errorMessage(reason, 'Unable to send a verification code. Please try again.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const verifyOtp = async (code: string) => {
+    if (otpVerifyInFlight.current) return;
+    otpVerifyInFlight.current = true;
+    setSaving(true);
+    setError('');
+    try {
+      const token = await verifyPasswordChangeOtp(code);
+      setVerificationToken(token);
+      setStep('new-password');
+      setValidationAttempted(false);
+    } catch (reason) {
+      setError(errorMessage(reason, 'Unable to verify the code. Check it and try again.'));
+      setOtp(['', '', '', '', '', '']);
+      requestAnimationFrame(() => otpInputs.current[0]?.focus());
+    } finally {
+      otpVerifyInFlight.current = false;
+      setSaving(false);
+    }
+  };
+
+  const changeOtpDigit = (index: number, rawValue: string) => {
+    const digits = rawValue.replace(/\D/g, '').slice(0, 6);
+    const updated = [...otp];
+    if (digits.length > 1) {
+      for (let offset = 0; offset < digits.length && index + offset < 6; offset += 1) updated[index + offset] = digits[offset];
+    } else {
+      updated[index] = digits;
+    }
+    setOtp(updated);
+    setError('');
+    const firstEmpty = updated.findIndex((digit) => !digit);
+    if (firstEmpty >= 0) otpInputs.current[firstEmpty]?.focus();
+    else void verifyOtp(updated.join(''));
+  };
+
   const save = async () => {
     setValidationAttempted(true);
     if (!current || !next || !confirm || next !== confirm || !passwordPattern.test(next)) return;
+    if (!verificationToken) {
+      setError('Verify the SMS code before updating your password.');
+      return;
+    }
 
     setSaving(true);
     const isRequiredChange = mustChangePassword;
     try {
-      await changePassword(current, next, confirm);
+      await changePassword(verificationToken, next, confirm);
       completePasswordChange();
       Alert.alert(
         isRequiredChange ? 'Password set' : 'Password changed',
@@ -72,25 +140,6 @@ export default function ChangePasswordScreen() {
     } catch (error: any) {
       const responseData = error?.response?.data;
       const detail = responseData?.detail || responseData?.error?.message;
-      if (
-        isRequiredChange
-        && error?.response?.status === 403
-        && typeof detail === 'string'
-        && detail.toLowerCase().includes('password changes are unavailable')
-      ) {
-        try {
-          const stillRequiresPasswordChange = await refreshUser();
-          if (!stillRequiresPasswordChange) {
-            completePasswordChange();
-            Alert.alert('Password already set', 'Your password has already been updated. You can continue to the driver app.', [
-              { text: 'Continue', onPress: () => router.replace('/tabs' as never) },
-            ], { cancelable: false });
-            return;
-          }
-        } catch {
-          // Keep the original server error if the account state cannot be refreshed.
-        }
-      }
       const validationErrors = responseData?.error?.details;
       const validationMessage = Array.isArray(validationErrors)
         ? validationErrors.map((item: { field?: string; message?: string }) =>
@@ -109,37 +158,96 @@ export default function ChangePasswordScreen() {
     }
   };
 
+  const goBack = () => {
+    setError('');
+    if (step === 'new-password') {
+      setStep('otp');
+      setVerificationToken('');
+      setOtp(['', '', '', '', '', '']);
+    } else if (step === 'otp') {
+      leave();
+    } else {
+      leave();
+    }
+  };
+
+  const title = mustChangePassword ? 'Set your password' : 'Change password';
+
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#D3DFEB" />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        {mustChangePassword ? <Text style={styles.title}>Set your password</Text> : <Pressable style={styles.back} onPress={leave}>
+        {mustChangePassword && step === 'current' ? <Text style={styles.title}>{title}</Text> : <Pressable style={styles.back} onPress={goBack}>
           <Ionicons name="arrow-back" size={21} color="#26383E" />
-          <Text style={styles.title}>Change password</Text>
+          <Text style={styles.title}>{title}</Text>
         </Pressable>}
-        <Text style={styles.subtitle}>{mustChangePassword ? 'You must replace your temporary password before using the driver app.' : 'Choose a password you haven’t used before.'}</Text>
-        <Text style={styles.requirement}>{passwordRequirement}</Text>
+        <Text style={styles.subtitle}>
+          {step === 'current'
+            ? mustChangePassword ? 'Verify your temporary password to begin setup.' : 'Verify your identity to change your password.'
+            : step === 'otp' ? 'Enter the 6-digit code sent to your registered mobile number.' : 'Choose a secure password for your account.'}
+        </Text>
 
-        <PasswordField label="Current password" value={current} onChangeText={(value) => { setCurrent(value); setCurrentTouched(true); }} error={currentError} />
-        <PasswordField label="New password" value={next} onChangeText={(value) => { setNext(value); setNextTouched(true); }} error={nextError} />
-        <PasswordField label="Confirm new password" value={confirm} onChangeText={(value) => { setConfirm(value); setConfirmTouched(true); }} error={confirmError} />
-
-        {passwordsMatch ? (
-          <View style={styles.matchBanner}>
-            <Ionicons name="checkmark-done-outline" size={15} color="#164D2D" />
-            <Text style={styles.matchText}>Passwords match</Text>
-          </View>
-        ) : passwordsDiffer ? (
-          <View style={[styles.matchBanner, styles.mismatchBanner]}>
-            <Ionicons name="close-outline" size={15} color="#8C3E35" />
-            <Text style={[styles.matchText, styles.mismatchText]}>Passwords do not match</Text>
-          </View>
+        {step === 'current' ? (
+          <>
+            <PasswordField label="Current password" value={current} onChangeText={(value) => { setCurrent(value); setCurrentTouched(true); setError(''); }} error={currentError} />
+            <Pressable disabled={saving} onPress={() => void sendOtp()} style={[styles.save, saving && styles.saveDisabled]}>
+              <Text style={styles.saveText}>{saving ? 'Sending code…' : 'Send SMS code'}</Text>
+              {!saving ? <Ionicons name="chatbubble-ellipses-outline" size={19} color="#FFFFFF" /> : null}
+            </Pressable>
+          </>
         ) : null}
 
-        <Pressable disabled={saving} onPress={() => void save()} style={[styles.save, saving && styles.saveDisabled]}>
-          <Text style={styles.saveText}>{saving ? 'Updating…' : 'Update Password'}</Text>
-          {!saving ? <Ionicons name="arrow-forward" size={20} color="#FFFFFF" /> : null}
-        </Pressable>
+        {step === 'otp' ? (
+          <>
+            <View style={styles.otpRow}>
+              {otp.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(input) => { otpInputs.current[index] = input; }}
+                  value={digit}
+                  onChangeText={(value) => changeOtpDigit(index, value)}
+                  onKeyPress={({ nativeEvent }) => {
+                    if (nativeEvent.key === 'Backspace' && !otp[index] && index > 0) otpInputs.current[index - 1]?.focus();
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  selectTextOnFocus
+                  editable={!saving}
+                  accessibilityLabel={`SMS verification digit ${index + 1}`}
+                  style={styles.otpInput}
+                />
+              ))}
+            </View>
+            {saving ? <Text style={styles.otpStatus}>Verifying code…</Text> : null}
+            <Pressable disabled={saving} onPress={() => void sendOtp()} style={styles.resend}>
+              <Text style={styles.resendText}>Resend SMS code</Text>
+            </Pressable>
+          </>
+        ) : null}
+
+        {step === 'new-password' ? (
+          <>
+            <Text style={styles.requirement}>{passwordRequirement}</Text>
+            <PasswordField label="New password" value={next} onChangeText={(value) => { setNext(value); setNextTouched(true); setError(''); }} error={nextError} />
+            <PasswordField label="Confirm new password" value={confirm} onChangeText={(value) => { setConfirm(value); setConfirmTouched(true); setError(''); }} error={confirmError} />
+            {passwordsMatch ? (
+              <View style={styles.matchBanner}>
+                <Ionicons name="checkmark-done-outline" size={15} color="#164D2D" />
+                <Text style={styles.matchText}>Passwords match</Text>
+              </View>
+            ) : passwordsDiffer ? (
+              <View style={[styles.matchBanner, styles.mismatchBanner]}>
+                <Ionicons name="close-outline" size={15} color="#8C3E35" />
+                <Text style={[styles.matchText, styles.mismatchText]}>Passwords do not match</Text>
+              </View>
+            ) : null}
+            <Pressable disabled={saving} onPress={() => void save()} style={[styles.save, saving && styles.saveDisabled]}>
+              <Text style={styles.saveText}>{saving ? 'Updating…' : 'Update Password'}</Text>
+              {!saving ? <Ionicons name="arrow-forward" size={20} color="#FFFFFF" /> : null}
+            </Pressable>
+          </>
+        ) : null}
+        {error ? <Text accessibilityRole="alert" style={styles.fieldError}>{error}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -185,6 +293,11 @@ const styles = StyleSheet.create({
   matchText: { color: '#164D2D', fontSize: 9, fontWeight: '600' },
   mismatchBanner: { backgroundColor: '#F8D2C8' },
   mismatchText: { color: '#8C3E35' },
+  otpRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 7, marginTop: 4, marginBottom: 14 },
+  otpInput: { width: 40, height: 48, borderWidth: 1, borderColor: '#B9C5CE', borderRadius: 7, backgroundColor: '#FFFFFF', color: '#25343A', textAlign: 'center', fontSize: 20, fontWeight: '700' },
+  otpStatus: { marginBottom: 12, textAlign: 'center', color: '#52636A', fontSize: 11 },
+  resend: { alignSelf: 'center', paddingVertical: 10 },
+  resendText: { color: '#004C43', fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
   save: { minHeight: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 'auto', borderRadius: 6, backgroundColor: '#004C43' },
   saveDisabled: { opacity: 0.55 },
   saveText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', letterSpacing: 0.3 },

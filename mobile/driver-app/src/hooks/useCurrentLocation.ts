@@ -12,9 +12,6 @@ export interface DriverLocation {
     currently_inside?: boolean;
     status_changed?: boolean;
     vehicle_status?: string;
-    elapsed_seconds?: number;
-    remaining_seconds?: number;
-    dwell_threshold_seconds?: number;
     error?: string;
   };
 }

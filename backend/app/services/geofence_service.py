@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -7,8 +6,6 @@ from app.models.terminal import Terminal
 from app.models.vehicle import Vehicle
 from app.models.geofence_event import GeofenceEvent
 from app.enums import GeofenceEventType, VehicleActivityStatus
-
-DWELL_THRESHOLD_SECONDS = int(os.getenv("GEOFENCE_DWELL_THRESHOLD_SECONDS", 45))
 
 
 def is_inside_geofence(latitude: float, longitude: float, terminal: Terminal) -> bool:
@@ -33,9 +30,9 @@ def process_vehicle_position(
   db: Session, vehicle: Vehicle, latitude: float, longitude: float, terminal: Terminal
 ) -> dict:
   """Called on every position report while a vehicle is NOT on an active
-  trip. Detects geofence crossings and evaluates dwell time for the
-  active -> loading transition. Does not touch trips/GPS logs at all —
-  that's a separate concern handled once a trip actually starts."""
+  trip. Updates the idle vehicle's loading status immediately from its
+  current terminal-geofence position. Trip start independently validates a
+  fresh GPS fix so a previous loading status cannot authorize departure."""
 
   now = datetime.now(timezone.utc)
   currently_inside = is_inside_geofence(latitude, longitude, terminal)
@@ -45,26 +42,26 @@ def process_vehicle_position(
   result = {
     "currently_inside": currently_inside,
     "status_changed": False,
-    "dwell_threshold_seconds": DWELL_THRESHOLD_SECONDS,
   }
 
-  if currently_inside and not was_inside:
-    # Just crossed into the geofence — record the entry, don't act yet.
-    # The dwell threshold decides whether this becomes a real "loading"
-    # transition or just a pass-through/turnaround.
-    event = GeofenceEvent(
-      vehicle_id=vehicle.vehicle_id,
-      terminal_id=terminal.terminal_id,
-      event_type=GeofenceEventType.ENTER,
-      event_time=now,
-    )
-    db.add(event)
-    db.commit()
-    result["event"] = "entered"
+  if currently_inside:
+    if not was_inside:
+      db.add(GeofenceEvent(
+        vehicle_id=vehicle.vehicle_id,
+        terminal_id=terminal.terminal_id,
+        event_type=GeofenceEventType.ENTER,
+        event_time=now,
+      ))
+      result["event"] = "entered"
+    if vehicle.activity_status == VehicleActivityStatus.ACTIVE:
+      vehicle.activity_status = VehicleActivityStatus.LOADING
+      result["status_changed"] = True
+      result["event"] = result.get("event", "loading")
+    if db.new or db.dirty:
+      db.commit()
     return result
 
-  if not currently_inside and was_inside:
-    # Left the geofence before or after loading — either way, record exit.
+  if was_inside:
     event = GeofenceEvent(
       vehicle_id=vehicle.vehicle_id,
       terminal_id=terminal.terminal_id,
@@ -77,21 +74,5 @@ def process_vehicle_position(
     db.commit()
     result["event"] = "exited"
     return result
-
-  if currently_inside and was_inside:
-    # Still inside since the last recorded entry — check dwell duration.
-    entered_at = last_event.event_time
-    if entered_at.tzinfo is None:
-      entered_at = entered_at.replace(tzinfo=timezone.utc)
-
-    elapsed_seconds = (now - entered_at).total_seconds()
-    result["elapsed_seconds"] = elapsed_seconds
-    result["remaining_seconds"] = max(0, DWELL_THRESHOLD_SECONDS - elapsed_seconds)
-
-    if elapsed_seconds >= DWELL_THRESHOLD_SECONDS and vehicle.activity_status == VehicleActivityStatus.ACTIVE:
-      vehicle.activity_status = VehicleActivityStatus.LOADING
-      db.commit()
-      result["status_changed"] = True
-      result["event"] = "dwell_threshold_reached"
 
   return result

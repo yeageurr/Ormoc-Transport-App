@@ -29,8 +29,8 @@ def geofence_ping(
   """Detect terminal entry for the driver's linked vehicle before a trip.
 
   The app calls this periodically while the driver is not on an active trip.
-  The geofence controls the vehicle's active -> loading transition, which is
-  still required before an outgoing trip can start.
+  A position inside the terminal geofence immediately marks an idle vehicle
+  as loading. Outgoing-trip authorization checks a fresh GPS fix separately.
   """
 
   driver = get_driver_profile(db, current_driver)
